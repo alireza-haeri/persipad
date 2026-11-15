@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -13,10 +16,49 @@ import 'package:storypad/views/video_compression/video_compression_view.dart';
 class AppFilePickerService {
   static final ImagePicker _imagePicker = ImagePicker();
 
+  /// Extensions offered by the desktop file dialog, without leading dots (the
+  /// format `file_picker` expects).
+  ///
+  /// [videoExtensions] must stay in sync with [AssetFileTypeService]: a video
+  /// picked here has to be classified as a video downstream, otherwise it is
+  /// inserted as an image. `media_picker_extensions_test.dart` enforces that.
+  static const List<String> imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'];
+  static const List<String> videoExtensions = ['mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp', 'wmv', 'flv'];
+  static List<String> get mediaExtensions => [...imageExtensions, ...videoExtensions];
+
+  /// `image_picker` has a Linux implementation (`image_picker_linux`, built on
+  /// file_selector) but it only serves a single image: video and multi-select
+  /// return `UnimplementedError` there, so "record"/"select from photos" did
+  /// nothing on the desktop. `file_picker` is already a dependency and covers
+  /// every case, so the desktop routes use it directly.
+  static bool get _useFilePickerForMedia => !kIsWeb && (Platform.isLinux || Platform.isWindows);
+
+  /// Opens the OS file dialog. Mirrors the `FilePicker.pickFiles` usage already
+  /// proven in [pickJsonFile].
+  static Future<List<XFile>> _pickFilesFromDisk({
+    required List<String> allowedExtensions,
+    required bool allowMultiple,
+  }) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+      allowMultiple: allowMultiple,
+    );
+    return result.map((file) => file.xFile).toList();
+  }
+
   static Future<PickedMediaObject?> pickImage({
     required ImageSource source,
     required AssetCompressionOption compression,
   }) async {
+    if (_useFilePickerForMedia) {
+      // No camera on the desktop and no imageQuality pass either: the file is
+      // used as-is (video is the only media this app re-encodes itself).
+      final files = await _pickFilesFromDisk(allowedExtensions: imageExtensions, allowMultiple: false);
+      if (files.isEmpty) return null;
+      return PickedMediaObject.read(files.first);
+    }
+
     final image = await _imagePicker.pickImage(
       source: source,
       imageQuality: compression.imagePickerQuality,
@@ -42,6 +84,15 @@ class AppFilePickerService {
     required AssetCompressionOption compression,
   }) async {
     final rootContext = context.read<RootProvider>().navigatorKey.currentContext;
+
+    if (_useFilePickerForMedia) {
+      final files = await _pickFilesFromDisk(allowedExtensions: videoExtensions, allowMultiple: false);
+      if (files.isEmpty) return null;
+      // VideoCompressionService is a no-op on the desktop (kSupportVideoCompression),
+      // so this returns the original file — no extra copy, no progress screen.
+      return _compressAndRead(files.first, compression);
+    }
+
     final video = await _imagePicker.pickVideo(source: source);
     if (video == null) return null;
     if (rootContext == null || !rootContext.mounted) return _compressAndRead(video, compression);
@@ -74,6 +125,24 @@ class AppFilePickerService {
     required AssetCompressionOption compression,
   }) async {
     final rootContext = context.read<RootProvider>().navigatorKey.currentContext;
+
+    if (_useFilePickerForMedia) {
+      final picked = await _pickFilesFromDisk(allowedExtensions: mediaExtensions, allowMultiple: true);
+      if (picked.isEmpty) return [];
+      final videoCount = picked.where(AssetFileTypeService.isVideo).length;
+      if (videoCount == 0 || rootContext == null || !rootContext.mounted) {
+        return _readAll(picked);
+      }
+
+      final result = await VideoCompressionRoute.run<List<PickedMediaObject>>(
+        rootContext,
+        totalVideos: videoCount,
+        task: (progress) => _compressVideosAndRead(picked, compression, progress),
+      );
+
+      return result ?? await _readAll(picked);
+    }
+
     final files = await _imagePicker.pickMultipleMedia(imageQuality: compression.imagePickerQuality);
 
     // Skip the screen entirely for an all-images batch -- nothing to re-encode.
