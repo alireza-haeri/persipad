@@ -69,6 +69,12 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Format
+        # The agent sandbox has no Dart toolchain, so `dart format` output cannot be
+        # produced there — this branch is also the formatting oracle. bin/format is
+        # the project's own script (line length 120, generated files excluded).
+        run: bin/format || true
+
       - name: Publish to ci/codegen
         run: |
           git config user.name "codegen-bot"
@@ -79,6 +85,6 @@ jobs:
             echo "::notice::Generated code is already up to date with the pinned dependencies"
             exit 0
           fi
-          git commit -m "chore(codegen): regenerate with pinned dependencies"
+          git commit -m "chore(codegen): regenerate with pinned dependencies (+ format)"
           git push --force origin ci/codegen
           echo "::notice::Published to ci/codegen - fetch it and review the diff"
