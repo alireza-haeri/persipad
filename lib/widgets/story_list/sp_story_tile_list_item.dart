@@ -78,8 +78,9 @@ class SpStoryTileListItem extends StatelessWidget {
       //
       // Not a ternary: `cond ? map?[key] : null` is ambiguous to the parser (the
       // `?[` can read as a second `?`), so this is spelled out instead.
+      final Map<int, MonthRecapStatsObject>? recaps = monthlyStats;
       MonthRecapStatsObject? monthStats;
-      if (monthlyStats != null) monthStats = monthlyStats[monthKey.month];
+      if (recaps != null) monthStats = recaps[monthKey.month];
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
