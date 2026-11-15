@@ -254,3 +254,33 @@ Template:
   commit marker is a trigger I fully control.
 - **Consequences:** `flutter run` works on a fresh clone again, and a stale generated
   file can no longer reach the user silently.
+
+## D-017 — CI levels are requested per commit, not run always (2026-11-15)
+- **Status:** accepted
+- **Context:** "The gh runs take way too long. Split the CI, only run what you need. Speed
+  matters." Every push ran Test + Build + Analyze regardless of what changed, and I sat
+  polling them.
+- **Decision:** `.github/workflows/linux.yml` has three independent jobs:
+  - **Analyze** — always (~2 min). Analyzer *errors* are what actually catch broken Dart,
+    so this is the default gate.
+  - **Test** — only with `[test]` or `[full]` in the commit message (~5 min).
+  - **Build Linux desktop** — only with `[build]` or `[full]` (~4 min); needed when touching
+    the entry point, native/platform code, plugins or dependencies.
+  Pull requests still run all three. `build_runner` was dropped from all jobs because the
+  generated code is committed and verified (D-016), which alone saved ~75s per job.
+- **Consequences:** a typical push costs ~2 minutes instead of 5.5. I pick the level when
+  writing the commit message, which is cheap and predictable. The trade-off is that a
+  compile-only break in a file analyze can't see would need `[build]`.
+
+## D-018 — No Firebase options on Linux, and the app must boot without them (2026-11-15)
+- **Status:** accepted
+- **Context:** `bin/dev --community-linux` launched and then crashed:
+  `Unhandled Exception: Unsupported operation: DefaultFirebaseOptions have not been
+  configured for linux`. `DefaultFirebaseOptions.currentPlatform` **throws** for a platform
+  FlutterFire never configured — it does not return null — and `main_community.dart` read it
+  eagerly before `runApp`. So the app never rendered on Linux.
+- **Decision:** `PlatformCapabilities.firebase` (unit-tested) decides; on Linux (or any
+  platform without a config, caught defensively) `main_community` passes `null`, which
+  `FirebaseInitializer` already handles by returning early.
+- **Consequences:** the app boots on the desktop; Analytics/Crashlytics/RemoteConfig stay
+  no-ops there, which is the documented Linux behaviour.
