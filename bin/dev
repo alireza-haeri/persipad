@@ -48,10 +48,11 @@ assert_codegen_is_fresh() {
   local stamp="bin/.tmp/codegen.stamp"
 
   if [ ! -f "$stamp" ]; then
-    echo "X Generated code has not been built in this checkout."
-    echo "  Run: bin/setup_linux   (or: bin/build_runner --delete)"
-    echo "  Bypass once: SKIP_CODEGEN_CHECK=1 bin/dev ..."
-    exit 1
+    # No stamp yet: the committed generated code is shipped fresh (see the Codegen
+    # workflow), so this must not block a first run. Only a *mismatch* is fatal.
+    echo "note: no codegen stamp in this checkout - assuming the committed generated code is current."
+    echo "      If the build fails on a *.g.dart, run: bin/setup_linux"
+    return 0
   fi
 
   if [ "$(_pubspec_hash)" != "$(cat "$stamp")" ]; then
