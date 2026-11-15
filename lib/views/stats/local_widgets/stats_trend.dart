@@ -37,9 +37,13 @@ class _StatsTrend extends StatelessWidget {
     final List<({String label, int count})> bars = [
       for (int month = 1; month <= 12; month++)
         (
-          label: DateFormatHelper.MMM(
-            DateTime(range.anchor.year, month),
+          // Stats are still aggregated per Gregorian month (BACKLOG C-1f), so
+          // the label must stay Gregorian too — a Shamsi month name here would
+          // describe a different month than the bar is counting.
+          label: DateFormatHelper.gregorianMonthName(
+            month,
             context.locale,
+            short: true,
           ),
           count: totals[month - 1],
         ),

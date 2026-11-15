@@ -617,6 +617,45 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     }
   }
 
+  /// Matches stories whose own date (`year`/`month`/`day`, not a timestamp)
+  /// falls inside the inclusive range.
+  ///
+  /// ObjectBox has no tuple comparison, so a day range is expressed as an OR of
+  /// one condition per Gregorian month it touches — the days that fall inside,
+  /// listed with `oneOf`. A calendar year costs at most 13 conditions, a month
+  /// at most 2. This is what lets a Shamsi month (which straddles two Gregorian
+  /// months) be queried without changing how anything is stored.
+  Condition<StoryObjectBox> _dateRangeCondition(DateTime start, DateTime end) {
+    var from = DateTime(start.year, start.month, start.day);
+    var to = DateTime(end.year, end.month, end.day);
+    if (to.isBefore(from)) {
+      final swapped = from;
+      from = to;
+      to = swapped;
+    }
+
+    Condition<StoryObjectBox>? result;
+    var cursor = DateTime(from.year, from.month, 1);
+
+    while (!cursor.isAfter(to)) {
+      final daysInMonth = DateTime(cursor.year, cursor.month + 1, 0).day;
+      final firstDay = cursor.isBefore(from) ? from.day : 1;
+      final lastDayOfMonth = DateTime(cursor.year, cursor.month, daysInMonth);
+      final lastDay = lastDayOfMonth.isAfter(to) ? to.day : daysInMonth;
+
+      final condition = StoryObjectBox_.year
+          .equals(cursor.year)
+          .and(StoryObjectBox_.month.equals(cursor.month))
+          .and(StoryObjectBox_.day.oneOf([for (var day = firstDay; day <= lastDay; day++) day]));
+
+      result = result == null ? condition : result.or(condition);
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+
+    // An empty range must match nothing; `id.equals(-1)` is never true.
+    return result ?? StoryObjectBox_.id.equals(-1);
+  }
+
   @override
   QueryBuilder<StoryObjectBox> buildQuery({
     Map<String, dynamic>? filters,
@@ -643,6 +682,7 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     bool priority = filters?["priority"] == true;
     List<int>? selectedYears = filters?["selected_years"];
     List<int>? yearsRange = filters?["years_range"];
+    List<DateTime>? dateRange = filters?["date_range"];
 
     Condition<StoryObjectBox> conditions = StoryObjectBox_.id.notNull();
 
@@ -678,6 +718,9 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     if (year != null) conditions = conditions.and(StoryObjectBox_.year.equals(year));
     if (years != null) conditions = conditions.and(StoryObjectBox_.year.oneOf(years));
     if (excludeYears != null) conditions = conditions.and(StoryObjectBox_.year.notOneOf(excludeYears));
+    if (dateRange != null && dateRange.length == 2) {
+      conditions = conditions.and(_dateRangeCondition(dateRange[0], dateRange[1]));
+    }
     if (month != null) conditions = conditions.and(StoryObjectBox_.month.equals(month));
     if (day != null) conditions = conditions.and(StoryObjectBox_.day.equals(day));
     if (createdYear != null) {

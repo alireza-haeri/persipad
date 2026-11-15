@@ -48,9 +48,11 @@ class _StatsContent extends StatelessWidget {
             Tab(text: tr('general.all')),
             for (int month = 1; month <= 12; month++)
               Tab(
-                text: DateFormatHelper.MMM(
-                  DateTime(year, month),
+                // Aggregated by Gregorian month — see the note in stats_trend.
+                text: DateFormatHelper.gregorianMonthName(
+                  month,
                   context.locale,
+                  short: true,
                 ),
               ),
           ],

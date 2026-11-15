@@ -15,6 +15,7 @@ class ThemeInitializer {
     final preferences = DevicePreferencesStorage.appInstance.preferences;
 
     CalendarConfig.apply(
+      system: preferences.calendarSystem,
       firstDayOfWeek: preferences.firstDayOfWeek,
       weekendDays: preferences.weekendDays,
     );

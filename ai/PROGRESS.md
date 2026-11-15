@@ -59,9 +59,13 @@
       have no `Provider` (the calendar grid), filled before the first frame.
 - [x] **Shamsi (Solar Hijri) conversion engine** (`PersianCalendar`, hand-written because pub.dev
       is unreachable) with known-vector, leap-year and 45-year day-by-day round-trip tests.
-- [ ] **Shamsi as the displayed calendar** — the remaining surfaces are listed in `BACKLOG.md`
-      C-1a…C-1e; they have to switch together, otherwise a Jalali header would sit on top of a
-      Gregorian grid.
+- [x] **Shamsi as the displayed calendar (reading flow)** — a `calendarSystem` preference plus
+      `CalendarDisplay` (D-025): storage and queries stay Gregorian, the story list groups by the
+      displayed month, month chips/monogram days/full dates render in Shamsi, and a Shamsi year or
+      month is converted back into an exact Gregorian day range (`date_range` DB filter) before
+      querying.
+- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1): mood/period calendar grid, date pickers,
+      search date filters, stats aggregation.
 - [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux

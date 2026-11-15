@@ -57,7 +57,7 @@ class _StoryTileMonogram extends StatelessWidget {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              story.displayPathDate.day.toString(),
+              CalendarDisplay.dayOf(story.displayPathDate).toString(),
               style: TextTheme.of(context).bodyMedium?.copyWith(color: ColorScheme.of(context).onPrimary),
             ),
           ),

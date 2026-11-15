@@ -439,3 +439,45 @@ Template:
 - **Consequences:** every calendar surface now respects the user's week; no data migration (both
   fields are additive JSON keys); a user who never opens the new setting sees exactly the old
   behaviour.
+
+## D-025 — The calendar is a *display* layer: storage and queries stay Gregorian (2026-11-15)
+- **Status:** accepted
+- **Context:** "I want to use the Shamsi calendar entirely — bring months in Shamsi, group
+  by them, search by them, show the calendar by Shamsi day," together with the user's own
+  suggested design: store/query in Gregorian, convert only for display and convert the user's
+  Shamsi input back before querying.
+- **Decision (the rule everything else follows):**
+  1. **Nothing is migrated.** Every `DateTime`, every `year`/`month`/`day` column, every export
+     and every backup stays Gregorian. Switching calendar can never corrupt or rewrite data, and
+     switching back is lossless.
+  2. **One read direction and one write direction**, both in
+     `lib/core/services/calendar/calendar_display.dart`: `yearOf/monthOf/dayOf/monthKeyOf` for
+     rendering, `dateOf/rangeOfMonth/rangeOfYear` to turn a displayed month or year back into the
+     exact Gregorian day range to query.
+  3. `DateFormatHelper` keeps its signatures and switches to Solar Hijri internally when the
+     preference is set, so ~40 call sites needed no change. Persian **month** names are the only
+     calendar-specific words (weekday names are identical in both calendars and keep coming from
+     `intl`); digits become Persian only when the app language is Persian, so an English UI reads
+     `1404/8/24` instead of mixing numerals.
+  4. **No more synthetic dates.** `DateTime(2000, month)` was used to obtain a month name; that
+     silently breaks in another calendar (month 8 of 2000 ≠ month 8 of a Jalali year). Those call
+     sites now use `DateFormatHelper.monthName(month, …)`, and surfaces that must stay Gregorian
+     (stats, recap) use the explicit `gregorianMonthName`/`yMMMMGregorian`, so nothing can be
+     mislabelled.
+  5. **Grouping** uses `CalendarDisplay.monthKeyOf(story.displayPathDate)` instead of
+     `story.year`/`story.month` (a Shamsi month straddles two Gregorian months — 1 Azar 1405 is
+     22 Nov 2026, mid Gregorian November).
+  6. **Querying a Shamsi year/month** needed a day range, which ObjectBox cannot express as a
+     tuple. `stories_box` gained a `date_range` filter that expands the range into one condition
+     per Gregorian month (days listed with `oneOf`, OR-ed; ≤13 conditions for a year). The home
+     page keeps its `years` filter as an index hint and adds `date_range` for exactness.
+  7. Per-shown-month **recap stats** are skipped in Shamsi mode: they are aggregated per Gregorian
+     month, and showing them under a Shamsi header would attach numbers to the wrong month. The
+     year picker regroups Gregorian per-year counts approximately (documented in code).
+- **Not converted in this slice** (`ai/BACKLOG.md` C-1): the mood/period calendar grid and its
+  header, the Material date pickers, search date filters, and the stats screens — each is blocked
+  on data that is currently fetched/aggregated per Gregorian month, and converting a label without
+  converting its numbers is worse than leaving both consistent.
+- **Consequences:** the feature is safe to ship half-way (both modes are always self-consistent),
+  a third calendar would only need `CalendarDisplay` + a `DateFormatHelper` branch, and the
+  database format is untouched — an old build opening the same data sees exactly what it expects.

@@ -52,6 +52,23 @@ class PersianCalendar {
     'اسفند',
   ];
 
+  /// Abbreviated month names, for chips and column headers where the full name
+  /// does not fit.
+  static const List<String> monthShortNames = [
+    'فرو',
+    'ارد',
+    'خرد',
+    'تیر',
+    'مرد',
+    'شهر',
+    'مهر',
+    'آبا',
+    'آذر',
+    'دی',
+    'بهم',
+    'اسف',
+  ];
+
   /// Indexed the Persian way: 0 = Saturday … 6 = Friday.
   static const List<String> weekdayNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
 
@@ -164,6 +181,8 @@ class PersianCalendar {
   static String weekdayShortName(DateTime date) => weekdayShortNames[weekdayIndexOf(date)];
 
   static String monthName(int month) => monthNames[(month - 1).clamp(0, 11)];
+
+  static String monthShortName(int month) => monthShortNames[(month - 1).clamp(0, 11)];
 
   /// Formats a date as `۱۴۰۵/۸/۲۴` (or `1405/8/24`), zero-padding nothing —
   /// this is the terse form used where space is tight.

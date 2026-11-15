@@ -7,6 +7,7 @@ import 'package:storypad/core/objects/default_story_preferences_object.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
 import 'package:storypad/core/objects/story_tile_preferences_object.dart';
 import 'package:storypad/core/types/asset_compression_option.dart';
+import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 import 'package:storypad/core/types/font_size_option.dart';
 import 'package:storypad/core/types/media_sync_option.dart';
@@ -33,6 +34,10 @@ class DevicePreferencesObject {
   final bool videoMuted;
   final TimeFormatOption? timeFormat;
   final FirstDayOfWeekOption firstDayOfWeek;
+
+  /// Which calendar the app shows (Gregorian or Solar Hijri). Storage stays
+  /// Gregorian; this only affects rendering — see `CalendarDisplay` and D-025.
+  final CalendarSystemOption calendarSystem;
 
   /// Weekdays the user treats as weekend / non-working days, as `DateTime`
   /// weekday numbers (Monday = 1 … Sunday = 7). `null` means "never configured"
@@ -82,6 +87,7 @@ class DevicePreferencesObject {
     ThemeMode? themeMode,
     this.timeFormat,
     FirstDayOfWeekOption? firstDayOfWeek,
+    CalendarSystemOption? calendarSystem,
     this.weekendDays,
     AssetCompressionOption? assetCompression,
     MediaSyncOption? mediaSync,
@@ -99,6 +105,7 @@ class DevicePreferencesObject {
   }) : fontFamily = fontFamily ?? kDefaultFontFamily,
        themeMode = themeMode ?? ThemeMode.system,
        firstDayOfWeek = firstDayOfWeek ?? FirstDayOfWeekOption.defaultValue,
+       calendarSystem = calendarSystem ?? CalendarSystemOption.defaultValue,
        assetCompression = assetCompression ?? AssetCompressionOption.defaultValue,
        mediaSync = mediaSync ?? MediaSyncOption.defaultValue,
        voicePlaybackSpeed = voicePlaybackSpeed ?? 1.0,

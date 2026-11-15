@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/widgets/story_list/sp_story_tile.dart';
 
 class StoryMonthHeader extends StatelessWidget {
@@ -38,7 +39,8 @@ class StoryMonthHeader extends StatelessWidget {
             ),
             const SizedBox(width: 7.0),
             Text(
-              story.year.toString(),
+              // Display calendar: 1404 in Shamsi mode, 2025 in Gregorian.
+              CalendarDisplay.yearOf(story.displayPathDate).toString(),
               style: TextTheme.of(
                 context,
               ).labelSmall?.copyWith(color: ColorScheme.of(context).onSurface.withValues(alpha: 0.5)),
@@ -72,7 +74,11 @@ class _MonthChip extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            DateFormatHelper.MMM(DateTime(2000, story.month), context.locale),
+            DateFormatHelper.monthName(
+              CalendarDisplay.monthOf(story.displayPathDate),
+              context.locale,
+              short: true,
+            ),
             style: TextTheme.of(context).labelSmall,
           ),
         ),

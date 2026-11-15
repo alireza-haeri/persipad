@@ -329,8 +329,14 @@ class StoryDbModel extends BaseDbModel {
     );
   }
 
-  factory StoryDbModel.startYearStory(int year) {
-    StoryDbModel initialStory = StoryDbModel.fromDate(DateTime(year, 1, 1));
+  /// Creates the "let's begin" story for a year.
+  ///
+  /// [date] overrides which day the story is dated to. It exists because the
+  /// year label is a *display* year: in Shamsi mode "1404" starts on 21 March
+  /// 2025, and dating the story to 1 January 2025 would place it outside the
+  /// year the user just opened.
+  factory StoryDbModel.startYearStory(int year, {DateTime? date}) {
+    StoryDbModel initialStory = StoryDbModel.fromDate(date ?? DateTime(year, 1, 1));
     String body =
         "This is your personal space for $year. Add your stories, thoughts, dreams, or memories and make it uniquely yours.\n";
     initialStory = initialStory.copyWith(

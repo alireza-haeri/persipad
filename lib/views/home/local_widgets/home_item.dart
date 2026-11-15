@@ -63,7 +63,9 @@ final class HomeMonthHeaderItem extends HomeItem {
   HomeMonthHeaderItem({required this.story, required this.isFirstOfRun, required this.pinned});
 
   @override
-  GlobalKey get key => _HomeValueKey(('header', pinned, story.year, story.month));
+  GlobalKey get key => _HomeValueKey(
+    ('header', pinned, CalendarDisplay.yearOf(story.displayPathDate), CalendarDisplay.monthOf(story.displayPathDate)),
+  );
 
   @override
   int? get storyId => null;
@@ -86,7 +88,9 @@ final class HomeMonthRecapItem extends HomeItem {
 
   // Recap tiles only ever appear in the unpinned run.
   @override
-  GlobalKey get key => _HomeValueKey(('recap', story.year, story.month));
+  GlobalKey get key => _HomeValueKey(
+    ('recap', CalendarDisplay.yearOf(story.displayPathDate), CalendarDisplay.monthOf(story.displayPathDate)),
+  );
 
   @override
   int? get storyId => null;

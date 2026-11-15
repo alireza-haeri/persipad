@@ -61,7 +61,7 @@ class _HomeTabBar extends StatelessWidget {
     return Container(
       height: viewModel.scrollInfo.appBar(context).indicatorHeight - 2,
       alignment: Alignment.center,
-      child: Text(DateFormatHelper.MMM(DateTime(2000, month), context.locale)),
+      child: Text(DateFormatHelper.monthName(month, context.locale, short: true)),
     );
   }
 

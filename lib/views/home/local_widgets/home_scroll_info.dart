@@ -55,7 +55,7 @@ class _HomeScrollInfo {
       double? itemPosition = renderBox?.localToGlobal(Offset(0.0, scrollOffset)).dy;
 
       if (itemPosition != null && itemPosition > scrollOffset + 48) {
-        int monthIndex = months.indexWhere((e) => e == item.story.month);
+        int monthIndex = months.indexWhere((e) => e == CalendarDisplay.monthOf(item.story.displayPathDate));
         DefaultTabController.of(context).animateTo(monthIndex);
         break;
       }
@@ -89,7 +89,7 @@ class _HomeScrollInfo {
     scrollingToStoryIdNotifier.value = targetStoryId;
     await moveToItemIndex(targetIndex);
 
-    int monthIndex = months.indexWhere((e) => e == story.month);
+    int monthIndex = months.indexWhere((e) => e == CalendarDisplay.monthOf(story.displayPathDate));
     final targetTabIndex = item is HomePinnedStoryItem ? 0 : monthIndex;
 
     // for pinned, month tab should be first tab (0); -1 means [months]
@@ -117,9 +117,13 @@ class _HomeScrollInfo {
     // over its first story tile, so tapping a month tab lands on the
     // recap summary rather than scrolling past it.
     int findTargetIndex() {
-      final recapIndex = items.indexWhere((item) => item is HomeMonthRecapItem && item.story.month == targetMonth);
+      final recapIndex = items.indexWhere(
+        (item) => item is HomeMonthRecapItem && CalendarDisplay.monthOf(item.story.displayPathDate) == targetMonth,
+      );
       if (recapIndex != -1) return recapIndex;
-      return items.indexWhere((item) => item is HomeStoryItem && item.story.month == targetMonth);
+      return items.indexWhere(
+        (item) => item is HomeStoryItem && CalendarDisplay.monthOf(item.story.displayPathDate) == targetMonth,
+      );
     }
 
     int targetIndex = findTargetIndex();

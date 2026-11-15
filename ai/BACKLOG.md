@@ -32,12 +32,14 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 
 | # | Item | Why |
 |---|---|---|
-| C-1 | `🔜` Shamsi (Solar Hijri) as the **displayed** calendar | Engine is done and tested (`lib/core/services/calendar/persian_calendar.dart`); what is left is switching the surfaces, which must happen together or not at all |
-| C-1a | Story list grouping + month chip + monogram day (`home_view_model._buildRunItems`, `story_month_header`, `story_tile_monogram`) | Groups are keyed on Gregorian `story.year`/`story.month`; a Jalali month straddles two Gregorian months |
-| C-1b | "Months with stories" tab bar (`home_view_model.months`, DB-backed) | Comes from a `month`/`year` query; needs a date-range query or 12 fixed Jalali tabs |
-| C-1c | Full dates in the story view, search date filters, stats labels/trends, month pickers | Each one formats a real `DateTime` (safe) or a synthetic `DateTime(2000, month)` (must be replaced by a month-name helper first) |
-| C-1d | Mood/period calendars paging through Jalali months | Their data is fetched per Gregorian month; needs the same date-range query |
-| C-1e | Settings tile for the calendar system (`CalendarSystemOption {gregorian, persian}`) | Only makes sense together with C-1a…d; a toggle that changes nothing is worse than no toggle |
+| C-1 | `✅` Shamsi (Solar Hijri) as the **displayed** calendar — reading flow | Storage/query stay Gregorian, display converts; see D-025 |
+| C-1a | `✅` Story list grouping + month chip + monogram day | Grouped by `CalendarDisplay.monthKeyOf`, so Azar 1405 starts a new header mid-November |
+| C-1b | `✅` "Months with stories" tab bar | Derived from the loaded stories in Shamsi mode (all pages are prefetched) |
+| C-1c | `✅` Full dates + home year scope | `DateFormatHelper` switches internally; a Shamsi year becomes a `date_range` query |
+| C-1d | `🔜` Mood/period calendars paging through Shamsi months | Grid + header + feelings query still Gregorian; the header is explicitly Gregorian so it cannot lie |
+| C-1e | `✅` Settings tile (calendar system) | Settings → Region → Calendar System |
+| C-1f | `🔜` Search date filters + Material date pickers in Shamsi | Both still hand the user Gregorian months/days; the pickers need a custom calendar delegate |
+| C-1g | `🔜` Stats aggregation per Shamsi month/year | Bars are counted per Gregorian month; labels stay Gregorian until the counting moves |
 
 ## 1. Product features (candidates)
 

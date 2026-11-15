@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/objects/month_recap_stats_object.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/widgets/story_list/local_widgets/story_month_header.dart';
 import 'package:storypad/widgets/story_list/local_widgets/story_month_recap_tile.dart';
@@ -61,8 +62,18 @@ class SpStoryTileListItem extends StatelessWidget {
       );
     }
 
-    if (previousStory?.month != story.month || previousStory?.year != story.year) {
-      final MonthRecapStatsObject? monthStats = monthlyStats?[story.month];
+    // Grouping key in the *display* calendar: a Shamsi month does not line up
+    // with Gregorian `story.month`, so comparing those would print a new header
+    // mid-month (or hide a real one).
+    final monthKey = CalendarDisplay.monthKeyOf(story.displayPathDate);
+    final previousMonthKey = previousStory == null
+        ? null
+        : CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
+
+    if (previousMonthKey != monthKey) {
+      // Recaps are aggregated per Gregorian month, so they are skipped in Shamsi
+      // mode instead of being attached to the wrong header.
+      final MonthRecapStatsObject? monthStats = CalendarDisplay.isPersian ? null : monthlyStats?[story.month];
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

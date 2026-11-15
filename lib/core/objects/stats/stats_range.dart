@@ -91,10 +91,13 @@ class StatsRange {
   /// Human label for the selected window, e.g. "June 2026", "2026".
   String label(Locale locale) {
     switch (type) {
+      // Stats are still aggregated per Gregorian month/year (BACKLOG C-1f), so
+      // these labels stay Gregorian too — a Shamsi label would name a range the
+      // numbers do not cover.
       case StatsRangeType.month:
-        return DateFormatHelper.yMMMM(start, locale);
+        return DateFormatHelper.yMMMMGregorian(start, locale);
       case StatsRangeType.year:
-        return DateFormatHelper.y(start, locale);
+        return DateFormatHelper.gregorianYear(start, locale);
     }
   }
 

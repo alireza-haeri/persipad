@@ -14,6 +14,7 @@ import 'package:storypad/core/services/notifications/local_notification_service.
 import 'package:storypad/core/types/reminder_type.dart';
 import 'package:storypad/core/services/app_quick_actions_service.dart';
 import 'package:storypad/core/types/asset_compression_option.dart';
+import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 import 'package:storypad/core/types/media_sync_option.dart';
 import 'package:storypad/core/services/analytics/analytics_user_propery_service.dart';
@@ -195,6 +196,18 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
   /// Weekend / non-working days as `DateTime` weekday numbers. Falls back to
   /// the default pair when the user never chose (see [CalendarConfig]).
   List<int> get weekendDays => CalendarConfig.normalizeWeekendDays(preferences.weekendDays);
+
+  /// The calendar the app shows. Storage is Gregorian regardless (D-025).
+  CalendarSystemOption get calendarSystem => preferences.calendarSystem;
+
+  void setCalendarSystem(CalendarSystemOption value) {
+    if (preferences.calendarSystem == value) return;
+
+    _preferences = _preferences.copyWith(calendarSystem: value);
+    CalendarConfig.apply(system: value);
+    storage.writeObject(_preferences);
+    notifyListeners();
+  }
 
   void setFirstDayOfWeek(FirstDayOfWeekOption value) {
     _preferences = _preferences.copyWith(firstDayOfWeek: value);

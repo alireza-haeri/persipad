@@ -25,6 +25,8 @@ abstract class _$DevicePreferencesObjectCWProxy {
 
   DevicePreferencesObject firstDayOfWeek(FirstDayOfWeekOption? firstDayOfWeek);
 
+  DevicePreferencesObject calendarSystem(CalendarSystemOption? calendarSystem);
+
   DevicePreferencesObject weekendDays(List<int>? weekendDays);
 
   DevicePreferencesObject assetCompression(
@@ -80,6 +82,7 @@ abstract class _$DevicePreferencesObjectCWProxy {
     ThemeMode? themeMode,
     TimeFormatOption? timeFormat,
     FirstDayOfWeekOption? firstDayOfWeek,
+    CalendarSystemOption? calendarSystem,
     List<int>? weekendDays,
     AssetCompressionOption? assetCompression,
     MediaSyncOption? mediaSync,
@@ -141,6 +144,11 @@ class _$DevicePreferencesObjectCWProxyImpl
   DevicePreferencesObject firstDayOfWeek(
     FirstDayOfWeekOption? firstDayOfWeek,
   ) => call(firstDayOfWeek: firstDayOfWeek);
+
+  @override
+  DevicePreferencesObject calendarSystem(
+    CalendarSystemOption? calendarSystem,
+  ) => call(calendarSystem: calendarSystem);
 
   @override
   DevicePreferencesObject weekendDays(List<int>? weekendDays) =>
@@ -221,6 +229,7 @@ class _$DevicePreferencesObjectCWProxyImpl
     Object? themeMode = const $CopyWithPlaceholder(),
     Object? timeFormat = const $CopyWithPlaceholder(),
     Object? firstDayOfWeek = const $CopyWithPlaceholder(),
+    Object? calendarSystem = const $CopyWithPlaceholder(),
     Object? weekendDays = const $CopyWithPlaceholder(),
     Object? assetCompression = const $CopyWithPlaceholder(),
     Object? mediaSync = const $CopyWithPlaceholder(),
@@ -273,6 +282,10 @@ class _$DevicePreferencesObjectCWProxyImpl
           ? _value.firstDayOfWeek
           // ignore: cast_nullable_to_non_nullable
           : firstDayOfWeek as FirstDayOfWeekOption?,
+      calendarSystem: calendarSystem == const $CopyWithPlaceholder()
+          ? _value.calendarSystem
+          // ignore: cast_nullable_to_non_nullable
+          : calendarSystem as CalendarSystemOption?,
       weekendDays: weekendDays == const $CopyWithPlaceholder()
           ? _value.weekendDays
           // ignore: cast_nullable_to_non_nullable
@@ -366,6 +379,10 @@ DevicePreferencesObject _$DevicePreferencesObjectFromJson(
     _$FirstDayOfWeekOptionEnumMap,
     json['first_day_of_week'],
   ),
+  calendarSystem: $enumDecodeNullable(
+    _$CalendarSystemOptionEnumMap,
+    json['calendar_system'],
+  ),
   weekendDays: (json['weekend_days'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
@@ -418,6 +435,7 @@ Map<String, dynamic> _$DevicePreferencesObjectToJson(
   'video_muted': instance.videoMuted,
   'time_format': _$TimeFormatOptionEnumMap[instance.timeFormat],
   'first_day_of_week': _$FirstDayOfWeekOptionEnumMap[instance.firstDayOfWeek]!,
+  'calendar_system': _$CalendarSystemOptionEnumMap[instance.calendarSystem]!,
   'weekend_days': instance.weekendDays,
   'asset_compression':
       _$AssetCompressionOptionEnumMap[instance.assetCompression]!,
@@ -451,6 +469,11 @@ const _$ThemeModeEnumMap = {
 const _$TimeFormatOptionEnumMap = {
   TimeFormatOption.h12: 'h12',
   TimeFormatOption.h24: 'h24',
+};
+
+const _$CalendarSystemOptionEnumMap = {
+  CalendarSystemOption.gregorian: 'gregorian',
+  CalendarSystemOption.persian: 'persian',
 };
 
 const _$FirstDayOfWeekOptionEnumMap = {

@@ -16,6 +16,7 @@ import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/providers/backup_provider.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/assets/app_file_picker_service.dart';
 import 'package:storypad/core/services/assets/insert_file_to_db_service.dart';
@@ -47,7 +48,10 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     BackupProvider.repoInstance.restoreService.addListener(_restoreServiceListener);
   }
 
-  int year = DateTime.now().year;
+  /// The *display* year (1404 in Shamsi mode, 2025 in Gregorian). Storage stays
+  /// Gregorian; `CalendarDisplay` converts whenever a date is rendered or a
+  /// query is built.
+  int year = CalendarDisplay.yearOf(DateTime.now());
 
   List<DateTime>? _throwbackDates;
   List<DateTime>? get throwbackDates => _throwbackDates;
@@ -91,7 +95,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
   /// changing what pagination has actually confirmed, so inferring
   /// completeness from "last in the merged list" can hide the wrong month
   /// or reveal an actually-incomplete one. Null once nothing is pending.
-  (int year, int month)? _pendingBoundaryMonth;
+  ({int year, int month})? _pendingBoundaryMonth;
 
   /// Distinct months (1-12) with at least one *docs*-type story in [year] —
   /// matches exactly what [_buildRunItems] ever renders (archived/binned
@@ -131,10 +135,27 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     StoryContentEmbedExtractor.preloadAssetAspectRatios([...?stories?.items, ...?pinnedStories?.items]);
 
-    _refreshMonthsForYear();
-
     final renderableStories = _confirmedCompleteUnpinnedStories(stories?.items ?? []);
-    _monthlyStats = MonthlyStoryStatsService.getByMonth(stories: renderableStories);
+
+    if (CalendarDisplay.isPersian) {
+      // A Shamsi month straddles two Gregorian months, so the DB's per-Gregorian
+      // month aggregates cannot answer "which months have stories": derive it
+      // from the stories themselves (all pages are prefetched right after the
+      // first one).
+      _monthsForYear = renderableStories
+          .map((story) => CalendarDisplay.monthOf(story.displayPathDate))
+          .toSet()
+          .toList()
+        ..sort();
+    } else {
+      _refreshMonthsForYear();
+    }
+
+    // Month recap stats are aggregated per *Gregorian* month, so they are
+    // skipped in Shamsi mode rather than labelled with the wrong month.
+    _monthlyStats = CalendarDisplay.isPersian
+        ? {}
+        : MonthlyStoryStatsService.getByMonth(stories: renderableStories);
     _items = _buildItems(renderableStories);
   }
 
@@ -150,7 +171,9 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     final boundary = _pendingBoundaryMonth;
     if (boundary == null) return allUnpinnedStories;
 
-    return allUnpinnedStories.where((story) => (story.year, story.month) != boundary).toList();
+    return allUnpinnedStories
+        .where((story) => CalendarDisplay.monthKeyOf(story.displayPathDate) != boundary)
+        .toList();
   }
 
   List<HomeItem> _buildItems(List<StoryDbModel> renderableStories) {
@@ -190,10 +213,13 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
       final showFullTimelineDivider = next != null;
       final showMonogram = previous == null || !previous.sameDayAs(story);
 
-      if (previous?.month != story.month || previous?.year != story.year) {
+      final monthKey = CalendarDisplay.monthKeyOf(story.displayPathDate);
+      final previousMonthKey = previous == null ? null : CalendarDisplay.monthKeyOf(previous.displayPathDate);
+
+      if (previousMonthKey != monthKey) {
         result.add(HomeMonthHeaderItem(story: story, isFirstOfRun: i == 0, pinned: pinned));
 
-        final monthStats = monthlyStats?[story.month];
+        final monthStats = monthlyStats?[monthKey.month];
         if (monthStats != null && monthStats.shouldShowRecap) {
           result.add(
             HomeMonthRecapItem(
@@ -223,7 +249,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     return result;
   }
 
-  List<int> get months => _monthsForYear.isNotEmpty ? _monthsForYear : [DateTime.now().month];
+  List<int> get months => _monthsForYear.isNotEmpty ? _monthsForYear : [CalendarDisplay.monthOf(DateTime.now())];
 
   /// Re-derives [_monthsForYear] from the DB. Called unconditionally from
   /// [setStories] — cheap (no content decode), so simpler to always keep it
@@ -251,12 +277,14 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     _pendingBoundaryMonth = null;
 
     final pinnedStories = await StoryDbModel.db.where(
-      filters: SearchFilterObject(
-        years: {year},
-        types: {PathType.docs},
-        pinned: true,
-        assetId: null,
-      ).toDatabaseFilter(),
+      filters: _withDisplayYear(
+        SearchFilterObject(
+          years: {year},
+          types: {PathType.docs},
+          pinned: true,
+          assetId: null,
+        ),
+      ),
     );
 
     _pinnedStories = pinnedStories?.deduplicateAndSort(
@@ -341,14 +369,16 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     AppLogger.d('🚧 $runtimeType#loadNextPage fetching offset: $offset, limit: $_pageSize, year: $year');
 
     final nextPage = await StoryDbModel.db.where(
-      filters: SearchFilterObject(
-        years: {year},
-        types: {PathType.docs},
-        pinned: false,
-        assetId: null,
-        limit: _pageSize,
-        offset: offset,
-      ).toDatabaseFilter(),
+      filters: _withDisplayYear(
+        SearchFilterObject(
+          years: {year},
+          types: {PathType.docs},
+          pinned: false,
+          assetId: null,
+          limit: _pageSize,
+          offset: offset,
+        ),
+      ),
     );
 
     if (generation != _loadGeneration) {
@@ -362,7 +392,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     _hasMoreStories = (nextPage?.items.length ?? 0) == _pageSize;
     _pendingBoundaryMonth = _hasMoreStories && nextPage!.items.isNotEmpty
-        ? (nextPage.items.last.year, nextPage.items.last.month)
+        ? CalendarDisplay.monthKeyOf(nextPage.items.last.displayPathDate)
         : null;
     AppLogger.d(
       '🚧 $runtimeType#loadNextPage loaded ${nextPage?.items.length ?? 0} more stories '
@@ -380,6 +410,24 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     await reload(debugSource: '$runtimeType#refresh');
   }
 
+  /// Narrows a home query to the *display* year currently shown.
+  ///
+  /// In Gregorian mode the plain `years` filter already is that year. In Shamsi
+  /// mode `year` is a Jalali year, which starts around 21 March and therefore
+  /// spans two Gregorian years: the `years` filter only bounds the index scan,
+  /// and `date_range` carries the real day range so stories from the
+  /// neighbouring months cannot leak into the list.
+  Map<String, dynamic> _withDisplayYear(SearchFilterObject filter) {
+    final filters = filter.toDatabaseFilter() ?? <String, dynamic>{};
+    if (!CalendarDisplay.isPersian) return filters;
+
+    final range = CalendarDisplay.rangeOfYear(year);
+    filters['years'] = CalendarDisplay.gregorianYearsOfYear(year);
+    filters['date_range'] = [range.start, range.end];
+
+    return filters;
+  }
+
   Future<void> changeYear(int newYear) async {
     if (year == newYear) return;
 
@@ -395,7 +443,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     final editedStory = await ShowStoryRoute(id: story.id, story: story).push(context);
 
     if (editedStory is StoryDbModel && editedStory.updatedAt != story.updatedAt) {
-      year = editedStory.year;
+      year = CalendarDisplay.yearOf(editedStory.displayPathDate);
       await reload(debugSource: '$runtimeType#goToNewPage');
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -407,7 +455,8 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
   Future<void> goToNewPage(BuildContext context) async {
     final addedStory = await EditStoryRoute(
       id: null,
-      initialYear: year,
+      // The edit screen works in Gregorian dates like the rest of storage.
+      initialYear: CalendarDisplay.isPersian ? CalendarDisplay.firstDayOfYear(year).year : year,
     ).push(context);
     await _checkNewStoryResult(addedStory);
   }
@@ -596,7 +645,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   Future<void> _checkNewStoryResult(Object? addedStory) async {
     if (stories != null && addedStory is StoryDbModel) {
-      if (year == addedStory.year) {
+      if (year == CalendarDisplay.yearOf(addedStory.displayPathDate)) {
         // setStories will automatically sort the stories by displayPathDate
         // Check existence before adding to prevent duplicates
         if (addedStory.pinned == true) {
@@ -625,7 +674,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
         await MessengerService.of(HomeView.homeContext!).showLoading(
           debugSource: '$runtimeType#_checkNewStoryResult',
           future: () async {
-            year = addedStory.year;
+            year = CalendarDisplay.yearOf(addedStory.displayPathDate);
             await reload(debugSource: '$runtimeType#_checkNewStoryResult');
           },
         );

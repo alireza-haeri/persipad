@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 
 /// Snapshot of the calendar-related device preferences that widgets need while
@@ -26,8 +27,15 @@ class CalendarConfig {
 
   static FirstDayOfWeekOption _firstDayOfWeek = FirstDayOfWeekOption.defaultValue;
   static List<int> _weekendDays = defaultWeekendDays;
+  static CalendarSystemOption _system = CalendarSystemOption.defaultValue;
 
   static FirstDayOfWeekOption get firstDayOfWeek => _firstDayOfWeek;
+
+  /// The calendar the app *shows* (Gregorian or Solar Hijri). Storage is always
+  /// Gregorian — see `CalendarDisplay` and D-025.
+  static CalendarSystemOption get system => _system;
+
+  static bool get isPersian => _system.isPersian;
 
   /// Non-working days as `DateTime` weekday numbers (Monday = 1 … Sunday = 7),
   /// normalized to Monday-first order. An empty list is valid and means "no
@@ -53,9 +61,11 @@ class CalendarConfig {
   /// and by the preferences provider on every change, so both paths go through
   /// the same normalization.
   static void apply({
+    CalendarSystemOption? system,
     FirstDayOfWeekOption? firstDayOfWeek,
     List<int>? weekendDays,
   }) {
+    if (system != null) _system = system;
     if (firstDayOfWeek != null) _firstDayOfWeek = firstDayOfWeek;
     _weekendDays = normalizeWeekendDays(weekendDays);
   }
@@ -74,5 +84,6 @@ class CalendarConfig {
   static void reset() {
     _firstDayOfWeek = FirstDayOfWeekOption.defaultValue;
     _weekendDays = defaultWeekendDays;
+    _system = CalendarSystemOption.defaultValue;
   }
 }
