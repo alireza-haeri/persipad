@@ -107,7 +107,7 @@ class BackupServiceTile extends StatelessWidget {
       onPressed = () => provider.signIn(context, service.serviceType);
     } else {
       trailing = Icon(
-        SpIcons.keyboardRight,
+        SpIcons.next(context),
         color: ColorScheme.of(context).bootstrap.success.color,
       );
 

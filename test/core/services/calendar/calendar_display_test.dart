@@ -213,7 +213,8 @@ void main() {
     test('formats dates with Persian month names and digits', () {
       expect(DateFormatHelper.yMd(november15, const Locale('fa')), '۱۴۰۵/۸/۲۴');
       expect(DateFormatHelper.MMMM(november15, const Locale('fa')), 'آبان');
-      expect(DateFormatHelper.MMM(november15, const Locale('fa')), 'آبا');
+      // Persian months have no abbreviation: `MMM` still spells them out.
+      expect(DateFormatHelper.MMM(november15, const Locale('fa')), 'آبان');
       expect(DateFormatHelper.y(november15, const Locale('fa')), '۱۴۰۵');
       expect(DateFormatHelper.d(november15, const Locale('fa')), '۲۴');
       expect(DateFormatHelper.yMMMd(november15, const Locale('fa')), '۲۴ آبان ۱۴۰۵');
@@ -235,6 +236,19 @@ void main() {
     test('monthName answers for the active calendar', () {
       expect(DateFormatHelper.monthName(8, const Locale('fa')), 'آبان');
       expect(DateFormatHelper.gregorianMonthName(11, const Locale('en')), 'November');
+    });
+
+    test('a short month name is still the full Persian name', () {
+      // Short labels are asked for by the month tabs, the stats chips and the
+      // story headers. In Persian the answer is the whole word: "آبا" is a stem,
+      // not a name (and آبان/آذر would both start with "آ").
+      for (var month = 1; month <= 12; month++) {
+        final full = DateFormatHelper.monthName(month, const Locale('fa'));
+        expect(DateFormatHelper.monthName(month, const Locale('fa'), short: true), full);
+      }
+
+      expect(DateFormatHelper.monthName(8, const Locale('fa'), short: true), 'آبان');
+      expect(DateFormatHelper.monthName(8, const Locale('fa'), short: true).length, greaterThan(3));
     });
 
     test('a stats range covers the display month, not the Gregorian one', () {
@@ -287,6 +301,12 @@ void main() {
       expect(DateFormatHelper.gregorianMonthName(11, const Locale('en')), 'November');
       expect(DateFormatHelper.monthName(11, const Locale('en')), 'November');
       expect(DateFormatHelper.getDaySuffix(2, const Locale('en')), 'nd');
+    });
+
+    test('latin months are still abbreviated when asked to be', () {
+      // Only Persian loses the abbreviation; "Aug" stays "Aug".
+      expect(DateFormatHelper.monthName(8, const Locale('en'), short: true), 'Aug');
+      expect(DateFormatHelper.MMM(november15, const Locale('en')), 'Nov');
     });
   });
 }

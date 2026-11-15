@@ -2,6 +2,7 @@ import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:storypad/app_theme.dart';
 import 'package:storypad/widgets/rich_editor/sp_editor_controller.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_add_media_action_sheet.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_image_picker_bottom_sheet.dart';
@@ -200,18 +201,39 @@ class SpEditorToolbar extends StatelessWidget {
           ])
             toggle(tr(label), icon, actions.alignment == align, () => actions.setAlignment(align)),
           _buildDivider(context),
-          IconButton(
-            tooltip: tr('button.cursor_left'),
-            icon: const Icon(SpIcons.keyboardLeft),
-            onPressed: actions.canMoveCaret(forward: false) ? () => actions.moveCaret(forward: false) : null,
-          ),
-          IconButton(
-            tooltip: tr('button.cursor_right'),
-            icon: const Icon(SpIcons.keyboardRight),
-            onPressed: actions.canMoveCaret(forward: true) ? () => actions.moveCaret(forward: true) : null,
-          ),
+          // The tooltips name a *physical* side ("move left"), so each button
+          // keeps its literal arrow. What flips in RTL is which way the caret
+          // travels to reach that side — forward runs toward the left there — so
+          // a ▶ that still ran `forward` moved the caret the opposite way from
+          // its arrow, which is the swap that showed up in Persian.
+          //
+          // The row itself reverses in RTL, so the list is reversed back to keep
+          // ◀ on the left and ▶ on the right in both directions.
+          ...((Directionality.of(context) == TextDirection.rtl)
+              ? [
+                  _buildCaretButton(context, movesLeft: false),
+                  _buildCaretButton(context, movesLeft: true),
+                ]
+              : [
+                  _buildCaretButton(context, movesLeft: true),
+                  _buildCaretButton(context, movesLeft: false),
+                ]),
         ],
       ),
+    );
+  }
+
+  /// One caret button for a physical side: [movesLeft] is the side named by the
+  /// icon and the tooltip, and the caret action is derived from it — backward in
+  /// LTR, forward in RTL, because forward runs toward the left in a right-to-left
+  /// text.
+  Widget _buildCaretButton(BuildContext context, {required bool movesLeft}) {
+    final bool forward = AppTheme.getDirectionValue(context, movesLeft, !movesLeft) ?? !movesLeft;
+
+    return IconButton(
+      tooltip: tr(movesLeft ? 'button.cursor_left' : 'button.cursor_right'),
+      icon: Icon(movesLeft ? SpIcons.keyboardLeft : SpIcons.keyboardRight),
+      onPressed: actions.canMoveCaret(forward: forward) ? () => actions.moveCaret(forward: forward) : null,
     );
   }
 

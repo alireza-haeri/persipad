@@ -165,7 +165,7 @@ class BackupTile extends StatelessWidget {
             const WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Padding(
-                padding: EdgeInsets.only(left: 8.0),
+                padding: const EdgeInsetsDirectional.only(start: 8.0),
                 child: SizedBox.square(dimension: 12, child: CircularProgressIndicator.adaptive(strokeWidth: 2)),
               ),
             ),
@@ -197,7 +197,7 @@ class BackupTile extends StatelessWidget {
         ),
         if (action != null) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 52.0),
+            padding: const EdgeInsetsDirectional.only(start: 52.0),
             child: action,
           ),
           const SizedBox(height: 4.0),

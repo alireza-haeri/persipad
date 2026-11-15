@@ -607,3 +607,42 @@ Template:
   groups by `CalendarDisplay.monthKeyOf`, so nothing in the app aggregates by the Gregorian `month`
   column any more (Aban is scored against its real 30 days, not against the 31-day Gregorian months
   it straddles).
+
+## D-030 — RTL is a layout direction, not a patch (2026-11-15)
+- **Status:** accepted
+- **Context:** with the Persian UI on (D-022) the app was still laid out as if LTR were the
+  only direction, and the user listed six concrete symptoms: swapped month arrows, a Shamsi
+  date picker that looked plainer than the Gregorian one, the story-list timeline rail stuck on
+  the left, `آبا` instead of `آبان`, swapped caret buttons in the editor, and drawers running
+  off the left edge. Each was a real bug, but they share one cause: places that read *start* or
+  *back* were hardcoded as *left*.
+- **Decision:**
+  1. **Chevrons follow reading order.** `SpIcons.previous(context)` / `SpIcons.next(context)`
+     return the mirrored glyph, and every month/step/"opens a screen" arrow uses them
+     (month picker, date picker, list tiles, cards). Icons that name a physical side stay
+     literal — the editor's caret arrows must keep pointing where they move.
+  2. **The caret buttons act on their side.** `Move left` runs `forward` in RTL (forward is
+     toward the left in a right-to-left text) and `backward` in LTR; the pair keeps ◀ left /
+     ▶ right physically by reversing the list back after the `Row` reverses it.
+  3. **The story-list rail is direction-aware.** Every `Positioned(left: 32)` timeline divider
+     (home list, month headers, recap tiles, the tile-preview sheet) is placed by
+     `AppTheme.rtl(context)`, because the tile `Row` puts the monograms at its *start* — right
+     in RTL. Same treatment for `EdgeInsets.only(left/right:)` that really meant start/end.
+  4. **Persian months are never abbreviated.** `DateFormatHelper.monthName(short: true)` and
+     `MMM` ignore `short` when the display calendar is Persian: `آبا` is a stem of آبان/آذر/
+     اردیبهشت, not a name. Latin months keep `Aug`/`Nov`. The timeline month chip therefore
+     grows around its centre (the rail still crosses the middle) instead of scaling a full name
+     into illegibility.
+  5. **The big window sidebar and its insets mirror.** The root sidebar docks to the start edge
+     (right in RTL) and `RootPagesMediaQuery` puts its 88pt inset on that side, so pages are not
+     pushed clear of a sidebar that is no longer there.
+  6. **Drawers keep their own safe area.** The "far side" padding an end drawer drops is the edge
+     it does *not* cover (left in LTR, right in RTL) — `MediaQuery.removePadding` is physical, so
+     `removeLeft: true` in RTL was stripping the inset under the drawer itself and its rows ran
+     off the left edge.
+  7. **The Shamsi picker is a Material date picker**, not a plainer dialog: 28pt rounded sheet,
+     tinted weekday+date header, a month/year row whose label opens the app's Shamsi month picker,
+     a roomier grid, and end-aligned actions, in a scrollable body for short windows.
+- **Consequence:** direction-dependent layout is decided where it is drawn (`AppTheme.rtl`,
+  `SpIcons.previous/next`, `EdgeInsetsDirectional`) instead of being assumed LTR. New UI should
+  use those helpers; a literal `left:`/`Icons.keyboard_left` in a directional position is a bug.

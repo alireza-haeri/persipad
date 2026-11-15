@@ -4,6 +4,7 @@ import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/calendar/weekday_name_service.dart';
+import 'package:storypad/core/services/month_picker_service.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 
 /// A calendar picker that draws whichever calendar the app is set to.
@@ -103,63 +104,154 @@ class _SpDatePickerDialogState extends State<SpDatePickerDialog> {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
 
-    return AlertDialog(
-      contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      titlePadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      title: _buildHeader(context),
-      content: SizedBox(
-        width: 320,
+    // Same shape as Material's own date picker (rounded 28 sheet, tinted date
+    // header, month/year row over the grid, end-aligned text actions), so the
+    // Shamsi calendar is the same quality of picker as the Gregorian one instead
+    // of a plainer dialog that reads like a fallback.
+    return Dialog(
+      clipBehavior: Clip.antiAlias,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildWeekdayHeader(context),
-            const SizedBox(height: 4),
-            _buildGrid(context),
+            _buildDateHeader(context),
+            // Flexible + scrollable: on a short window (a phone in landscape)
+            // the six grid rows would otherwise overflow the dialog.
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(8.0, 4.0, 8.0, 0.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildMonthYearRow(context),
+                    _buildWeekdayHeader(context),
+                    _buildGrid(context),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8.0, 4.0, 8.0, 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _goToToday,
+                    child: Text(tr('general.date.today')),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(tr('button.cancel')),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, _selected),
+                    child: Text(
+                      tr('button.done'),
+                      style: TextStyle(color: colorScheme.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _goToToday,
-          child: Text(tr('general.date.today')),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(tr('button.cancel')),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, _selected),
-          child: Text(
-            tr('button.done'),
-            style: TextStyle(color: colorScheme.primary),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  /// The big date at the top: the weekday as a quiet label over the selected
+  /// day in the display calendar, like Material's picker header.
+  Widget _buildDateHeader(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = ColorScheme.of(context);
+
+    return Container(
+      width: double.infinity,
+      color: colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            DateFormatHelper.E(_selected, context.locale),
+            style: textTheme.labelLarge?.copyWith(color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            DateFormatHelper.yMMMd(_selected, context.locale),
+            style: textTheme.headlineSmall?.copyWith(color: colorScheme.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Month navigation: back, the month itself (tappable, opens the month
+  /// picker so a jump of a year is one tap instead of twelve), forward.
+  Widget _buildMonthYearRow(BuildContext context) {
     final shownDate = CalendarDisplay.firstDayOfMonth(_shownYear, _shownMonth);
 
     return Row(
       children: [
         IconButton(
+          // Reading-order aware chevrons: in RTL "previous month" is to the
+          // right, so the literal keyboardLeft/keyboardRight read as swapped.
           onPressed: _canShiftMonth(-1) ? () => _shiftMonth(-1) : null,
-          icon: const Icon(SpIcons.keyboardLeft),
+          icon: Icon(SpIcons.previous(context)),
         ),
         Expanded(
-          child: Text(
-            DateFormatHelper.yMMMM(shownDate, context.locale),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
+          child: TextButton(
+            onPressed: () => _pickMonthYear(context),
+            style: TextButton.styleFrom(
+              foregroundColor: ColorScheme.of(context).onSurface,
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    DateFormatHelper.yMMMM(shownDate, context.locale),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(width: 4.0),
+                const Icon(SpIcons.dropDown, size: 18.0),
+              ],
+            ),
           ),
         ),
         IconButton(
           onPressed: _canShiftMonth(1) ? () => _shiftMonth(1) : null,
-          icon: const Icon(SpIcons.keyboardRight),
+          icon: Icon(SpIcons.next(context)),
         ),
       ],
     );
+  }
+
+  /// Jump to any display month, reusing the app's Shamsi month picker (the same
+  /// one the home screen and the calendar screen open).
+  Future<void> _pickMonthYear(BuildContext context) async {
+    final result = await MonthPickerService(
+      context: context,
+      month: _shownMonth,
+      year: _shownYear,
+    ).showPicker();
+
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _shownYear = result.year;
+      _shownMonth = result.month;
+    });
   }
 
   Widget _buildWeekdayHeader(BuildContext context) {
@@ -169,7 +261,7 @@ class _SpDatePickerDialogState extends State<SpDatePickerDialog> {
       children: CalendarConfig.orderedWeekdays.map((weekday) {
         return Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
               WeekdayNameService.short(context.locale, weekday),
               textAlign: TextAlign.center,
@@ -193,7 +285,7 @@ class _SpDatePickerDialogState extends State<SpDatePickerDialog> {
     return GridView.count(
       crossAxisCount: DateTime.daysPerWeek,
       shrinkWrap: true,
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.0,
       children: dates.map((date) => _buildDay(context, date)).toList(),
@@ -227,11 +319,11 @@ class _SpDatePickerDialogState extends State<SpDatePickerDialog> {
               });
             }
           : null,
-      radius: 22,
+      radius: 24,
       child: Center(
         child: Container(
-          width: 34,
-          height: 34,
+          width: 38,
+          height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,

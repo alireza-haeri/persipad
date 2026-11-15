@@ -107,6 +107,22 @@ class SpIcons {
   static const IconData keyboardRight = kIsCupertino ? CupertinoIcons.right_chevron : Icons.keyboard_arrow_right;
   static const IconData keyboardUp = kIsCupertino ? CupertinoIcons.chevron_up : Icons.keyboard_arrow_up_outlined;
   static const IconData keyboardDown = kIsCupertino ? CupertinoIcons.chevron_down : Icons.keyboard_arrow_down_outlined;
+
+  /// The chevron for "one step back in reading order" — a previous month, an
+  /// earlier page, the parent of a screen.
+  ///
+  /// Back is not the same *side* in both directions: it points left in a
+  /// left-to-right layout and right in a right-to-left one, which is why the
+  /// literal `keyboardLeft`/`keyboardRight` used for this always read as a
+  /// swapped arrow in Persian. Icons that only ever mean a physical side (the
+  /// cursor keys in the editor) should stay literal instead.
+  static IconData previous(BuildContext context) =>
+      Directionality.of(context) == TextDirection.rtl ? keyboardRight : keyboardLeft;
+
+  /// The chevron for "one step forward in reading order" — the mirror of
+  /// [previous] ("next month", "open this screen").
+  static IconData next(BuildContext context) =>
+      Directionality.of(context) == TextDirection.rtl ? keyboardLeft : keyboardRight;
   static const IconData dropDown = Icons.arrow_drop_down;
   static const IconData globe = kIsCupertino ? CupertinoIcons.globe : Icons.language;
   static const IconData add = kIsCupertino ? CupertinoIcons.plus : Icons.add;

@@ -32,7 +32,7 @@ class _FeatureTile extends StatelessWidget {
           leading: SpSettingIconBadge(weekday: feature.weekdayColor, icon: feature.iconData),
           title: Text(feature.title),
           subtitle: Text(feature.subtitle),
-          trailing: const Icon(SpIcons.keyboardRight),
+          trailing: Icon(SpIcons.next(context)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16.0).add(
             EdgeInsets.only(
               left: MediaQuery.of(context).padding.left,

@@ -38,8 +38,14 @@ class HomeEndDrawer extends StatelessWidget {
                   animation: animation,
                   child: child,
                   builder: (context, child) {
+                    // Slides in from the drawer's own edge: the end drawer is
+                    // on the right in LTR and on the left in RTL, so the offset
+                    // mirrors with it instead of pushing the years list the
+                    // same way in both directions.
+                    final double from = AppTheme.rtl(context) ? -24.0 : 24.0;
+
                     return Transform(
-                      transform: Matrix4.identity()..spTranslate(lerpDouble(24.0, 0, animation.value)!, 0.0),
+                      transform: Matrix4.identity()..spTranslate(lerpDouble(from, 0, animation.value)!, 0.0),
                       child: child,
                     );
                   },

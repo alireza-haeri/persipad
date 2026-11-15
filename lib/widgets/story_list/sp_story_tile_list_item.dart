@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/objects/month_recap_stats_object.dart';
@@ -43,24 +44,26 @@ class SpStoryTileListItem extends StatelessWidget {
     StoryDbModel? nextStory = index + 1 < stories.items.length ? stories.items[index + 1] : null;
     bool showMonogram = previousStory == null || !previousStory.sameDayAs(story);
 
-    Widget timelineDivider;
+    // The rail runs through the monograms, which the tile row puts at its start:
+    // on the left in LTR, on the right in RTL. A hardcoded `left` left the line
+    // stranded on the wrong side of every Persian list.
+    final bool isRtl = AppTheme.rtl(context);
 
-    if (nextStory != null) {
-      // 1. show line all the way from header to bottom.
-      timelineDivider = const Positioned(
-        left: 32.0,
-        top: 0,
-        bottom: 0,
-        child: VerticalDivider(width: 1),
-      );
-    } else {
-      // 2. only show line from header to dot/monogram when there is no story.
-      timelineDivider = const Positioned(
-        left: 32.0,
-        height: 16.0,
-        child: VerticalDivider(width: 1),
+    Widget timelineDivider(double? top, double? bottom, double? height) {
+      return Positioned(
+        left: isRtl ? null : 32.0,
+        right: isRtl ? 32.0 : null,
+        top: top,
+        bottom: bottom,
+        height: height,
+        child: const VerticalDivider(width: 1),
       );
     }
+
+    // 1. show line all the way from header to bottom while stories follow,
+    // 2. else only from header to dot/monogram when there is no story.
+    final Widget fullTimelineDivider = timelineDivider(0.0, 0.0, null);
+    final Widget stubTimelineDivider = timelineDivider(null, null, 16.0);
 
     // Grouping key in the *display* calendar: a Shamsi month does not line up
     // with Gregorian `story.month`, so comparing those would print a new header
@@ -94,13 +97,7 @@ class SpStoryTileListItem extends StatelessWidget {
               // 3. timeline divider can connect between story to story with same month,
               // when there is different month which has another header, we need to draw divider connector
               // from previous month to current.
-              if (previousStory != null)
-                const Positioned(
-                  left: 32.0,
-                  top: 0,
-                  bottom: 0,
-                  child: VerticalDivider(width: 1),
-                ),
+              if (previousStory != null) fullTimelineDivider,
               StoryMonthHeader(isFirstOfRun: index == 0, story: story, showYear: showYear),
             ],
           ),
@@ -110,7 +107,7 @@ class SpStoryTileListItem extends StatelessWidget {
           if (monthStats != null && monthStats.shouldShowRecap) ...[
             Stack(
               children: [
-                timelineDivider,
+                fullTimelineDivider,
                 StoryMonthRecapTile(story: story, stats: monthStats),
               ],
             ),
@@ -118,7 +115,7 @@ class SpStoryTileListItem extends StatelessWidget {
 
           Stack(
             children: [
-              timelineDivider,
+              fullTimelineDivider,
               buildStoryTile(story, showMonogram, context),
             ],
           ),
@@ -127,7 +124,7 @@ class SpStoryTileListItem extends StatelessWidget {
     } else {
       return Stack(
         children: [
-          timelineDivider,
+          stubTimelineDivider,
           buildStoryTile(story, showMonogram, context),
         ],
       );

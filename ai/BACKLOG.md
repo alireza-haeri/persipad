@@ -41,6 +41,8 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | C-1f | `✅` Year filters in the display calendar | Archive/tag/year-picker tabs and the search filter chips show and filter by display years; `CalendarDisplay.yearsFilter` turns them into Gregorian years + exact day ranges (D-027) |
 | C-1g | `✅` Stats screen in the display calendar | `StatsRange` snaps to display months/years (start/end/years/labels), tabs and trend bars count display months, year picker lists display years, queries use exact day ranges (D-029) |
 | C-1h | `✅` Month recap tiles in Shamsi | Groups by `CalendarDisplay.monthKeyOf`, counts active days by display day and scores against the display month's length, so the tiles are shown (and correct) in both calendars |
+| C-1i | `✅` Persian month names are never abbreviated | `monthName(short: true)`/`MMM` return the full name (آبان) in the display calendar while Latin months keep `Aug`; the timeline month chip grows around the rail instead of squeezing the name (D-030 §4) |
+| C-1j | `✅` RTL pass: arrows, timeline rail, sidebar, drawers, caret buttons, Shamsi picker | Reading-order chevrons, direction-aware timeline dividers, mirrored root sidebar + insets, drawers that keep their own safe area, caret buttons that act on the side they show, and a Material-shaped Shamsi date picker (D-030) |
 
 ## 1. Product features (candidates)
 

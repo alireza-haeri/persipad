@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/databases/models/asset_db_model.dart';
 import 'package:storypad/core/databases/models/place_db_model.dart';
@@ -364,12 +365,7 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
               children: [
                 Stack(
                   children: [
-                    const Positioned(
-                      left: 32.0,
-                      top: 0,
-                      bottom: 0,
-                      child: VerticalDivider(width: 1, indent: 32),
-                    ),
+                    buildTimelineDivider(context, full: true),
                     SpStoryTile(
                       story: story,
                       preferences: storyTilePreferences,
@@ -382,12 +378,7 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
                 ),
                 Stack(
                   children: [
-                    const Positioned(
-                      left: 32.0,
-                      top: 0,
-                      height: 16.0,
-                      child: VerticalDivider(width: 1),
-                    ),
+                    buildTimelineDivider(context, full: false),
                     SpStoryTile(
                       story: simpleStory,
                       preferences: storyTilePreferences,
@@ -404,6 +395,21 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
           SizedBox(height: widget.bottomPadding),
         ],
       ),
+    );
+  }
+
+  /// Same rail as the real list, on the side the tile row starts on (right in
+  /// RTL) — the preview is meant to look like the list it previews.
+  Widget buildTimelineDivider(BuildContext context, {required bool full}) {
+    final bool isRtl = AppTheme.rtl(context);
+
+    return Positioned(
+      left: isRtl ? null : 32.0,
+      right: isRtl ? 32.0 : null,
+      top: full ? 0.0 : null,
+      bottom: full ? 0.0 : null,
+      height: full ? null : 16.0,
+      child: VerticalDivider(width: 1, indent: full ? 32.0 : 0.0),
     );
   }
 }

@@ -25,7 +25,7 @@ class _CommunityContent extends StatelessWidget {
               color: AppTheme.isDarkMode(context) ? Colors.red[300] : Colors.red[700],
             ),
             title: Text(tr('page.support_us.title')),
-            trailing: const Icon(SpIcons.keyboardRight),
+            trailing: Icon(SpIcons.next(context)),
             onTap: () async {
               await SupportUsRoute().push(context);
               if (context.mounted) {
@@ -37,7 +37,7 @@ class _CommunityContent extends StatelessWidget {
             ListTile(
               leading: const Icon(SpIcons.policy),
               title: Text(tr("general.privacy_policy")),
-              trailing: const Icon(SpIcons.keyboardRight),
+              trailing: Icon(SpIcons.next(context)),
               onTap: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.policyPrivacyUrl.get()),
             ),
           if (RemoteConfigService.sourceCodeUrl.get().trim().isNotEmpty == true)

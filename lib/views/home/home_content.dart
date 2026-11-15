@@ -123,8 +123,8 @@ class _HomeContent extends StatelessWidget {
   Widget buildItem(BuildContext context, BuildContext listContext, HomeItem item) {
     return switch (item) {
       HomeThrowbackItem() => SpThrowbackTile(throwbackDates: item.throwbackDates, listHasStories: item.listHasStories),
-      HomeMonthHeaderItem() => buildMonthHeader(item),
-      HomeMonthRecapItem() => buildMonthRecap(item),
+      HomeMonthHeaderItem() => buildMonthHeader(context, item),
+      HomeMonthRecapItem() => buildMonthRecap(context, item),
       HomeLoadMoreItem() => _HomeLoadMoreTile(key: item.key, viewModel: viewModel),
       HomeStoryItem(:final story, :final showMonogram, :final showFullTimelineDivider) => buildStoryTile(
         context,
@@ -145,7 +145,7 @@ class _HomeContent extends StatelessWidget {
     };
   }
 
-  Widget buildMonthHeader(HomeMonthHeaderItem item) {
+  Widget buildMonthHeader(BuildContext context, HomeMonthHeaderItem item) {
     return Column(
       key: item.key,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,13 +159,7 @@ class _HomeContent extends StatelessWidget {
           children: [
             // connector divider from the previous section's last story to
             // this header, when this header isn't the first of its run.
-            if (!item.isFirstOfRun)
-              const Positioned(
-                left: 32.0,
-                top: 0,
-                bottom: 0,
-                child: VerticalDivider(width: 1),
-              ),
+            if (!item.isFirstOfRun) buildTimelineDivider(context, true),
             StoryMonthHeader(isFirstOfRun: item.isFirstOfRun, story: item.story, showYear: false),
           ],
         ),
@@ -173,11 +167,11 @@ class _HomeContent extends StatelessWidget {
     );
   }
 
-  Widget buildMonthRecap(HomeMonthRecapItem item) {
+  Widget buildMonthRecap(BuildContext context, HomeMonthRecapItem item) {
     return Stack(
       key: item.key,
       children: [
-        buildTimelineDivider(item.showFullTimelineDivider),
+        buildTimelineDivider(context, item.showFullTimelineDivider),
         StoryMonthRecapTile(story: item.story, stats: item.stats),
       ],
     );
@@ -213,7 +207,7 @@ class _HomeContent extends StatelessWidget {
             ),
             Stack(
               children: [
-                buildTimelineDivider(showFullTimelineDivider),
+                buildTimelineDivider(context, showFullTimelineDivider),
                 Consumer<DevicePreferencesProvider>(
                   builder: (context, provider, child) {
                     return SpStoryTile(
@@ -234,23 +228,25 @@ class _HomeContent extends StatelessWidget {
     );
   }
 
-  Widget buildTimelineDivider(bool showFullTimelineDivider) {
-    if (showFullTimelineDivider) {
-      // 1. show line all the way from header to bottom.
-      return const Positioned(
-        left: 32.0,
-        top: 0,
-        bottom: 0,
-        child: VerticalDivider(width: 1),
-      );
-    } else {
-      // 2. only show line from header to dot/monogram when there is no story.
-      return const Positioned(
-        left: 32.0,
-        height: 16.0,
-        child: VerticalDivider(width: 1),
-      );
-    }
+  /// The vertical rail that threads the story tiles together.
+  ///
+  /// It runs through the monograms, and the tile row puts those at its *start* —
+  /// left in LTR, right in RTL. Pinning it to `left` in both directions left the
+  /// line on the wrong side of every Persian list (and let it cross the dates
+  /// instead of connecting them).
+  Widget buildTimelineDivider(BuildContext context, bool showFullTimelineDivider) {
+    final bool isRtl = AppTheme.rtl(context);
+
+    return Positioned(
+      left: isRtl ? null : 32.0,
+      right: isRtl ? 32.0 : null,
+      // 1. full line from header to bottom while stories follow,
+      // 2. else only from header to dot/monogram when there is no story.
+      top: showFullTimelineDivider ? 0.0 : null,
+      bottom: showFullTimelineDivider ? 0.0 : null,
+      height: showFullTimelineDivider ? null : 16.0,
+      child: const VerticalDivider(width: 1),
+    );
   }
 }
 

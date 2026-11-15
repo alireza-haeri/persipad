@@ -1,3 +1,4 @@
+import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/core/storages/new_badge_storage.dart';
 import 'package:storypad/providers/root_provider.dart';

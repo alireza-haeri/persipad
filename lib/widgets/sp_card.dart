@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:storypad/app_theme.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_tap_effect.dart';
@@ -61,9 +62,11 @@ class SpCard extends StatelessWidget {
               ),
               Positioned(
                 top: 16.0,
-                right: 16.0,
+                // The chevron points the way the card opens, which mirrors.
+                left: AppTheme.rtl(context) ? 16.0 : null,
+                right: AppTheme.rtl(context) ? null : 16.0,
                 child: Icon(
-                  SpIcons.keyboardRight,
+                  SpIcons.next(context),
                   color: ColorScheme.of(context).secondary,
                 ),
               ),

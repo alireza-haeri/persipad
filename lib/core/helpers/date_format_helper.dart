@@ -30,9 +30,14 @@ class DateFormatHelper {
 
   static PersianDate _persianDate(DateTime date) => PersianCalendar.of(date);
 
-  static String _persianMonthName(DateTime date, {bool short = false}) {
-    final month = _persianDate(date).month;
-    return short ? PersianCalendar.monthShortName(month) : PersianCalendar.monthName(month);
+  /// Persian month names in full, always.
+  ///
+  /// Persian months read as one word (آبان, اردیبهشت) and cutting them to three
+  /// letters produces stems, not names: "آبا", "ارد". Latin ones are shortened
+  /// with a period (Aug.) exactly because they stay recognisable — so the
+  /// `short` flag only ever applies to the Gregorian calendar.
+  static String _persianMonthName(DateTime date) {
+    return PersianCalendar.monthName(_persianDate(date).month);
   }
 
   /// `۱۴۰۴/۸/۲۴` (or `1404/8/24`); terse and unambiguous in either order.
@@ -68,7 +73,9 @@ class DateFormatHelper {
   }
 
   static String MMM(DateTime date, Locale locale) {
-    if (_persian) return _persianMonthName(date, short: true);
+    // No short Persian months: `MMM` still means "the month name", and in
+    // Persian that is never abbreviated (see [_persianMonthName]).
+    if (_persian) return _persianMonthName(date);
     return DateFormat.MMM(locale.toLanguageTag()).format(date);
   }
 
@@ -188,10 +195,11 @@ class DateFormatHelper {
   /// get a month name — that trick silently breaks the moment the calendar is
   /// not Gregorian, since month 8 of year 2000 is not the same month as month 8
   /// of a Jalali year. Callers pass the month they actually mean.
+  /// [short] is honoured for Gregorian months only: Persian months have no
+  /// recognised abbreviation, so they are always written in full (آبان, not
+  /// آبا) — a three-letter cut of a Persian month is a stem, not a name.
   static String monthName(int month, Locale locale, {bool short = false}) {
-    if (_persian) {
-      return short ? PersianCalendar.monthShortName(month) : PersianCalendar.monthName(month);
-    }
+    if (_persian) return PersianCalendar.monthName(month);
     return gregorianMonthName(month, locale, short: short);
   }
 

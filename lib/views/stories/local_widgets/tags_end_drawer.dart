@@ -17,9 +17,14 @@ class TagsEndDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     // For end drawer, we don't use modified padding by root content, we want original screen padding instead
     // because end drawer is on top of content. Plus, left padding is not needed for end drawer.
+    // The inset that goes is the one on the edge the drawer is *not* docked to
+    // (it is the end drawer: right in LTR, left in RTL).
+    final bool isRtl = Directionality.of(context) == TextDirection.rtl;
+
     return MediaQuery.removePadding(
       context: RootView.rootContext ?? context,
-      removeLeft: true,
+      removeLeft: !isRtl,
+      removeRight: isRtl,
       child: Drawer(
         child: Theme(
           data: Theme.of(context).copyWith(scaffoldBackgroundColor: Theme.of(context).colorScheme.surface),

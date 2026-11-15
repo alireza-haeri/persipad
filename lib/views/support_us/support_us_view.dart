@@ -61,14 +61,14 @@ class SupportUsView extends StatelessWidget {
                 namedArgs: {'ARG_NAME': Platform.isAndroid ? 'Play Store' : 'App Store'},
               ),
             ),
-            trailing: const Icon(SpIcons.keyboardRight),
+            trailing: Icon(SpIcons.next(context)),
             onTap: () => AppStoreOpenerService.call(),
           ),
           if (productHuntUrl.trim().isNotEmpty) ...[
             ListTile(
               leading: const Icon(SpIcons.rocketLaunch),
               title: Text(tr('list_tile.product_hunt.title', namedArgs: {'ARG_NAME': 'Product Hunt'})),
-              trailing: const Icon(SpIcons.keyboardRight),
+              trailing: Icon(SpIcons.next(context)),
               onTap: () => UrlOpenerService.openInCustomTab(context, productHuntUrl),
             ),
           ],
@@ -76,7 +76,7 @@ class SupportUsView extends StatelessWidget {
             ListTile(
               leading: const Icon(SpIcons.compare),
               title: Text(tr('list_tile.alternative_to.title', namedArgs: {'ARG_NAME': 'AlternativeTo'})),
-              trailing: const Icon(SpIcons.keyboardRight),
+              trailing: Icon(SpIcons.next(context)),
               onTap: () => UrlOpenerService.openInCustomTab(context, alternativeToUrl),
             ),
           ],
@@ -84,7 +84,7 @@ class SupportUsView extends StatelessWidget {
             ListTile(
               leading: const Icon(SpIcons.github),
               title: Text(tr('list_tile.github_star.title', namedArgs: {'ARG_NAME': 'GitHub'})),
-              trailing: const Icon(SpIcons.keyboardRight),
+              trailing: Icon(SpIcons.next(context)),
               onTap: () => UrlOpenerService.openInCustomTab(context, sourceCodeUrl),
             ),
           ],

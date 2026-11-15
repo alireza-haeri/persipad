@@ -56,7 +56,9 @@ class _StoryTileContents extends StatelessWidget {
           ],
           if (hasTitle)
             Container(
-              margin: const EdgeInsets.only(right: 16.0),
+              // End, not right: the favourite button the title avoids sits at the
+              // end of the tile (left in Persian).
+              margin: const EdgeInsetsDirectional.only(end: 16.0),
               width: double.infinity,
               child: Text(
                 content!.title!.sanitizeUtf16,

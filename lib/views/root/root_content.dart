@@ -34,8 +34,12 @@ class _RootContent extends StatelessWidget {
               children: [
                 // Use inner of scaffold context instead of root context.
                 Builder(builder: (context) => buildPagesNavigator(context)),
+                // The sidebar docks to the edge the layout starts from: left in
+                // LTR, right in RTL. Pinned to `left` it stayed on the far side
+                // in Persian while the page insets mirrored away from it.
                 Positioned(
-                  left: 0,
+                  left: AppTheme.rtl(context) ? null : 0.0,
+                  right: AppTheme.rtl(context) ? 0.0 : null,
                   top: 0,
                   bottom: 0,
                   child: RootSideBar(rootProvider: rootProvider),

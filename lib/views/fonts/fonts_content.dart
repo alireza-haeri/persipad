@@ -110,7 +110,7 @@ class _FontsContent extends StatelessWidget {
             title: tr("list_tile.use_this_font.title"),
             subtitle: tr("list_tile.use_this_font.loreum_ipsum"),
             subtitleStyle: GoogleFonts.getFont(fontFamily),
-            trailingIconData: SpIcons.keyboardRight,
+            trailingIconData: SpIcons.next(context),
             onPressed: () => viewModel.changeFont(fontFamily),
           ),
         ];

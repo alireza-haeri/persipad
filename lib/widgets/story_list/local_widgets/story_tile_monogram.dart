@@ -16,7 +16,7 @@ class _StoryTileMonogram extends StatelessWidget {
     if (!showMonogram) {
       return Container(
         width: monogramSize,
-        margin: const EdgeInsets.only(top: 9.0, left: 0.5),
+        margin: const EdgeInsetsDirectional.only(top: 9.0, start: 0.5),
         alignment: Alignment.center,
         child: Container(
           width: 3,

@@ -80,7 +80,7 @@ class _EditCustomReminderContent extends StatelessWidget {
               subtitle: viewModel.hasTemplate && viewModel.templateName != null ? Text(viewModel.templateName!) : null,
               trailing: viewModel.hasTemplate
                   ? IconButton(icon: const Icon(SpIcons.clear), onPressed: viewModel.clearTemplate)
-                  : const Icon(SpIcons.keyboardRight),
+                  : Icon(SpIcons.next(context)),
               onTap: () => viewModel.chooseTemplate(context),
             ),
             ListTile(
@@ -93,7 +93,7 @@ class _EditCustomReminderContent extends StatelessWidget {
               subtitle: viewModel.tagIds.isNotEmpty ? Text(viewModel.tagLabels(context)) : null,
               trailing: viewModel.tagIds.isNotEmpty
                   ? IconButton(icon: const Icon(SpIcons.clear), onPressed: viewModel.clearTags)
-                  : const Icon(SpIcons.keyboardRight),
+                  : Icon(SpIcons.next(context)),
               onTap: () => viewModel.chooseTags(context),
             ),
             const SizedBox(height: 16.0),

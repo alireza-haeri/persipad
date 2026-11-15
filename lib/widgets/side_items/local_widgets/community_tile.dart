@@ -26,7 +26,7 @@ class CommunityTile extends StatelessWidget {
               ],
             ),
           ),
-          contentPadding: const EdgeInsets.only(left: 16.0, right: 8.0),
+          contentPadding: const EdgeInsetsDirectional.only(start: 16.0, end: 8.0),
           onTap: () async {
             await CommunityRoute().push(context);
             hideBadge();

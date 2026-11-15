@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:storypad/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
@@ -61,7 +62,8 @@ class _RootSideBarState extends State<RootSideBar> {
 
     return Visibility(
       visible: visible,
-      child: SpFadeIn.fromLeft(
+      // Slides in from the edge it is docked to, which mirrors in RTL.
+      child: (AppTheme.rtl(context) ? SpFadeIn.fromRight : SpFadeIn.fromLeft)(
         duration: Durations.long1,
         child: SizedBox(
           width: 72,

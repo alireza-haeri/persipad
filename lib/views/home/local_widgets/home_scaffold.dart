@@ -25,14 +25,10 @@ class _HomeScaffold extends StatelessWidget {
       drawerEnableOpenDragGesture: false,
       endDrawerEnableOpenDragGesture: false,
       // For end drawer, we don't use modified padding by root content, we want original screen padding instead
-      // because end drawer is on top of content. Plus, left padding is not needed for end drawer.
-      endDrawer: endDrawer != null
-          ? MediaQuery.removePadding(
-              context: RootView.rootContext ?? context,
-              removeLeft: true,
-              child: endDrawer!,
-            )
-          : null,
+      // because end drawer is on top of content. Plus, the padding on the far side is not needed for end drawer —
+      // "far" being the edge the drawer does not cover, which mirrors in RTL: removing `left` there stripped the
+      // safe-area inset from under the drawer itself, so its rows ran off the left edge in Persian.
+      endDrawer: endDrawer != null ? _removeFarSidePadding(context, endDrawer!) : null,
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButtonLocation: SpFabLocation.endFloat(context),
@@ -69,6 +65,19 @@ class _HomeScaffold extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Drops the screen inset on the edge the end drawer does not sit on, so a
+  /// page's own margins don't squeeze the drawer while its own safe area stays.
+  Widget _removeFarSidePadding(BuildContext context, Widget drawer) {
+    final bool isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    return MediaQuery.removePadding(
+      context: RootView.rootContext ?? context,
+      removeLeft: !isRtl,
+      removeRight: isRtl,
+      child: drawer,
     );
   }
 

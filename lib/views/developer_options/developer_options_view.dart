@@ -37,14 +37,14 @@ class DeveloperOptionsView extends StatelessWidget {
               "(and are not backed up to the cloud). "
               "To remove them immediately, clear the app cache.",
             ),
-            trailing: const Icon(SpIcons.keyboardRight),
+            trailing: Icon(SpIcons.next(context)),
             onTap: () => const RecentlyDeletedRecordsRoute().push(context),
           ),
           ListTile(
             leading: const Icon(SpIcons.info),
             title: const Text("See Debug Logs"),
             subtitle: const Text("View the app debug logs."),
-            trailing: const Icon(SpIcons.keyboardRight),
+            trailing: Icon(SpIcons.next(context)),
             onTap: () => SpShareLogsBottomSheet().show(context: context),
           ),
           const Divider(),

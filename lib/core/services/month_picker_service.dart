@@ -79,7 +79,10 @@ class MonthPickerService {
                         IconButton(
                           tooltip: null,
                           onPressed: () => select(year: current.year - 1),
-                          icon: const Icon(SpIcons.keyboardLeft),
+                          // Direction-aware: an earlier year is a step *back*
+                          // in reading order, so the chevron has to point the
+                          // other way in RTL.
+                          icon: Icon(SpIcons.previous(context)),
                         ),
                         Expanded(
                           child: Text(
@@ -91,7 +94,7 @@ class MonthPickerService {
                         IconButton(
                           tooltip: null,
                           onPressed: () => select(year: current.year + 1),
-                          icon: const Icon(SpIcons.keyboardRight),
+                          icon: Icon(SpIcons.next(context)),
                         ),
                       ],
                     ),

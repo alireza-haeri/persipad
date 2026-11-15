@@ -61,25 +61,37 @@ class _MonthChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // The month in full, never abbreviated: Persian months have no short form
+    // ("آبا" is a stem of آبان, آذر and اردیبهشت alike). The box stays one
+    // monogram wide so the timeline rail keeps running through its centre, and
+    // the label is allowed to grow symmetrically around that centre instead of
+    // being shrunk into illegibility.
+    final String label = DateFormatHelper.monthName(
+      CalendarDisplay.monthOf(story.displayPathDate),
+      context.locale,
+    );
+
+    return SizedBox(
       width: SpStoryTile.monogramSize,
-      alignment: Alignment.center,
-      child: CustomPaint(
-        painter: _MonthChipBoxPainter(
-          fillColor: Theme.of(context).colorScheme.surface,
-          borderRadius: 8.0,
-          borderWidth: 1,
-          borderColor: Theme.of(context).dividerColor,
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            DateFormatHelper.monthName(
-              CalendarDisplay.monthOf(story.displayPathDate),
-              context.locale,
-              short: true,
+      child: OverflowBox(
+        alignment: Alignment.center,
+        maxWidth: 140.0,
+        child: CustomPaint(
+          painter: _MonthChipBoxPainter(
+            fillColor: Theme.of(context).colorScheme.surface,
+            borderRadius: 8.0,
+            borderWidth: 1,
+            borderColor: Theme.of(context).dividerColor,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.0),
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              style: TextTheme.of(context).labelSmall,
             ),
-            style: TextTheme.of(context).labelSmall,
           ),
         ),
       ),

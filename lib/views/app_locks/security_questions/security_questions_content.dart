@@ -32,7 +32,7 @@ class _SecurityQuestionsContent extends StatelessWidget {
             subtitle: answer != null ? Text(List.generate(answer.length, (e) => "*").join("")) : null,
             trailing: answer != null
                 ? Icon(SpIcons.checkCircle, color: ColorScheme.of(context).primary)
-                : const Icon(SpIcons.keyboardRight),
+                : Icon(SpIcons.next(context)),
             onTap: () => viewModel.goToEnterAnswerFor(question, context),
           );
         }).toList(),
