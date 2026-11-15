@@ -311,3 +311,23 @@ Template:
   needs a one-time OAuth client, owned by whoever builds/releases — an app identifier, not an
   account. `drive.appdata` is a non-sensitive scope, so publishing needs no Google security
   review; while the project stays in Testing, Google expires refresh tokens after 7 days.
+
+## D-020 — CI answers in seconds; never block on a run (2026-11-15)
+- **Status:** accepted
+- **Context:** "These watcher commands take 5–10 minutes each. Can't you do something about
+  it?" Two separate problems were hiding there: the runs were serialized, and I *watched*
+  them (`gh run watch`), which turns CI into dead time for the whole session.
+- **Decision:**
+  1. **No blocking waits.** Push, keep working, check once with `bin/ci` — a one-shot API read
+     that returns in ~2s (optionally `--wait N` / `--watch` when waiting is explicitly the
+     point). A run finishing between turns costs nothing.
+  2. **Jobs run in parallel.** `test` and `build-linux` no longer `needs: analyze`; that gate
+     put ~90s of dead time in front of every one of them.
+  3. **Tests are sharded** 2 ways (round-robin over the 97 test files): the suite is a single
+     262s step, the largest cost anywhere in CI.
+  4. **apt packages are cached** (`awalsh128/cache-apt-pkgs-action`): the Linux build's
+     dependency install was 47s of every build.
+- **Measured before:** Analyze 82s, Test 312s, Build 179s — `[full]` wall clock ≈ 7.3 min
+  (analyze 82 + test 312, serially gated).
+- **Consequences:** `[full]` should land near its slowest job (~3 min). The fast loop (plain
+  push, analyze only) is unchanged at ~90s, and I no longer spend it waiting.

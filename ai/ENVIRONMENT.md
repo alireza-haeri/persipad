@@ -78,6 +78,17 @@ These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
 `lib/objectbox-model.json` are **generated**: they must be regenerated after this bump.
 `bin/setup_linux` does that for you.
 
+## 2.3.1 Checking CI (do not block on it)
+
+```bash
+bin/ci              # every workflow for the latest commit — returns in ~2s
+bin/ci --wait 180   # only if waiting is actually the point
+```
+
+Rule of thumb that came out of D-020: after a push, keep working. A run that
+finishes while you are busy is free; one you sit and watch costs its full length.
+Verify only once, at the end of a piece of work, with `bin/ci`.
+
 ## 2.4 Daily loop
 
 ```bash
