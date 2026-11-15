@@ -389,7 +389,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     notifyListeners();
   }
 
-
   /// One-time setup instructions for the desktop Google Drive build. Kept in the
   /// dialog (not a snackbar) because it is a multi-line checklist the user has
   /// to act on, and it is shown *before* the browser opens.
