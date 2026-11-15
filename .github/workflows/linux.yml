@@ -147,21 +147,40 @@ jobs:
             if (( i % 2 == ${{ matrix.shard }} - 1 )); then selected+=("${files[$i]}"); fi
           done
           echo "::notice::shard ${{ matrix.shard }}/2: ${#selected[@]} files"
-          flutter test "${selected[@]}" > /tmp/test.txt 2>&1
+          # JSON reporter: the human-readable log is unreadable for the agent
+          # (blob storage), so failures are parsed and re-emitted as annotations
+          # with the test name and the first line of the error.
+          flutter test --reporter json "${selected[@]}" > /tmp/test.json 2>&1
           status=$?
-          tail -40 /tmp/test.txt
-          if [ $status -ne 0 ]; then
-            echo "::error::flutter test failed"
-            # Annotations are the agent's only readable channel (the run log is
-            # in blob storage it cannot reach), so emit the failing test names
-            # and the tail of the output instead of a bare "1 failed".
-            grep -E '\[E\]' /tmp/test.txt | head -10 | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
-            done
-            tail -50 /tmp/test.txt | while IFS= read -r line; do
-              echo "::notice::$(printf '%s' "$line" | tr -d '\r')"
-            done
-          fi
+          python3 - <<'PY' || true
+          import json
+
+          names = {}
+          failed = []
+          for line in open('/tmp/test.json', errors='replace'):
+              line = line.strip()
+              if not line.startswith('{'):
+                  continue
+              try:
+                  event = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              kind = event.get('type')
+              if kind == 'testStart':
+                  names[event['test']['id']] = event['test']['name']
+              elif kind == 'error':
+                  name = names.get(event.get('testID'), '?')
+                  message = (event.get('error') or '').strip().splitlines()
+                  detail = message[0] if message else 'failed'
+                  print(f"::error::FAILED {name} :: {detail}")
+              elif kind == 'testDone' and event.get('result') != 'success' and not event.get('hidden'):
+                  failed.append(names.get(event.get('testID'), '?'))
+
+          if not failed:
+              print("::error::flutter test failed but the JSON reporter reported no failing test")
+          for name in failed:
+              print(f"::error::failing test: {name}")
+          PY
           exit $status
 
   build-linux:
