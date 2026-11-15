@@ -51,6 +51,17 @@
 - If a change would break macOS/iOS compilation, prefer a platform guard over a global
   change — but don't block on verifying it.
 
+## 3b. Verification rules (Linux, no local SDK)
+
+- **CI is the compiler.** I cannot build here, so `.github/workflows/linux.yml` must be
+  green before I call anything done: **Test** and **Build Linux desktop** are blocking,
+  **Analyze** is advisory.
+- Every behavioural change ships with tests in `test/` (pure logic is preferred over
+  widget tests so it stays fast and hermetic).
+- Never leave a dead button: if a capability can't work on Linux, the UI must say so or
+  the feature must go — see `PlatformCapabilities`.
+- If CI is red, the task is not done — no exceptions, no "probably fine".
+
 ## 4. Documentation rules (this folder)
 
 - End of every task: update `PROGRESS.md` (ticks + metrics + date).

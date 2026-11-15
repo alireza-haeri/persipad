@@ -107,6 +107,32 @@ Fedora, and I always tell you what to run and what to look at.
 
 ---
 
+## Session 3 — 2026-11-15
+
+### N-008 — Fill Linux's feature gaps; test via CI; unlock what's locked
+> "Linux unfortunately has some gaps, for example sync isn't enabled. First of all, based
+> on the features Android has and Linux doesn't, add those to Linux first. Important: for
+> testing, building and debugging definitely write CI for yourself and run it on GitHub
+> Actions so you can see how it goes, then commit and push. Try not to put all changes in
+> one commit, categorize the commits. Try to write tests and run them carefully so we
+> don't have bugs. And unlock the locked features if you can so the app is complete; if
+> there's something that can't work, remove that feature entirely."
+
+**Status:** ✅ in progress → D-011, D-012, D-013
+**Delivered this session:**
+- All Pro features unlocked via one switch (`ProEntitlementService`) — includes
+  Nextcloud/Dropbox sync, which were Pro-only.
+- Dead "Connect Google Drive" tile on Linux replaced with an explanatory disabled tile;
+  Linux keeps Dropbox + Nextcloud as working sync backends.
+- GitHub Actions workflow (Test / Build Linux / Analyze) running on push.
+- 13 unit tests covering the entitlement rules and the platform-capability matrix.
+**Note (honesty):** reminders/notifications, biometrics, camera and quick actions are
+*not* fixed here — they need real work (see `BACKLOG.md` I-12…I-15). I did not delete
+them: the code paths are already guarded and degrade to "unavailable", and removing
+Android-only features now would be premature while Android is only parked.
+
+---
+
 ## Template for a new note
 
 ```md

@@ -15,10 +15,16 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | I-4 | `💡` Review `GoogleDriveLinuxCloudService` (loopback OAuth) | The most important backup path on Linux |
 | I-5 | `💡` Linux coverage: `flutter test` + check `Platform.isLinux` in new code | Prevent regressions |
 | I-6 | `💡` Gradually remove dead macOS/iOS branches from shared flows (without deleting platform code) | Reduces complexity |
-| I-7 | `🔜` Clear UI messaging for features that are unavailable on Linux (Google sign-in / Drive sync, biometrics, IAP, camera) | Users currently see a silent no-op or a raw error; this is now the top Linux UX gap |
+| I-7 | `✅` Clear UI messaging for features that are unavailable on Linux | Done for cloud sync via `PlatformCapabilities` (D-012); other features below |
 | I-8 | `💡` Decide the Linux backup story (local export + folder backup) since Drive sync is unusable there | Data safety is the one thing we should not hand-wave |
 | I-9 | `💡` Keep a `bin/test` alias for `flutter test` + `flutter analyze` so I can ask for one command | Faster verification loop |
-| I-10 | `⏸` CI: `.github/workflows/ci.yml` still targets `develop` and Android-era setup | Retarget to Linux or drop |
+| I-10 | `✅` CI on GitHub Actions | `linux.yml`: Test + Build Linux + advisory Analyze (D-013) |
+| I-11 | `💡` Google Drive on Linux via loopback OAuth (own client ID + PKCE) | Would restore Drive; needs credentials and a real device to test |
+| I-12 | `🔜` Reminders on Linux | `local_notification_service` excludes Linux (`supported`), and the Linux notification backend has no scheduling support — needs an app-side scheduler to be honest about it |
+| I-13 | `💡` Photo picking on Linux | `image_picker` has no Linux implementation; `file_picker` works — verify the "add photo" flow uses it |
+| I-14 | `💡` Biometrics on Linux | `local_auth` unsupported; PIN lock already covers it. Probably leave as-is |
+| I-15 | `💡` Camera / quick actions / video compression | Android-only; keep guarded, don't pretend they exist |
+| I-16 | `💡` Add a Persian (fa) locale | The app ships 20 locales and none is Persian |
 
 ## 1. Product features (candidates)
 

@@ -91,6 +91,12 @@ The ones that matter most for us:
 - `quill/`, `export/`, `markdown_*`, `story_plain_text_exporter` → editor and export.
 - `analytics/`, `error_reporting/`, `remote_config/` → all built via
   `Base*Adaptor.create()` and resolve to no-op adaptors on Linux.
+- `platform_capabilities.dart` → **our addition.** Pure matrix of what can work where
+  (cloud sync per service, per platform). Unit-tested; UI asks it before offering a
+  feature. Add a new platform-dependent capability here, not with scattered `if (Platform...)`.
+- `pro_entitlement_service.dart` → **our addition.** The single Pro/upsell policy
+  (`unlockAll`, `showUpsell`). `InAppPurchaseProvider.isProUser` delegates to it, which is
+  why ~30 feature gates all open together.
 
 ## Widgets
 

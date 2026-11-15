@@ -126,3 +126,55 @@ Template:
     check, `pub get`, codegen). No sudo.
 - **Consequences:** The daily loop is `bin/setup_linux` once, then
   `bin/dev --community-linux`. Android/iOS/macOS targets are untouched.
+
+## D-011 — Every Pro feature is unlocked, through one reversible switch (2026-11-15)
+- **Status:** accepted
+- **Context:** You asked to open everything that is locked so the app feels complete,
+  and to delete anything that can't work instead of leaving it broken. ~30 call sites
+  gate UI behind `InAppPurchaseProvider.isProUser`, which is always `false` on Linux
+  because `kIAPEnabled` is false there (no store plugin, no RevenueCat key). The result
+  was a "complete" app that hides half of itself.
+- **Decision:** A single policy switch, `ProEntitlementService.unlockAll = true`
+  (`kUnlockAllProFeatures`), fed into `isProUser`. The gating call sites stay where they
+  are, so turning gating back on is one edit. Upsell surfaces (paywall entries, Pro
+  badge, pro banner) are now driven by `kShowProUpsell = showUpsell(unlockAll,
+  storeAvailable)` instead of `kIAPEnabled`, and are hidden — a paywall nobody can
+  complete is worse than no paywall.
+- **Consequences:**
+  - All 30 gates open at once; Nextcloud/Dropbox sync is no longer Pro-only.
+  - We never sell anything, so RevenueCat code becomes dead weight (kept, harmless).
+  - The `Pro` badge no longer shows for everyone (it would be meaningless).
+
+## D-012 — A platform-capability layer; Google Drive is not offered on Linux (2026-11-15)
+- **Status:** accepted
+- **Context:** On Linux `BackupProvider` registers `GoogleDriveLinuxCloudService`, whose
+  `signIn()` always returns `false` — a stub. The backup screen still rendered a
+  "Connect" tile for it, so tapping it did nothing (the worst possible UX, and exactly
+  the "sync is not enabled on Linux" bug you hit). Implementing real Google sign-in on
+  Linux is not possible with `google_sign_in` (no Linux implementation) and would need a
+  loopback-OAuth flow plus our own Google client credentials.
+- **Decision:** Add `PlatformCapabilities` — a pure, unit-tested matrix of what can work
+  where. `BackupServiceTile` renders an explanatory, disabled tile for a service the
+  platform cannot use instead of a dead Connect button. Drive is therefore hidden on
+  Linux; Dropbox (loopback OAuth) and Nextcloud (WebDAV) remain — and after D-011 they
+  are no longer Pro-locked, so **Linux does have working cloud sync**.
+- **Consequences:**
+  - Regression-guarded by tests: "every platform keeps at least one working sync backend".
+  - The Linux Drive stub stays registered (the repository requires a non-null service) but
+    is now unreachable from the UI. It is documented as intentionally dead.
+  - A real Drive-on-Linux implementation (loopback OAuth + our client ID) stays open in
+    `BACKLOG.md` as I-11.
+
+## D-013 — GitHub Actions is the build verifier (2026-11-15)
+- **Status:** accepted
+- **Context:** I cannot compile anything locally (no Flutter SDK, pub.dev blocked). You
+  asked for CI to be written and run on GitHub so we actually see whether it works.
+- **Decision:** `.github/workflows/linux.yml` with three jobs: **Test** (blocking,
+  `flutter test`), **Build Linux desktop** (blocking, `flutter build linux --debug` on
+  `lib/main_community.dart` — the real compile gate for the whole app) and
+  **Analyze** (advisory: upstream lint debt is not ours to fix in one change). It runs on
+  pushes to `arena/**`/`main`/`develop`, on PRs, and manually. Flutter version comes from
+  `.tool-versions`. The upstream `ci.yml` (wired to `develop`, Android-era) is left
+  untouched.
+- **Consequences:** "It compiles" now means CI green, not my guess. Any red CI is triaged
+  before I claim a task is done.
