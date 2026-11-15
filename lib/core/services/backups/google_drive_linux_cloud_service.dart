@@ -1,84 +1,27 @@
-import 'dart:io' as io;
+import 'package:storypad/core/services/backups/google_drive_auth_strategy.dart';
+import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 
-import 'package:storypad/core/objects/cloud_file_object.dart';
-import 'package:storypad/core/objects/cloud_service_user.dart';
-import 'package:storypad/core/objects/cloud_storage_quota_object.dart';
-import 'package:storypad/core/objects/yearly_backup_files_object.dart';
-import 'package:storypad/core/services/backups/backup_cloud_service.dart';
-import 'package:storypad/core/services/backups/backup_service_type.dart';
+/// Google Drive on Linux.
+///
+/// This used to be a 100-line stub whose `signIn()` always returned false,
+/// because `google_sign_in` has no Linux implementation — the Connect button
+/// could only ever fail. The Drive REST half was fine all along; only the way a
+/// token is obtained was missing, so the stub is now just the desktop auth
+/// strategy plugged into the real service (ai/DECISIONS.md D-019).
+///
+/// The OAuth2 flow opens the system browser, so nothing here needs a webview.
+class GoogleDriveLinuxCloudService extends GoogleDriveCloudService {
+  final GoogleDesktopAuthStrategy desktopAuth;
 
-/// Stub implementation of GoogleDrive backup service for Linux/FOSS builds.
-/// All operations are disabled. A real local-filesystem or alternative
-/// implementation can replace this later.
-class GoogleDriveLinuxCloudService extends BackupCloudService {
-  @override
-  BackupServiceType get serviceType => BackupServiceType.google_drive;
+  factory GoogleDriveLinuxCloudService({GoogleDesktopAuthStrategy? auth}) {
+    final strategy = auth ?? GoogleDesktopAuthStrategy();
+    return GoogleDriveLinuxCloudService._(strategy, strategy);
+  }
 
-  @override
-  CloudServiceUser? get currentUser => null;
+  GoogleDriveLinuxCloudService._(this.desktopAuth, GoogleDesktopAuthStrategy auth) : super(auth: auth);
 
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<bool> signIn() async => false;
-
-  @override
-  Future<void> signOut() async {}
-
-  @override
-  Future<bool> requestScope() async => false;
-
-  @override
-  Future<bool> reauthenticateIfNeeded() async => false;
-
-  @override
-  Future<bool> canAccessRequestedScopes() async => false;
-
-  @override
-  void setAutoBackupEnabled(bool enabled) {}
-
-  @override
-  Future<YearlyBackupFilesObject> fetchYearlyBackups() async => const YearlyBackupFilesObject();
-
-  @override
-  Future<(String, int)?> getFileContent(CloudFileObject file) async => null;
-
-  @override
-  Future<List<int>?> downloadFileBytes(String fileId) async => null;
-
-  @override
-  Future<bool> deleteFile(String cloudFileId) async => false;
-
-  @override
-  Future<bool> trashFile(String cloudFileId) async => false;
-
-  @override
-  Future<bool> restoreFileFromTrash(String cloudFileId) async => false;
-
-  @override
-  Future<CloudFileObject?> findFileById(String fileId) async => null;
-
-  @override
-  Future<CloudFileObject?> findFileByIdIncludingTrashed(String fileId) async => null;
-
-  @override
-  Future<CloudFileObject?> uploadFile(
-    String fileName,
-    io.File file, {
-    String? folderName,
-  }) async => null;
-
-  @override
-  Future<CloudFileObject?> updateFile({
-    required String fileId,
-    required String fileName,
-    required io.File file,
-  }) async => null;
-
-  @override
-  Future<CloudStorageQuotaObject?> fetchStorageQuota() async => null;
-
-  @override
-  Future<List<CloudFileObject>> listFilesInFolder(String folderName) async => [];
+  /// False until the build is given a Google OAuth "Desktop app" client id (see
+  /// `bin/setup_sync`). The UI asks before opening a browser Google would
+  /// reject with `invalid_client`.
+  bool get isConfigured => desktopAuth.isConfigured;
 }

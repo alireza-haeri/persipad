@@ -295,6 +295,19 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     BuildContext context,
     BackupServiceType serviceType,
   ) async {
+    // Linux Drive needs a Google OAuth client id that only the person building
+    // the app can create — it identifies the *app* to Google (it is not an
+    // account, nobody signs in with the maintainer's Google account). Without
+    // it the browser would end on Google's `invalid_client` page, so explain
+    // the missing piece instead of opening one.
+    if (serviceType == BackupServiceType.google_drive) {
+      final service = repository.getService(serviceType);
+      if (service is GoogleDriveLinuxCloudService && !service.isConfigured) {
+        if (context.mounted) await _showGoogleDriveSetupHelp(context);
+        return;
+      }
+    }
+
     // Nextcloud's auth is a server/username/app-password form, not a
     // no-argument OAuth flow — route through its connect sheet (which calls
     // connectNextcloud and updates state itself) instead of the generic
@@ -374,6 +387,44 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     }
 
     notifyListeners();
+  }
+
+
+  /// One-time setup instructions for the desktop Google Drive build. Kept in the
+  /// dialog (not a snackbar) because it is a multi-line checklist the user has
+  /// to act on, and it is shown *before* the browser opens.
+  Future<void> _showGoogleDriveSetupHelp(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Google Drive needs one setup step'),
+        content: const SingleChildScrollView(
+          child: SelectableText(
+            'This build has no Google OAuth client id yet. It identifies the app to '
+            'Google (it is not an account — every user still signs in with their own '
+            'Google account, and backups go to their own Drive).\n\n'
+            '1. console.cloud.google.com -> create a project\n'
+            '2. APIs & Services -> Library -> enable "Google Drive API"\n'
+            '3. Google Auth Platform -> Branding: name + support email, then '
+            'Audience: External, and add your own account under Test users\n'
+            '4. Credentials -> Create credentials -> OAuth client ID -> Desktop app\n'
+            '5. Put both values next to the repo, outside git:\n\n'
+            '   private_keys/dart_defines/community.json\n'
+            '   {"GOOGLE_DESKTOP_CLIENT_ID": "...", "GOOGLE_DESKTOP_CLIENT_SECRET": "..."}\n\n'
+            'Then restart with bin/dev --community-linux.\n\n'
+            'Note: while the Google project stays in Testing, Google expires the '
+            'refresh token after 7 days. Publishing the app (the scopes used here are '
+            'non-sensitive, so no Google review is required) stops that.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> connectNextcloud(

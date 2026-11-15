@@ -36,10 +36,12 @@ void main() {
   });
 
   group('PlatformCapabilities.cloudSync on linux', () {
-    test('cannot sign in to google drive', () {
-      // google_sign_in has no Linux implementation: the registered Drive service
-      // is a stub whose signIn() always returns false.
-      expect(onLinux(BackupServiceType.google_drive), isFalse);
+    test('can sign in to google drive through the loopback OAuth flow', () {
+      // google_sign_in has no Linux implementation, but Drive no longer depends
+      // on it here: GoogleDriveLinuxCloudService authenticates with OAuth2 in
+      // the system browser (D-019). Whether a given *build* carries a client id
+      // is a separate question, answered by isConfigured so the UI can explain.
+      expect(onLinux(BackupServiceType.google_drive), isTrue);
     });
 
     test('cannot use icloud', () {

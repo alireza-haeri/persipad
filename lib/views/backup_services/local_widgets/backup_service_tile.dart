@@ -30,10 +30,10 @@ class BackupServiceTile extends StatelessWidget {
     final status = provider.statusFor(service.serviceType);
     final metadata = service.serviceType;
 
-    // Some services simply cannot work on every platform (Drive needs
-    // google_sign_in, which has no Linux implementation — see
-    // GoogleDriveLinuxCloudService). Offering a Connect button that can only
-    // ever fail is the worst option, so explain it and disable the tile.
+    // Some services simply cannot work on every platform (iCloud exists only on
+    // Apple platforms). Offering a Connect button that can only ever fail is the
+    // worst option, so explain it and disable the tile. Drive used to be in this
+    // list on Linux; it now authenticates through loopback OAuth2 (D-019).
     final unavailable = !PlatformCapabilities.cloudSyncOnThisDevice(service.serviceType);
     if (unavailable) {
       return ListTile(
