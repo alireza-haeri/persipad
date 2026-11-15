@@ -183,3 +183,35 @@ Template:
   need the log text, you paste it or I ask you to read it.
 - **Consequences:** "It compiles" now means CI green, not my guess. Any red CI is triaged
   before I claim a task is done.
+
+## D-014 — Speed rules: CI is parallel and non-blocking for me (2026-11-15)
+- **Status:** accepted
+- **Context:** You stopped a run because a single CI cycle blocked the whole session
+  for 6+ minutes while I sat waiting.
+- **Decision:** three rules, effective immediately:
+  1. **Never block on CI.** Kick off the run, keep working on the next piece, and check
+     the result later with `gh run list` (no `gh run watch` marathons).
+  2. **`paths-ignore` for docs.** `ai/**` and `**/*.md` no longer trigger a run — most of
+     our commits are docs, and each one used to cost 6 minutes.
+  3. **Cache the codegen.** `.dart_tool/build` is cached across runs; `build_runner` is
+     ~75s of fixed cost in every job.
+- **Also:** the formatting gate is advisory again until clean. A blocking formatter I
+  cannot run locally costs one full CI round trip per guess.
+- **Consequences:** the remaining big win is committing freshly generated `*.g.dart` so
+  CI can skip `build_runner` entirely (~2 min per job). Tracked as `BACKLOG.md` T-6.
+
+## D-015 — Fix media picking on the desktop instead of hiding it (2026-11-15)
+- **Status:** accepted
+- **Context:** `image_picker`'s Linux implementation (`image_picker_linux`, built on
+  file_selector) serves a single image only — `pickVideo` and `pickMultipleMedia` return
+  `UnimplementedError` there. So "record video" and "select from photos" were dead taps on
+  the desktop, and single images worked only by accident of that plugin.
+- **Decision:** On Linux/Windows, `AppFilePickerService` opens the OS file dialog through
+  `file_picker` (already a dependency) with an extension filter, for images, videos and
+  multi-select. Mobile and Apple keep using `image_picker`, unchanged.
+- **Consequences:**
+  - Picking is one code path per platform, no try/catch guessing at runtime.
+  - Desktop images are not re-compressed (there is no `imageQuality` equivalent);
+    acceptable, video is the only media the app encodes itself.
+  - The extension lists must agree with `AssetFileTypeService`, otherwise a video is
+    inserted as an image — enforced by `media_picker_extensions_test.dart`.

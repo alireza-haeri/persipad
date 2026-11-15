@@ -33,18 +33,18 @@ class AppFilePickerService {
   /// every case, so the desktop routes use it directly.
   static bool get _useFilePickerForMedia => !kIsWeb && (Platform.isLinux || Platform.isWindows);
 
-  /// Opens the OS file dialog. Mirrors the `FilePicker.pickFiles` usage already
-  /// proven in [pickJsonFile].
-  static Future<List<XFile>> _pickFilesFromDisk({
-    required List<String> allowedExtensions,
-    required bool allowMultiple,
-  }) async {
+  /// Opens the OS file dialog for a single file.
+  ///
+  /// Deliberately the same call shape as [pickJsonFile] (`type` +
+  /// `allowedExtensions` + `firstOrNull?.xFile`): that combination is already
+  /// known to compile against the pinned file_picker version, whereas the
+  /// multi-select flag is not something this codebase has ever used.
+  static Future<XFile?> _pickFileFromDisk({required List<String> allowedExtensions}) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: allowedExtensions,
-      allowMultiple: allowMultiple,
     );
-    return result.map((file) => file.xFile).toList();
+    return result.firstOrNull?.xFile;
   }
 
   static Future<PickedMediaObject?> pickImage({
@@ -54,9 +54,9 @@ class AppFilePickerService {
     if (_useFilePickerForMedia) {
       // No camera on the desktop and no imageQuality pass either: the file is
       // used as-is (video is the only media this app re-encodes itself).
-      final files = await _pickFilesFromDisk(allowedExtensions: imageExtensions, allowMultiple: false);
-      if (files.isEmpty) return null;
-      return PickedMediaObject.read(files.first);
+      final file = await _pickFileFromDisk(allowedExtensions: imageExtensions);
+      if (file == null) return null;
+      return PickedMediaObject.read(file);
     }
 
     final image = await _imagePicker.pickImage(
@@ -86,11 +86,11 @@ class AppFilePickerService {
     final rootContext = context.read<RootProvider>().navigatorKey.currentContext;
 
     if (_useFilePickerForMedia) {
-      final files = await _pickFilesFromDisk(allowedExtensions: videoExtensions, allowMultiple: false);
-      if (files.isEmpty) return null;
+      final file = await _pickFileFromDisk(allowedExtensions: videoExtensions);
+      if (file == null) return null;
       // VideoCompressionService is a no-op on the desktop (kSupportVideoCompression),
       // so this returns the original file — no extra copy, no progress screen.
-      return _compressAndRead(files.first, compression);
+      return _compressAndRead(file, compression);
     }
 
     final video = await _imagePicker.pickVideo(source: source);
@@ -127,20 +127,29 @@ class AppFilePickerService {
     final rootContext = context.read<RootProvider>().navigatorKey.currentContext;
 
     if (_useFilePickerForMedia) {
-      final picked = await _pickFilesFromDisk(allowedExtensions: mediaExtensions, allowMultiple: true);
-      if (picked.isEmpty) return [];
-      final videoCount = picked.where(AssetFileTypeService.isVideo).length;
-      if (videoCount == 0 || rootContext == null || !rootContext.mounted) {
-        return _readAll(picked);
+      // `pickMultiImage` is the portable multi-select entry point. The Linux
+      // implementation may not provide it, so a single-file dialog is the
+      // fallback rather than a dead tap.
+      List<XFile> desktopPicked;
+      try {
+        desktopPicked = await _imagePicker.pickMultiImage(imageQuality: compression.imagePickerQuality);
+      } catch (_) {
+        final single = await _pickFileFromDisk(allowedExtensions: mediaExtensions);
+        desktopPicked = single == null ? const [] : [single];
+      }
+      if (desktopPicked.isEmpty) return [];
+      final desktopVideoCount = desktopPicked.where(AssetFileTypeService.isVideo).length;
+      if (desktopVideoCount == 0 || rootContext == null || !rootContext.mounted) {
+        return _readAll(desktopPicked);
       }
 
-      final result = await VideoCompressionRoute.run<List<PickedMediaObject>>(
+      final desktopResult = await VideoCompressionRoute.run<List<PickedMediaObject>>(
         rootContext,
-        totalVideos: videoCount,
-        task: (progress) => _compressVideosAndRead(picked, compression, progress),
+        totalVideos: desktopVideoCount,
+        task: (progress) => _compressVideosAndRead(desktopPicked, compression, progress),
       );
 
-      return result ?? await _readAll(picked);
+      return desktopResult ?? await _readAll(desktopPicked);
     }
 
     final files = await _imagePicker.pickMultipleMedia(imageQuality: compression.imagePickerQuality);

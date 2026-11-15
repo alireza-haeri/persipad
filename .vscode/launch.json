@@ -9,6 +9,22 @@
   "version": "0.2.0",
   "configurations": [
     {
+      // Linux desktop is our only active target, so it goes first. Note: no
+      // --flavor, because `flutter run -d linux` rejects flavors (the same reason
+      // bin/dev drops it for its -linux targets). The dart-defines file is the
+      // empty community fallback, making RevenueCat/Maps/Google Sign-In no-op.
+      "name": "Community (Linux)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "program": "lib/main_community.dart",
+      "preLaunchTask": "sync-private-keys",
+      "deviceId": "linux",
+      "args": [
+        "--dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json"
+      ]
+    },
+    {
       "name": "Community",
       "request": "launch",
       "type": "dart",

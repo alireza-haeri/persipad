@@ -1,9 +1,9 @@
 # Status
 
 **Last updated:** 2026-11-15
-**Current session:** session 3 — Linux feature parity + CI
+**Current session:** session 4 — Linux feature parity + a CI loop that doesn't block
 **Branch:** `arena/f59917e7-notely` (base: `a0d9f727` on `main`)
-**Phase:** 🟡 features landing; waiting on the first green CI run
+**Phase:** 🟡 features landing; CI green on Test + Build, formatting advisory
 
 ---
 
@@ -35,11 +35,24 @@
       desktop (blocking), Analyze (advisory), running on every push (D-013).
 - [x] 13 new unit tests: entitlement resolution policy + platform capability matrix,
       including a regression guard that Linux always keeps a working sync backend.
+- [x] **Desktop media picking fixed** (D-015): `pickVideo` and `pickMultipleMedia` threw
+      `UnimplementedError` on Linux because `image_picker_linux` handles a single image
+      only. Linux/Windows now open the OS file dialog via `file_picker`.
+- [x] 5 more tests pinning the media extension lists to `AssetFileTypeService` (a video
+      picked from disk used to be insertable as an image).
+
+### Session 4 — speed
+- [x] CI no longer blocks me: docs-only commits are skipped (`paths-ignore`), the codegen
+      asset graph is cached, and I keep working while a run is in flight (D-014).
+- [x] Formatting gate is advisory again (see "Known debt" below).
+- [x] `bin/check` — local pre-push equivalent of the CI gates (format + analyze + test),
+      so the slow path is the exception.
+- [x] VS Code: a **Community (Linux)** launch config, so F5 runs the app with no terminal
+      command and no `--flavor` mistake.
 
 ## 🔄 In progress
 
-- [ ] First CI run for this branch — checking whether `flutter test` and
-      `flutter build linux` pass on GitHub's runners.
+- [ ] Confirm the media-picker change on CI (run for `feat(linux): pick videos …`).
 
 ## ⏳ Remaining (roadmap)
 
@@ -60,14 +73,23 @@
 - Android builds/Gradle, camera, quick actions, video compression, biometrics.
 - macOS / Windows / iOS entirely.
 
+## 🧹 Known debt (small, tracked)
+
+- **2 files need `dart format`** (`bin/format` fixes both). The sandbox cannot run the
+  formatter, so the gate is advisory until you run it once: `bin/format && git commit -am
+  "chore: format"`.
+- **Committed `*.g.dart` is stale** relative to the pinned objectbox 6 generator (proved by
+  CI): every job must run `build_runner`. Committing the regenerated output would cut
+  ~2 minutes per job — `BACKLOG.md` T-6.
+
 ## 📊 Metrics
 
 | Metric | Value |
 |---|---|
 | Dart files (lib + packages) | 983 (+2 new services) |
 | Active platform targets | **1** (Linux desktop) |
-| Blocking CI jobs | 2 (Test, Build Linux desktop) |
-| Tests added by us | 13 |
+| Blocking CI jobs | 2 (Test, Build Linux desktop) + advisory format |
+| Tests added by us | 18 |
 | Existing tests | 92 + 57 (editor package) |
 | Pro feature gates opened by one switch | ~30 call sites |
 

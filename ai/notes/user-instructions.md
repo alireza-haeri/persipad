@@ -133,6 +133,23 @@ Android-only features now would be premature while Android is only parked.
 
 ---
 
+## Session 4 — 2026-11-15
+
+### N-009 — Speed: parallelise the work, stop waiting on CI
+> "I stopped you mid-work because it was taking too long. The test/action runs are getting
+> very slow. Do a few things: first optimise the run process; second, while a test for one
+> part is running, work on another part so it finishes in the background — speed matters to
+> us. Check exactly where you were and continue."
+
+**Status:** ✅ → D-014
+**Done:** docs-only commits no longer trigger CI, codegen is cached, I never block on a run
+anymore, formatting is advisory until clean. Meanwhile, in the same cycle, I fixed desktop
+media picking (D-015).
+**Lesson recorded:** the sandbox cannot read Actions logs (blob storage is blocked) — so CI
+must report through **annotations** (`gh run view` shows them) and be judged by pass/fail.
+
+---
+
 ## Template for a new note
 
 ```md
