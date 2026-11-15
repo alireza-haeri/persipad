@@ -66,6 +66,19 @@ void main() {
     });
   });
 
+  group('PlatformCapabilities.firebase', () {
+    test('linux has no firebase options and must not read them', () {
+      // DefaultFirebaseOptions.currentPlatform *throws* on Linux, so anything that
+      // asks this question must get false there — this is what crashed the app
+      // before its first frame.
+      expect(PlatformCapabilities.firebase(isLinux: true), isFalse);
+    });
+
+    test('other platforms have firebase options', () {
+      expect(PlatformCapabilities.firebase(isLinux: false), isTrue);
+    });
+  });
+
   group('PlatformCapabilities.cloudSync on apple platforms', () {
     test('ios supports every service', () {
       for (final type in BackupServiceType.values) {

@@ -49,7 +49,16 @@ class PlatformCapabilities {
     }
   }
 
+  /// Whether Firebase can be initialized on a platform.
+  ///
+  /// Linux does not link Firebase (`FirebaseInitializer` returns early) and
+  /// `DefaultFirebaseOptions.currentPlatform` *throws* there, so nothing may read
+  /// that getter on Linux — doing so crashed the app before the first frame.
+  static bool firebase({required bool isLinux}) => !isLinux;
+
   /// [cloudSync] for the platform we are actually running on.
+  static bool get firebaseOnThisDevice => firebase(isLinux: isLinux);
+
   static bool cloudSyncOnThisDevice(BackupServiceType type) => cloudSync(
     type: type,
     isLinux: isLinux,
