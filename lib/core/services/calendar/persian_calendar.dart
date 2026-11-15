@@ -27,7 +27,8 @@ class PersianDate {
   String toString() => '$year/$month/$day';
 
   @override
-  bool operator ==(Object other) => other is PersianDate && other.year == year && other.month == month && other.day == day;
+  bool operator ==(Object other) =>
+      other is PersianDate && other.year == year && other.month == month && other.day == day;
 
   @override
   int get hashCode => Object.hash(year, month, day);
