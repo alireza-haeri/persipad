@@ -1,38 +1,41 @@
-# هدف پروژه
+# Project goal
 
-## خلاصه در یک خط
+## One-liner
 
-ما یک فورک شخصی/محصولی از [StoryPad](https://github.com/theachoem/storypad)
-می‌سازیم: یک اپژورنال و نوشتار Flutter، حریم‌خصوصی‌محور و آفلاین‌اول، که
-قابلیت‌های دلخواه ما به آن اضافه شده و بخش‌هایی از تجربه‌ی کاربری‌اش بازطراحی شده است.
+We are building a personal/product fork of [StoryPad](https://github.com/theachoem/storypad):
+a privacy-first, offline-first journal and writing app in Flutter, with our own
+features layered on top and parts of the UX redesigned to our taste.
 
-## چه چیزی می‌خواهیم (اهداف)
+## What we want
 
-1. **درک کامل کدبیس**: قبل از هر تغییر بزرگ، باید بدانیم هر چیز کجاست و چرا این‌طور طراحی شده.
-2. **افزودن قابلیت‌های تازه** روی پایه‌ی موجود، بدون شکستن معماری و تست‌های پروژه.
-3. **بازطراحی شخصی‌سازی‌شده** بخش‌هایی که سلیقه‌ی ما را نمی‌پسندند (UI/UX، جریان‌ها).
-4. **حفظ حریم خصوصی و آفلاین‌اول بودن** به‌عنوان اصل غیرقابل‌مذاکره.
-5. **پشتیبانی درجه‌یک از لینوکس و اندروید** در تمام تغییرات.
+1. **Understand the codebase fully** — before any big change, we should know where
+   everything lives and why it was designed that way.
+2. **Add new capabilities** on top of the existing foundation without breaking the
+   architecture or the existing test suite.
+3. **Redesign selected parts** that don't match our taste (UI/UX, flows).
+4. **Keep privacy and offline-first as non-negotiables.**
+5. **First-class support for Linux and Android** in every change we make.
 
-## چه چیزی فعلاً نمی‌خواهیم (محدوده‌ی فعلی)
+## Out of scope (for now)
 
-- مک و ویندوز: **فعلاً خارج از محدوده**. کدشان حذف نمی‌شود، اما برایشان تست/بهینه نمی‌کنیم
-  و تغییرات نباید صرفاً به‌خاطر آن‌ها پیچیده شود.
-- iOS: خارج از محدوده‌ی فعال (کد بماند، تعهدی به تست نداریم).
-- وب: خارج از محدوده.
-- انتشار عمومی در استورها: در محدوده نیست؛ فعلاً محصول شخصی/محلی است.
+- macOS / Windows: **explicitly out of scope**. Their code stays in the tree, but we
+  don't test, optimize, or add complexity for them.
+- iOS: inactive scope (keep the code, no testing commitment).
+- Web: out of scope.
+- Public app-store releases: out of scope for now; this is a personal/local product.
 
-## جهت‌گیری محصولی (پیش‌فرض، تا وقتی تو تغییرش بدهی)
+## Product direction (default until you say otherwise)
 
-- تجربه‌ی «دفتر خاطرات روزانه» ساده و سریع بماند؛ افزودن قابلیت نباید نوشتن را کند کند.
-- هیچ داده‌ای بدون رضایت صریح از دستگاه خارج نشود (همه‌ی سرویس‌های ابری اختیاری).
-- هر قابلیت جدید باید آفلاین کار کند؛ ابر = لایه‌ی مکمل، نه پیش‌نیاز.
+- The "daily journal" experience must stay fast and simple; new features must never
+  slow writing down.
+- No data leaves the device without explicit consent (all cloud services optional).
+- Every new feature must work offline; cloud is a complement, never a prerequisite.
 
-## سؤالات باز درباره‌ی هدف
+## Open questions about the goal
 
-- [ ] نام نهایی محصول: `StoryPad` بماند یا برند شخصی خودمان (ریپو `notely` نام دارد)؟
-- [ ] آیا این فورک روزی عمومی می‌شود (GPLv3 → کد باید باز بماند) یا کار شخصی است؟
-- [ ] آیا قابلیت‌های پولی (StoryPad Pro / RevenueCat) بمانند یا برچیده شوند؟
-- [ ] آیا پشتیبانی چندزبانه (۲۰ زبان) لازم است یا فقط فارسی/انگلیسی کافی است؟
+- [ ] Final product name: keep `StoryPad`, or use our own brand (the repo is `notely`)?
+- [ ] Will this fork ever be public (GPLv3 → modifications must stay open source)?
+- [ ] Do we keep the paid features (StoryPad Pro / RevenueCat) or remove them?
+- [ ] Is 20-language support needed, or are Persian + English enough?
 
-پاسخ‌ها هر وقت آمد، در [`DECISIONS.md`](DECISIONS.md) ثبت می‌شود.
+Answers get recorded in [`DECISIONS.md`](DECISIONS.md) as they arrive.

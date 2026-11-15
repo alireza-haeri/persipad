@@ -1,62 +1,66 @@
-# وضعیت پیشرفت
+# Status
 
-**آخرین آپدیت:** 2026-11-15
-**جلسه‌ی جاری:** جلسه‌ی ۱ — راه‌اندازی پایه
-**برنچ:** `arena/f59917e7-notely` (پایه: `a0d9f727` از `main`)
-**مرحله:** 🟢 پایه آماده — منتظر تصمیم تو برای شروع تغییرات
+**Last updated:** 2026-11-15
+**Current session:** session 1 — foundation
+**Branch:** `arena/f59917e7-notely` (base: `a0d9f727` on `main`)
+**Phase:** 🟢 foundation ready — waiting on your decisions before changing any app code
 
 ---
 
-## ✅ انجام‌شده
+## ✅ Done
 
-- [x] کلون کامل پروژه‌ی `theachoem/storypad` (کامیت `cffda48`، نسخه `2.34.0+834`)
-      داخل ریپوی `alireza-haeri/notely` (فایل‌ها منتقل شدند، تاریخچه‌ی مبدأ نه).
-- [x] بررسی ساختار کد و مستندسازی نقشه‌ی معماری → [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- [x] بررسی محدودیت‌های محیط (Flutter/pub.dev در سندباکس در دسترس نیست) → [`ENVIRONMENT.md`](ENVIRONMENT.md)
-- [x] ساخت پوشه‌ی `ai/` با ۷ سند پایه + دفتر نکته‌ها.
-- [x] ثبت ۵ تصمیم اولیه → [`DECISIONS.md`](DECISIONS.md)
-- [x] ثبت محدوده‌ی پلتفرم (لینوکس + اندروید) → D-003
+- [x] Imported the full `theachoem/storypad` project (commit `cffda48`, version
+      `2.34.0+834`) into `alireza-haeri/notely` (files copied, upstream history not).
+- [x] Explored the codebase and documented the architecture map → [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- [x] Audited environment limits (no Flutter SDK, pub.dev blocked) → [`ENVIRONMENT.md`](ENVIRONMENT.md)
+- [x] Created the `ai/` memory folder: 7 core docs + a notes folder.
+- [x] Recorded the first decisions (D-001 … D-006) → [`DECISIONS.md`](DECISIONS.md)
+- [x] Platform scope fixed to Linux + Android (D-003).
+- [x] Switched all `ai/` documentation to English at your request (D-006).
+- [x] Pushed both commits to `origin/arena/f59917e7-notely`.
 
-## 🔄 در جریان
+## 🔄 In progress
 
-- [ ] گرفتن پاسخ سؤالات باز درباره‌ی نام محصول، محدوده‌ی Pro/paywall، و اولین قابلیت.
+- [ ] Collecting your answers on: product name, Pro/paywall scope, first feature,
+      language support.
 
-## ⏳ باقی‌مانده (نقشه‌ی راه)
+## ⏳ Remaining (roadmap)
 
-### فاز ۱ — تثبیت پایه (باید قبل از فیچر انجام شود)
-- [ ] اجرای موفق اپ روی اندروید توسط تو (`bin/dev --community`) و گزارش اولین خطاها.
-- [ ] اجرای موفق اپ روی لینوکس توسط تو (دستور در `ENVIRONMENT.md`).
-- [ ] تصمیم درباره‌ی برند/نام (فلیور، `app_name`، لوگو، package name؟).
-- [ ] تصمیم درباره‌ی `StoryPad Pro` / paywall / RevenueCat.
-- [ ] (پیشنهادی) افزودن `--community-linux` به `bin/dev` برای راحتی تست.
+### Phase 1 — stabilize the base (must happen before features)
+- [ ] You get the app running on Android (`bin/dev --community`) and report first errors.
+- [ ] You get the app running on Linux (command in `ENVIRONMENT.md`).
+- [ ] Decide on branding/name (flavor, `app_name`, logo, package name?).
+- [ ] Decide on `StoryPad Pro` / paywall / RevenueCat.
+- [ ] (Suggested) Add `--community-linux` to `bin/dev` to make Linux testing cheap.
 
-### فاز ۲ — اولین قابلیت‌ها
-- [ ] تعیین اولویت از [`BACKLOG.md`](BACKLOG.md) با نظر تو.
-- [ ] پیاده‌سازی قابلیت اول (TBD).
-- [ ] تست + مستندسازی + آپدیت همین فایل.
+### Phase 2 — first features
+- [ ] Pick priorities from [`BACKLOG.md`](BACKLOG.md) together.
+- [ ] Implement feature #1 (TBD).
+- [ ] Test, document, update this file.
 
-### فاز ۳ — بازطراحی شخصی
-- [ ] لیست بخش‌هایی از UI/UX که می‌خواهی عوض شود (منتظر لیست تو).
-- [ ] اجرای تدریجی، هر تغییر یک کامیت مستقل.
+### Phase 3 — personal redesign
+- [ ] Get your list of UI/UX parts you want to change.
+- [ ] Implement incrementally — one commit per change.
 
-## 📊 آمار عینی
+## 📊 Metrics
 
-| شاخص | مقدار |
+| Metric | Value |
 |---|---|
-| فایل‌های Dart در `lib/` | ~981 فایل کل پروژه با `packages/` |
-| پوشه‌های صفحه (`lib/views/`) | ۳۲ |
-| تست‌های موجود | ۹۲ (`test/`) + ۵۷ (پکیج ادیتور) |
-| زبان‌ها | ۲۰ |
-| فایل‌های ما در این جلسه | ۸ سند در `ai/` |
+| Dart files (lib + packages) | 981 |
+| Screen folders (`lib/views/`) | 32 |
+| Existing tests | 92 (`test/`) + 57 (editor package) |
+| Languages | 20 |
+| Docs we authored so far | 9 files in `ai/` + root `AI.md` |
 
-## 🧾 گزارش تست
+## 🧾 Test log
 
-> ⚠️ در این محیط `flutter analyze`/`flutter test` اجرا نمی‌شود (نبود SDK + بلاک بودن pub.dev).
-> تا این لحظه **هیچ تغییری در کد اپ** داده نشده؛ فقط فایل‌های `ai/` اضافه شده‌اند.
-> پس وضعیت تست همان وضعیت اولیه‌ی پروژه است و ریسکی وارد نکرده‌ایم.
+> ⚠️ `flutter analyze` / `flutter test` cannot run in this environment (no SDK, pub.dev
+> blocked). As of this moment **no app code has been modified** — only the `ai/` docs and
+> the root `AI.md` were added. The app is exactly upstream v2.34.0, so we have introduced
+> no risk.
 
-هر تسک بعدی باید این بخش را با نتیجه‌ی تست تو پر کند:
+Every following task must fill in this table with your test result:
 
-| تاریخ | تسک | تست‌شده توسط | نتیجه |
+| Date | Task | Verified by | Result |
 |---|---|---|---|
 | — | — | — | — |

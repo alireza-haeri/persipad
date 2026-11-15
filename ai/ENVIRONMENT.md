@@ -1,83 +1,83 @@
-# محیط اجرا و بیلد
+# Environment & builds
 
-## وضعیت محیط سندباکس (جایی که من کد می‌زنم) — مهم
+## The sandbox I work in — important
 
-بررسی‌شده در 2026-11-15:
+Checked on 2026-11-15:
 
-| مورد | وضعیت | معنی |
+| Item | Status | Meaning |
 |---|---|---|
-| Flutter SDK | ❌ نصب نیست | `flutter`, `dart` در PATH نیستند |
-| دسترسی به `pub.dev` | ❌ بلاک | `flutter pub get` ممکن نیست |
-| دسترسی به `storage.googleapis.com` / `dl.google.com` | ❌ بلاک | دانلود SDK یا NDK ممکن نیست |
-| دسترسی به `services.gradle.org` | ❌ بلاک | بیلد Gradle/اندروید ممکن نیست |
-| دسترسی به `github.com`, `api.github.com`, `codeload` | ✅ باز | کلون/پوش/PR ممکن است |
-| دسترسی به `registry.npmjs.org`, `pypi.org` | ✅ باز | (برای این پروژه کاربردی ندارد) |
+| Flutter SDK | ❌ not installed | `flutter` / `dart` are not on PATH |
+| `pub.dev` reachable | ❌ blocked | `flutter pub get` is impossible |
+| `storage.googleapis.com` / `dl.google.com` | ❌ blocked | cannot download SDK/NDK |
+| `services.gradle.org` | ❌ blocked | no Gradle/Android build |
+| `github.com`, `api.github.com`, `codeload` | ✅ open | clone/push/PR work |
+| `registry.npmjs.org`, `pypi.org` | ✅ open | (irrelevant for this project) |
 
-**نتیجه‌ی عملی:**
+**Practical consequence:**
 
-- من می‌توانم کد را **بخوانم، بنویسم، بازآرایی کنم، مستند کنم و کامیت/پوش کنم**.
-- من **نمی‌توانم** در این محیط `flutter analyze` / `flutter test` / بیلد اجرا کنم.
-- پس **تأیید نهایی همیشه با تو است** روی ماشین خودت (لینوکس یا اندروید).
-- برای جبران، من: تغییرات را کوچک نگه می‌دارم، الگوی موجود کد را دقیق کپی می‌کنم،
-  و در پایان هر تسک دقیقاً می‌نویسم «چی را باید تست کنی».
+- I **can** read, write, refactor, document, commit and push code.
+- I **cannot** run `flutter analyze`, `flutter test`, or any build here.
+- So **you are the final verifier**, on your own machine (Linux or Android).
+- To compensate I: keep changes small, copy existing code patterns exactly, and end
+  every task with an explicit "what you should test" note.
 
-اگر روزی یکی از این‌ها در دسترس شد (مثلاً آینه‌ی pub یا نصب SDK)، همین جدول
-آپدیت می‌شود و می‌توانیم تحلیل ایستا را هم خودکار کنیم.
+If any of this changes (e.g. a pub mirror becomes reachable), this table gets updated
+and we can automate the static analysis.
 
-## پیش‌نیازهای ماشین خودت
+## Your machine's prerequisites
 
-طبق `.tool-versions` و `README.md` پروژه:
+From `.tool-versions` and `README.md`:
 
-- Flutter `3.47.4-stable` (README قدیمی‌تر 3.29 می‌گوید؛ `pubspec.yaml` روی
-  `sdk: ^3.11.0` است — **نسخه‌ی معتبر همان `.tool-versions` است**)
-- Java 21 (`openjdk-21`) برای اندروید
-- Node 24، Python 3.12 (فقط برای اسکریپت‌های `bin/`)
-- اندروید: minSdk 24، compileSdk 37
-- لینوکس: ابزارهای GTK/CMake استاندارد Flutter desktop
+- Flutter `3.47.4-stable` (the README still says 3.29; `pubspec.yaml` requires
+  `sdk: ^3.11.0` — **`.tool-versions` is the authoritative one**)
+- Java 21 (`openjdk-21`) for Android
+- Node 24, Python 3.12 (only for scripts in `bin/`)
+- Android: minSdk 24, compileSdk 37
+- Linux: standard Flutter desktop toolchain
   (`clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`)
 
-## دستورهای کار روزمره
+## Daily commands
 
 ```bash
-# وابستگی‌ها + تولید کد
+# dependencies + codegen
 flutter pub get
-bin/build_runner --delete        # گاهی لازم است چون *.g.dart کامیت شده‌اند
+bin/build_runner --delete        # occasionally needed, since *.g.dart is committed
 
-# اجرا روی اندروید (فلیور عمومی؛ فلیور storypad به کلید خصوصی نیاز دارد)
+# Android (public flavor; the "storypad" flavor needs private keys)
 bin/dev --community
 
-# اجرا روی لینوکس (اسکریپت bin/dev برای لینوکس ساخته نشده؛ مستقیم اجرا کن)
-flutter run -d linux --target=lib/main_community.dart --dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json
-# اگر فایل dart-defines ساخته نشد، bin/dev --community یک بار اجرا شود تا
-# sync_private_keys آن را بسازد؛ یا با --dart-define های خالی اجرا کن.
+# Linux (bin/dev has no linux target, run directly)
+flutter run -d linux --target=lib/main_community.dart \
+  --dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json
+# If that dart-defines file doesn't exist yet, run `bin/dev --community` once so
+# sync_private_keys creates it, or pass the --dart-define flags manually.
 
-# کیفیت
+# quality
 dart format lib packages
 flutter analyze
 flutter test
 flutter test packages/storypad_editor
 ```
 
-### نکته‌ی لینوکس
+### Linux notes
 
-`bin/dev` هیچ ورودی `--linux` ندارد (فقط android/ios/macos). اگر بخواهی می‌توانیم
-یک `--community-linux` به آن اضافه کنیم — این کار در [`BACKLOG.md`](BACKLOG.md)
-ثبت شده است.
+`bin/dev` has no `--linux` input (only android/ios/macos). We can add
+`--community-linux`; that idea is tracked in [`BACKLOG.md`](BACKLOG.md) as I-1.
 
-در لینوکس این‌ها عمداً خاموش/جایگزین می‌شوند و باید در تست‌ها به یاد داشته باشیم:
+These are deliberately disabled or replaced on Linux — keep them in mind when testing:
 
-- Firebase (`firebase_initializer.dart`: `if (Platform.isLinux) return;`) → پس
-  Analytics/Crashlytics/RemoteConfig خالی می‌شوند و نباید فرض کنیم کار می‌کنند.
-- Local auth / بیومتریک (`local_auth_service.dart`) → قفل با PIN بماند.
-- IAP (`kIAPEnabled` فقط Android/iOS/macOS) → paywall باید بدون خرید هم قابل عبور باشد.
-- Google Drive مسیر جداگانه دارد: `GoogleDriveLinuxCloudService` (loopback OAuth).
-- دوربین، Quick Actions، Video Compression روی لینوکس نیستند: `kSupportCamera`,
-  `kSupportQuickActions`, `kSupportVideoCompression`.
+- Firebase (`firebase_initializer.dart`: `if (Platform.isLinux) return;`) → Analytics,
+  Crashlytics and RemoteConfig become no-ops; never assume they work.
+- Local auth / biometrics (`local_auth_service.dart`) → the PIN lock is what remains.
+- IAP (`kIAPEnabled` only Android/iOS/macOS) → the paywall must be escapable without
+  a purchase on Linux.
+- Google Drive uses a separate path: `GoogleDriveLinuxCloudService` (loopback OAuth).
+- Camera, quick actions, video compression are unavailable on Linux:
+  `kSupportCamera`, `kSupportQuickActions`, `kSupportVideoCompression`.
 
-## خطرات شناخته‌شده
+## Known hazards
 
-- فایل `lib/main_storypad.dart` و `lib/firebase_options/storypad.dart` در
-  `.gitignore` هستند → بیلد فلیور `storypad` بدون کلیدهای خصوصی شکست می‌خورد. از
-  `--community` استفاده کن.
-- `*.g.dart` در ریپو کامیت شده‌اند؛ اگر مدل را عوض کنی و build_runner اجرا نشود،
-  خطاهای عجیب می‌گیری.
+- `lib/main_storypad.dart` and `lib/firebase_options/storypad.dart` are gitignored →
+  the `storypad` flavor fails without private keys. Use `--community`.
+- `*.g.dart` files are committed; if you change a model and skip build_runner you get
+  confusing errors.

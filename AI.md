@@ -1,14 +1,14 @@
-# قبل از شروع کار، این را بخوان
+# Read this before starting work
 
-این ریپو یک فورک از [StoryPad](https://github.com/theachoem/storypad) است.
+This repo is a fork of [StoryPad](https://github.com/theachoem/storypad).
 
-حافظه‌ی پروژه، قوانین، تصمیم‌ها و وضعیت پیشرفت **فقط** در پوشه‌ی [`ai/`](ai/README.md)
-نگهداری می‌شود. نقطه‌ی شروع:
+The project memory — rules, decisions, progress — lives **only** in [`ai/`](ai/README.md).
+Start here:
 
-1. [`ai/README.md`](ai/README.md) — فهرست و قاعده‌ی آپدیت
-2. [`ai/GOAL.md`](ai/GOAL.md) — هدف
-3. [`ai/RULES.md`](ai/RULES.md) — قوانین کار
-4. [`ai/PROGRESS.md`](ai/PROGRESS.md) — کجاییم و چه مانده
+1. [`ai/README.md`](ai/README.md) — index and update rules
+2. [`ai/GOAL.md`](ai/GOAL.md) — what we are building
+3. [`ai/RULES.md`](ai/RULES.md) — how we work
+4. [`ai/PROGRESS.md`](ai/PROGRESS.md) — where we are, what is left
 
-مستندات اصلی خود StoryPad (معماری، setup) در [`README.md`](README.md) و
-[`CONTRIBUTING.md`](CONTRIBUTING.md) است.
+StoryPad's own docs (architecture, setup) stay in [`README.md`](README.md) and
+[`CONTRIBUTING.md`](CONTRIBUTING.md).

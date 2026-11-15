@@ -1,38 +1,40 @@
-# پوشه `ai/` — حافظه‌ی مشترک پروژه
+# `ai/` — shared project memory
 
-این پوشه «مغز» همکاری ماست. هر چیزی که تو به من می‌گی، هر قانونی که می‌گذاریم،
-هر تصمیمی که می‌گیریم و هر کاری که انجام یا باقی می‌مانَد، اینجا نوشته می‌شود
-تا در هر جلسه‌ی جدید اول این‌ها را بخوانم و بدانیم کجاییم.
+This folder is the brain of our collaboration. Every note you give me, every rule
+we set, every decision we make, and the state of the work — done or pending — is
+written here, so that a new session can read these files first and know exactly
+where we stand.
 
-> قانون طلایی: **اگر چیزی در `ai/` نوشته نشده، یعنی وجود ندارد.**
-> پایان هر تسک، اول این پوشه آپدیت می‌شود، بعد بقیه‌ی کد.
+> Golden rule: **if it is not written in `ai/`, it does not exist.**
+> At the end of every task, this folder is updated first, code second.
 
 ---
 
-## فایل‌ها
+## Files
 
-| فایل | نقش |
+| File | Purpose |
 |---|---|
-| [`GOAL.md`](GOAL.md) | هدف کلی، چشم‌انداز، محدوده‌ی پروژه (چه می‌خواهیم، چه نمی‌خواهیم) |
-| [`RULES.md`](RULES.md) | قوانین کلی کار: برنچ، کامیت، سبک کد، نحوه‌ی تعامل، چک‌لیست کیفیت |
-| [`DECISIONS.md`](DECISIONS.md) | لاگ تصمیم‌ها به سبک ADR (شماره‌دار، تاریخ‌دار، با «چرا») |
-| [`PROGRESS.md`](PROGRESS.md) | وضعیت لحظه‌ای: چه انجام شد، چه در جریان است، چه مانده + آمار |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | نقشه‌ی کد StoryPad تا مجبور نشویم هر بار کل ریپو را بگردیم |
-| [`ENVIRONMENT.md`](ENVIRONMENT.md) | واقعیت‌های محیط اجرا (سندباکس) و دستورهای بیلد لینوکس/اندروید |
-| [`BACKLOG.md`](BACKLOG.md) | ایده‌ها و قابلیت‌های پیشنهادی، مرتب‌شده بر اساس اولویت و وضعیت |
-| [`notes/`](notes/) | دفتر خام نکته‌های تو، به‌تفکیک موضوع |
+| [`GOAL.md`](GOAL.md) | Vision, scope, what we want and explicitly do **not** want |
+| [`RULES.md`](RULES.md) | Working agreements: branches, commits, code style, quality checklist |
+| [`DECISIONS.md`](DECISIONS.md) | Append-only decision log (ADR style, numbered, dated, with "why") |
+| [`PROGRESS.md`](PROGRESS.md) | Live status: done / in progress / remaining + metrics |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Code map of StoryPad so we don't re-explore the repo every time |
+| [`ENVIRONMENT.md`](ENVIRONMENT.md) | What the sandbox can and cannot do, plus local build/run commands |
+| [`BACKLOG.md`](BACKLOG.md) | Candidate features and tech debt, with status labels |
+| [`notes/`](notes/) | Raw, dated notes of what you asked for |
 
-## قاعده‌ی آپدیت
+## Update ritual
 
-در پایان هر تسک این سه کار انجام می‌شود:
+At the end of every task:
 
-1. `PROGRESS.md` → آنچه تمام شد تیک می‌خورد، آمار و «آخرین آپدیت» عوض می‌شود.
-2. اگر تصمیم جدیدی گرفته شد → یک ورودی تازه در `DECISIONS.md`.
-3. اگر نکته/قانون تازه‌ای از تو رسید → در `notes/user-instructions.md` با تاریخ و
-   بعد در `RULES.md` یا `GOAL.md` (اگر عمومی بود) منعکس می‌شود.
+1. `PROGRESS.md` — tick what is finished, refresh metrics and "last updated".
+2. New decision taken → add a numbered entry to `DECISIONS.md`.
+3. New instruction/rule from you → record it in `notes/user-instructions.md`, then
+   reflect it in `RULES.md` or `GOAL.md` if it is a general rule.
 
-## تاریخچه‌ی همین پوشه
+## Changelog of this folder
 
-| تاریخ | تغییر |
+| Date | Change |
 |---|---|
-| 2026-11-15 | ساخت اولیه‌ی پوشه `ai/` همراه با کلون پروژه‌ی StoryPad |
+| 2026-11-15 | Created `ai/` alongside importing the StoryPad codebase |
+| 2026-11-15 | Rewritten in English (see D-006) |

@@ -1,51 +1,51 @@
-# بک‌لاگ و ایده‌ها
+# Backlog & ideas
 
-وضعیت‌ها: `💡 ایده` (بی‌تصمیم) · `⏸ منتظر تصمیم` · `🔜 بعدی` · `🚧 در حال انجام` · `✅ انجام شد`
+Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `🚧 in progress` · `✅ done`
 
-> هیچ موردی از این لیست بدون تأیید تو شروع نمی‌شود. هدف این فایل «نگه‌داشتن
-> گزینه‌ها» است، نه تعهد.
+> Nothing in this list starts without your approval. The point of this file is to keep
+> options visible, not to commit to them.
 
-## ۰. زیرساخت لینوکس/اندروید (پیشنهاد من، کم‌ریسک)
+## 0. Linux/Android infrastructure (my suggestions, low risk)
 
-| # | مورد | چرا |
+| # | Item | Why |
 |---|---|---|
-| I-1 | `⏸` افزودن `--community-linux` به `bin/dev` | تست لینوکس در حال حاضر دستور دستی طولانی دارد |
-| I-2 | `💡` اسکریپت `bin/check` = format + analyze + test | نبود CI محلی؛ راحتی بررسی قبل از پوش |
-| I-3 | `💡` بررسی پلاگین‌هایی که در لینوکس no-op هستند و ارائه‌ی پیام واضح در UI | الان کاربر لینوکس فقط «کار نمی‌کند» می‌بیند |
-| I-4 | `💡` بازبینی `GoogleDriveLinuxCloudService` (OAuth با loopback) | مهم‌ترین مسیر بکاپ در لینوکس |
-| I-5 | `💡` تست پوشش لینوکس: `flutter test` + بررسی `Platform.isLinux` در کد جدید | جلوگیری از رگرسیون |
-| I-6 | `💡` حذف تدریجی مسیرهای مرده‌ی macos/iOS از جریان‌های مشترک (بدون حذف کد پلتفرم) | کاهش پیچیدگی |
+| I-1 | `⏸` Add `--community-linux` to `bin/dev` | Linux testing currently needs a long manual command |
+| I-2 | `💡` `bin/check` script = format + analyze + test | No local CI; convenient pre-push check |
+| I-3 | `💡` Detect plugins that are no-ops on Linux and show a clear UI message | Linux users currently just see "it doesn't work" |
+| I-4 | `💡` Review `GoogleDriveLinuxCloudService` (loopback OAuth) | The most important backup path on Linux |
+| I-5 | `💡` Linux coverage: `flutter test` + check `Platform.isLinux` in new code | Prevent regressions |
+| I-6 | `💡` Gradually remove dead macOS/iOS branches from shared flows (without deleting platform code) | Reduces complexity |
 
-## ۱. قابلیت‌های محصولی (کاندید)
+## 1. Product features (candidates)
 
-ایده‌های عمومی برای یک اپ ژورنال؛ ترجیح‌های تو اولویت را تعیین می‌کند.
+Generic journaling-app ideas; your preferences set the priority.
 
-| # | ایده | ارزش | هزینه‌ی تخمینی |
+| # | Idea | Value | Rough cost |
 |---|---|---|---|
-| F-1 | قالب روزانه‌ی هوشمند (prompt پیشنهادی بر اساس تاریخ/هوا/سابقه) | بالا | متوسط |
-| F-2 | اتصال محلی به فایل‌های Markdown (پوشه‌ی روی دیسک، سازگار با Obsidian) | بالا (خصوصاً لینوکس) | متوسط |
-| F-3 | جست‌وجوی سراسری بهتر: فیلتر بر اساس تگ + احساس + بازه‌ی تاریخ با UI سریع | متوسط | کم |
-| F-4 | آمار نوشتن: streak، کلمات، گراف سالانه | متوسط | کم |
-| F-5 | قفل بر اساس زمان (automation برای قفل بعد از X دقیقه) | کم | کم |
-| F-6 | همگام‌سازی بین دو دستگاه بدون ابر (Syncthing/WebDAV) | بالا | متوسط |
-| F-7 | خروجی PDF با قالب زیبا | متوسط | متوسط |
-| F-8 | ویجت لینوکس/اندروید برای نوشتن سریع | متوسط | زیاد |
-| F-9 | حالت تمرکز (تمام‌صفحه، بدون کروم) | کم | کم |
-| F-10 | یادآور هوشمند بر اساس الگوی نوشتن کاربر | متوسط | متوسط |
+| F-1 | Smart daily template (prompt suggested from date/weather/history) | high | medium |
+| F-2 | Local Markdown file binding (a folder on disk, Obsidian-compatible) | high (especially Linux) | medium |
+| F-3 | Better global search: fast tag + feeling + date-range filter UI | medium | low |
+| F-4 | Writing stats: streaks, word counts, yearly graph | medium | low |
+| F-5 | Time-based auto lock (lock after X minutes) | low | low |
+| F-6 | Device-to-device sync without a cloud (Syncthing/WebDAV) | high | medium |
+| F-7 | Beautiful PDF export with themes | medium | medium |
+| F-8 | Quick-capture widget for Linux/Android | medium | high |
+| F-9 | Focus mode (full screen, no chrome) | low | low |
+| F-10 | Smart reminders based on the user's writing habits | medium | medium |
 
-## ۲. بدهی فنی مشاهده‌شده
+## 2. Observed tech debt
 
-| # | مورد | توضیح |
+| # | Item | Note |
 |---|---|---|
-| T-1 | ۹۸۱ فایل Dart بدون لایه‌بندی feature-based | پیدا کردن چیزها کند است؛ ولی ریفکتور بزرگ فعلاً صلاح نیست |
-| T-2 | `*.g.dart` کامیت‌شده | ریسک ناسازگاری مدل با کد تولیدشده |
-| T-3 | مستندات پروژه (`docs/`) در این نسخه وجود ندارد ولی `bin/docs` به آن اشاره می‌کند | ارجاع مرده |
-| T-4 | دو مسیر جدا برای Google Drive (عمومی + لینوکس) | احتمال دوبرابر شدن باگ |
-| T-5 | `.github/workflows/ci.yml` از upstream مانده و روی برنچ `develop` تنظیم است (برنچ ما `arena/...` است) | یا شاخه‌ها را عوض کنیم یا تصمیم بگیریم CI محلی کافی است |
+| T-1 | ~981 Dart files without feature-based layering | Hard to discover things; a big refactor isn't wise right now |
+| T-2 | Committed `*.g.dart` files | Model/codegen mismatch risk |
+| T-3 | `bin/docs` points to a `docs/` folder that doesn't exist in this version | Dead reference |
+| T-4 | Two separate Google Drive paths (standard + Linux) | Duplicate-bug risk |
+| T-5 | `.github/workflows/ci.yml` comes from upstream and is wired to the `develop` branch (ours is `arena/...`) | Either retarget it or decide local CI is enough |
 
-## ۳. سؤالات باز
+## 3. Open questions
 
-1. نام محصول چه باشد؟ (`notely`؟ یا StoryPad بماند)
-2. Pro/paywall بماند یا آزاد شود؟
-3. ۲۰ زبان لازم است یا فقط fa/en؟
-4. آیا `upstream` را برای به‌روزرسانی آینده اضافه کنیم؟
+1. Product name — `notely`, or keep StoryPad?
+2. Keep the Pro/paywall or unlock everything?
+3. 20 languages, or just fa/en?
+4. Should we add an `upstream` remote for future updates?

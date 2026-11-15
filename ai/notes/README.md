@@ -1,16 +1,16 @@
-# `ai/notes/` — نکته‌های خام
+# `ai/notes/` — raw notes
 
-- [`user-instructions.md`](user-instructions.md) — دفتر تاریخ‌دار حرف‌های تو، به‌ترتیب جلسه.
+- [`user-instructions.md`](user-instructions.md) — dated log of what you asked for, by session.
 
-## چرا این پوشه جداست؟
+## Why a separate folder?
 
-سه لایه داریم و نباید قاطی شوند:
+We keep three distinct layers, and they must not blur:
 
-| لایه | چه چیزی | کجا |
+| Layer | What | Where |
 |---|---|---|
-| **حرف تو** (خام، بدون تفسیر) | «این را می‌خواهم / این را نمی‌خواهم» | همین پوشه |
-| **قانون / تصمیم** (نتیجه‌گیری) | «پس از این‌به‌بعد این‌طور کار می‌کنیم» | `../RULES.md`, `../DECISIONS.md` |
-| **وضعیت** (اجرا) | «انجام شد / مانده» | `../PROGRESS.md`, `../BACKLOG.md` |
+| **Your words** (raw, uninterpreted) | "I want this / I don't want that" | this folder |
+| **Rule / decision** (conclusion) | "So from now on we work like this" | `../RULES.md`, `../DECISIONS.md` |
+| **Status** (execution) | "done / remaining" | `../PROGRESS.md`, `../BACKLOG.md` |
 
-اگر موضوعی بزرگ شد (مثلاً یک بحث طراحی کامل برای یک فیچر)، به‌جای شلوغ کردن
-`user-instructions.md` یک فایل مستقل اینجا می‌گیرد: `notes/<topic>.md`.
+If a topic grows large (e.g. a full design discussion for one feature), it gets its
+own file here — `notes/<topic>.md` — instead of bloating `user-instructions.md`.
