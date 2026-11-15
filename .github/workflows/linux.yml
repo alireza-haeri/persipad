@@ -4,11 +4,13 @@ name: Linux
 # workflow is the verifier the agent cannot be: the sandbox has no Flutter SDK
 # and no access to pub.dev, so compile/tests/build have to happen here.
 #
-# Green bar:
-#   - "Test" must pass          (unit tests, including the ones covering our changes)
-#   - "Build Linux desktop" must pass (the real compile gate for the whole app)
-#   - "Analyze" is advisory on purpose: it reports the pre-existing lint debt of
-#     the upstream codebase, which is not something a single change should fix.
+# Green bar - all three jobs are blocking:
+#   - "Test"                unit tests, including the ones covering our changes
+#   - "Build Linux desktop" the real compile gate for the whole app
+#   - "Analyze"             analyzer *errors* only; infos/warnings from upstream's
+#                           pre-existing lint debt are reported but not fatal.
+# Logs are not readable from the agent sandbox (blob storage is blocked), so jobs
+# are designed to be judged by pass/fail alone.
 
 on:
   push:
@@ -68,10 +70,9 @@ jobs:
           flutter test test/core/services/platform_capabilities_test.dart test/core/services/pro_entitlement_service_test.dart
 
   analyze:
-    name: Analyze (advisory)
+    name: Analyze
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -95,7 +96,10 @@ jobs:
             | xargs dart format --output=none --set-exit-if-changed --line-length=120
 
       - name: flutter analyze
-        run: flutter analyze
+        # Infos/warnings are upstream lint debt (the project ships with them);
+        # only analyzer *errors* — the things that actually break a build — fail
+        # this job. Keeping it blocking means a real error can never slip in.
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
   build-linux:
     name: Build Linux desktop

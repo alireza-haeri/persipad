@@ -172,9 +172,14 @@ Template:
 - **Decision:** `.github/workflows/linux.yml` with three jobs: **Test** (blocking,
   `flutter test`), **Build Linux desktop** (blocking, `flutter build linux --debug` on
   `lib/main_community.dart` — the real compile gate for the whole app) and
-  **Analyze** (advisory: upstream lint debt is not ours to fix in one change). It runs on
-  pushes to `arena/**`/`main`/`develop`, on PRs, and manually. Flutter version comes from
-  `.tool-versions`. The upstream `ci.yml` (wired to `develop`, Android-era) is left
-  untouched.
+  **Analyze** (blocking, but with `--no-fatal-infos --no-fatal-warnings`, so upstream's
+  pre-existing lint debt is reported without blocking us while real analyzer *errors*
+  still fail). It runs on pushes to `arena/**`/`main`/`develop`, on PRs, and manually.
+  Flutter version comes from `.tool-versions`. The upstream `ci.yml` (wired to `develop`,
+  Android-era) is left untouched.
+- **Note:** GitHub Actions *logs* are not readable from my sandbox (they are served from
+  Azure blob storage, which is not on the allowlist). So the jobs are designed to be
+  judged by pass/fail, and the first run's step-level outcome is the signal. If we ever
+  need the log text, you paste it or I ask you to read it.
 - **Consequences:** "It compiles" now means CI green, not my guess. Any red CI is triaged
   before I claim a task is done.
