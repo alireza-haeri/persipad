@@ -227,3 +227,27 @@ markdown export) should now just open.
   to a local. CI `43748544073` green (Analyze 68s, Test (1) 162s, Test (2) 222s).
 - Every screen now reads the display calendar; the Gregorian `year`/`month`/`day` columns are only
   ever a storage detail.
+
+### Run log — 2026-11-15 (fifth round: RTL as a first-class direction)
+Your six reports (swapped month arrows, plain Shamsi picker, timeline rail stuck left, `آبا`
+instead of `آبان`, swapped caret buttons, drawers running off the left edge) all came from code
+that hardcoded *left* where it meant *start* or *back*. D-030 records the rules; the code is
+`73fe70b` + three follow-ups.
+- `73fe70b` the six fixes: `SpIcons.previous/next(context)` (reading-order chevrons everywhere
+  the arrow means back/forward), the story-list rail placed by `AppTheme.rtl`, Persian month names
+  never abbreviated (the month chip grows around the rail, the stats bars scale their labels),
+  caret buttons that act on the side they show, root sidebar + page insets mirrored in RTL, end
+  drawers that keep their own safe area, and the Shamsi picker rebuilt as a Material date picker
+  (rounded sheet, tinted date header, month/year row opening the Shamsi month picker, scrollable
+  body).
+- `820bead` the page-insets widget reads the direction with `Directionality.maybeOf` (its own
+  test pumps it without a `Directionality`), and that test now asserts the RTL mirror.
+- First CI run (`43750284373`) was red on Analyze with three errors: the editor package shadows
+  `TextDirection` in `sp_editor_toolbar.dart`, the caret builder needed `actions` (local to
+  `_buildButtons`), and `BorderRadius.circular` is a factory so it cannot be `const`. Fixed in
+  `4d10e24` — CI `43750757764` green on Analyze (75s). That commit's message had no `[test]`
+  marker, so the suite had not run; `b143fc6` (stats trend labels scaling) carried the marker.
+- CI `43751115475` green: Analyze 83s, Test (1) 212s, Test (2) 204s.
+- The "Verify formatting" step stays advisory and now lists files nobody touched in this round
+  (`stories_box.dart`, `home_view_model.dart`, …), i.e. it is the CI formatter version disagreeing
+  with the committed style, not this change.
