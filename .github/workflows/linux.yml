@@ -108,7 +108,9 @@ jobs:
           exit $status
 
   test:
-    name: Test (${{ matrix.shard }}/2)
+    # No shard suffix here on purpose: GitHub renders the matrix value itself when
+    # the job is skipped, and a literal `${{ matrix.shard }}` looks like a bug.
+    name: Test
     # No `needs: analyze`: the two jobs are independent, and gating on the analyzer
     # added ~90s of dead time before a single test compiled.
     if: |
