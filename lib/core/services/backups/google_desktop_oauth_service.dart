@@ -258,8 +258,7 @@ class GoogleDesktopOAuthService {
       }
 
       // Browsers ask for /favicon.ico unprompted; that must not consume the code.
-      if (request.uri.queryParameters.containsKey('code') ||
-          request.uri.queryParameters.containsKey('error')) {
+      if (request.uri.queryParameters.containsKey('code') || request.uri.queryParameters.containsKey('error')) {
         request.response
           ..statusCode = io.HttpStatus.ok
           ..headers.contentType = io.ContentType.html
