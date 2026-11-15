@@ -1,16 +1,22 @@
 name: Linux
 
-# We ship Linux only (Android is parked — see ai/DECISIONS.md D-007). This
-# workflow is the verifier the agent cannot be: the sandbox has no Flutter SDK
-# and no access to pub.dev, so compile/tests/build have to happen here.
+# We ship Linux only (Android is parked — see ai/DECISIONS.md D-007). The agent
+# sandbox has no Flutter SDK and no pub.dev access, so compile/test verification has
+# to happen here.
 #
-# Green bar - all three jobs are blocking:
-#   - "Test"                unit tests, including the ones covering our changes
-#   - "Build Linux desktop" the real compile gate for the whole app
-#   - "Analyze"             analyzer *errors* only; infos/warnings from upstream's
-#                           pre-existing lint debt are reported but not fatal.
-# Logs are not readable from the agent sandbox (blob storage is blocked), so jobs
-# are designed to be judged by pass/fail alone.
+# SPEED: jobs are opt-in per commit instead of always running everything. A plain
+# push runs only `analyze` (~2 min). Ask for more with a marker in the commit
+# message:
+#
+#   [test]   also run the unit tests        (~5 min)
+#   [build]  also build the Linux binary    (~4 min)
+#   [full]   run all three
+#
+# Pull requests always run everything. Adding a marker is cheaper than a workflow
+# dispatch, which GitHub refuses for workflows that only exist on a feature branch.
+#
+# Generated code is committed and verified fresh (D-016), so `build_runner` is not
+# part of this workflow at all — that alone removed ~75s from every job.
 
 on:
   push:
@@ -18,8 +24,6 @@ on:
       - 'arena/**'
       - main
       - develop
-    # Docs-only commits (most of our commits touch ai/) used to trigger a full
-    # 6-minute run for nothing.
     paths-ignore:
       - 'ai/**'
       - '**/*.md'
@@ -28,7 +32,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A new push supersedes the previous run: we only care about the latest commit.
 concurrency:
   group: linux-${{ github.ref }}
   cancel-in-progress: true
@@ -37,70 +40,13 @@ permissions:
   contents: read
 
 env:
-  # Keep in sync with .tool-versions (D-008). Older SDKs cannot compile this
-  # project at all (super_editor uses APIs that only exist in newer Flutter).
   FLUTTER_VERSION: '3.50.0'
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Cache build_runner asset graph
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/build
-          key: build-runner-${{ runner.os }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock', 'build.yaml') }}
-          restore-keys: build-runner-${{ runner.os }}-
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Generate code
-        # The repo commits *.g.dart, but pubspec pins a codegen-compatible
-        # objectbox/json_serializable pair (D-009) — regenerate before anything
-        # reads those files, otherwise the build fails confusingly.
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Run tests
-        run: |
-          set +e
-          flutter test > /tmp/test.txt 2>&1
-          status=$?
-          tail -40 /tmp/test.txt
-          if [ $status -ne 0 ]; then
-            # Annotations are the agent's only readable channel (see the analyze
-            # step). "[E]" lines are the failing tests themselves.
-            echo "::error::flutter test failed"
-            grep -E '^\s*\[E\]|^[0-9:]+ \+[0-9]+ -[0-9]+: Some tests failed' /tmp/test.txt \
-              | head -10 | while IFS= read -r line; do
-                echo "::error::$line"
-              done
-          fi
-          exit $status
-
-      - name: New tests only (fast signal)
-        if: failure()
-        run: |
-          echo "::notice::Re-running only the tests added by our own changes"
-          flutter test test/core/services/platform_capabilities_test.dart test/core/services/pro_entitlement_service_test.dart
-
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -113,44 +59,17 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Generate code
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Verify generated code is committed
-        # Advisory on purpose: if a committed *.g.dart drifts from what the pinned
-        # generators produce, we want to know (annotations), but failing here would
-        # red the branch for something a codegen run fixes. Run the Codegen workflow
-        # (commit marker [codegen]) to refresh them.
-        continue-on-error: true
-        run: |
-          changed=$(git status --porcelain | awk '{print $2}')
-          if [ -n "$changed" ]; then
-            echo "::error::Committed generated code is stale - run the Codegen workflow ([codegen] marker)"
-            for f in $changed; do
-              echo "::error file=$f::differs from a fresh build_runner run"
-            done
-          else
-            echo "::notice::Generated code matches a fresh build_runner run"
-          fi
-
       - name: Verify formatting
-        # ADVISORY for now: the sandbox cannot run `dart format`, so a blocking
-        # gate would cost a full CI round trip per line-break guess. The
-        # annotations still name every offending file; flip this to blocking
-        # once the backlog is empty (ai/PROGRESS.md tracks it).
+        # ADVISORY: the sandbox cannot run `dart format`, so a blocking gate would
+        # cost a full round trip per line-break guess. Annotations name every
+        # offending file instead (they are the agent's only readable channel —
+        # Actions logs come from blob storage, which is blocked).
         continue-on-error: true
-        # Same file selection as bin/format. Instead of only exiting non-zero (the
-        # log of which the agent cannot read - Actions logs are served from blob
-        # storage, which is blocked in the sandbox), this rewrites the files and
-        # then reports every offender as a GitHub *annotation*, which `gh run
-        # view` does show. That makes formatting debt actionable without log access.
         run: |
           find lib test -name "*.dart" -not -name "*.g.dart" -not -name "*.gen.dart" \
             -not -name "*.mocks.dart" -not -path "*/firebase_options/*" -print0 \
             | xargs -0 dart format --line-length=120 > /dev/null
 
-          # Exclude generated code: build_runner rewrites *.g.dart in this job,
-          # so they always show up as "changed" and would be false positives.
           changed=$(git status --porcelain -- '*.dart' \
             ':!*.g.dart' ':!*.gen.dart' ':!*.mocks.dart' ':!lib/firebase_options/*' \
             | awk '{print $2}')
@@ -164,13 +83,8 @@ jobs:
           echo "::notice::All Dart files are formatted"
 
       - name: flutter analyze
-        # Infos/warnings are upstream lint debt (the project ships with them);
-        # only analyzer *errors* — the things that actually break a build — fail
-        # this job. Keeping it blocking means a real error can never slip in.
-        #
-        # Each error is re-emitted as a GitHub annotation: the sandbox cannot read
-        # Actions logs (blob storage is blocked) but `gh run view` does show
-        # annotations, so this is the only channel that reaches the agent.
+        # Only analyzer *errors* fail this job; infos/warnings are upstream lint
+        # debt. Every error is re-emitted as an annotation so it reaches the agent.
         run: |
           set +e
           flutter analyze --no-fatal-infos --no-fatal-warnings > /tmp/analyze.txt 2>&1
@@ -188,17 +102,56 @@ jobs:
           fi
           exit $status
 
+  test:
+    name: Test
+    needs: analyze
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.head_commit && (contains(github.event.head_commit.message, '[test]') || contains(github.event.head_commit.message, '[full]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: |
+          set +e
+          flutter test > /tmp/test.txt 2>&1
+          status=$?
+          tail -40 /tmp/test.txt
+          if [ $status -ne 0 ]; then
+            echo "::error::flutter test failed"
+            grep -E '^\s*\[E\]|^[0-9:]+ \+[0-9]+ -[0-9]+: Some tests failed' /tmp/test.txt \
+              | head -10 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+          fi
+          exit $status
+
   build-linux:
     name: Build Linux desktop
+    needs: analyze
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.head_commit && (contains(github.event.head_commit.message, '[build]') || contains(github.event.head_commit.message, '[full]')))
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Linux desktop build dependencies
-        # Each of these was a real CMake failure during the first manual Linux
-        # build (see ai/ENVIRONMENT.md §2.2). Keep the list in sync with
-        # bin/setup_linux.
+        # Keep in sync with bin/setup_linux (ai/ENVIRONMENT.md §2.2).
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -218,27 +171,13 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Cache build_runner asset graph
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/build
-          key: build-runner-${{ runner.os }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock', 'build.yaml') }}
-          restore-keys: build-runner-${{ runner.os }}-
-
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Generate code
-        run: dart run build_runner build --delete-conflicting-outputs
-
       - name: Build (debug)
-        # The community flavor is the only one that builds without private keys:
-        # it has public Firebase config and empty dart-defines make RevenueCat,
-        # Maps and Google Sign-In no-op instead of failing.
-        #
-        # Compiler errors are re-emitted as annotations — the agent cannot read
-        # Actions logs (blob storage blocked), and a bare "exit 1" from a 4 minute
-        # build is useless feedback.
+        # The community flavor is the only one that builds without private keys.
+        # Compiler errors are re-emitted as annotations: a bare "exit 1" from a
+        # 4 minute build is useless feedback without log access.
         run: |
           set +e
           flutter build linux --debug --target=lib/main_community.dart > /tmp/build.txt 2>&1
@@ -259,5 +198,5 @@ jobs:
         with:
           name: storypad-linux-debug
           path: build/linux/x64/debug/bundle/
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn
