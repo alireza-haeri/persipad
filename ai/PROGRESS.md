@@ -41,6 +41,12 @@
 - [x] 5 more tests pinning the media extension lists to `AssetFileTypeService` (a video
       picked from disk used to be insertable as an image).
 
+### Session 8 — Persian locale
+- [x] `translations/fa.json`: all 602 keys translated (key-set parity enforced by the tests).
+- [x] Registered `fa` for the app picker, Android per-app languages and iOS.
+- [x] Date locale data is initialized at startup; Arabic-script font fallback added.
+- [ ] User review of the wording/glossary — it is one file, cheap to iterate on.
+
 ### Session 7 — Google Drive works on Linux
 - [x] `GoogleDriveAuthStrategy` split out; mobile keeps `google_sign_in` unchanged (D-019).
 - [x] Loopback OAuth2 client for Google (`GoogleDesktopOAuthService`) — no new dependencies.

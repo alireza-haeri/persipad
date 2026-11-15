@@ -360,3 +360,27 @@ Template:
 - **Consequences:** until an Android build of this fork exists (or Nextcloud is set up),
   phone↔desktop movement is manual. Worth saying plainly rather than shipping a "Sync" that
   silently syncs nowhere the user expects.
+
+## D-022 — Persian (fa) locale (2026-11-15)
+- **Status:** accepted
+- **Context:** "Add Persian to the app's languages." Persian is RTL and uses the Arabic
+  script, so this is not only a JSON file.
+- **Decision:**
+  1. `translations/fa.json` — all 602 keys (the suite's `unused_translations_test` requires
+     an exact key-set match with `en.json`, so a partial translation would fail CI).
+  2. Hand-applied what `bin/localization/build.dart` would generate (`kSupportedLocales`,
+     `kLanguageNames`, `kNativeLanguageNames`, Android `locales_config.xml`, iOS
+     `CFBundleLocalizations`) because the sandbox has no Dart toolchain. Re-running the
+     generator should produce the same result.
+  3. `initializeDateFormatting()` in `main()`: `DateFormat` is called with `context.locale`
+     everywhere, and intl throws for a locale it was never told about — a new locale must not
+     be a crash waiting on the first date string.
+  4. Arabic-script font fallback (`kScriptFontFamilyFallback`) on every text style: the
+     selectable fonts are Latin Google fonts, so Persian glyphs would otherwise be whatever
+     the platform happens to substitute. The list is advisory (fontconfig skips missing
+     families).
+- **Glossary** (deliberate, easy to change): story = خاطره, entry = نوشته, backup =
+  پشتیبان/پشتیبان‌گیری, sync = همگام‌سازی, tag = برچسب, template = قالب, draft = پیش‌نویس,
+  bin = سطل, archive = بایگانی, settings = تنظیمات, font = قلم. Months/year numbers come from
+  `intl`, so dates render with Persian digits while data-driven counts stay Latin — mixed
+  digits are accepted for now rather than re-implementing number formatting app-wide.
