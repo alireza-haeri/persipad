@@ -76,4 +76,24 @@ class CalendarDisplay {
 
   /// True when [date] belongs to the displayed (year, month).
   static bool isInMonth(DateTime date, int year, int month) => yearOf(date) == year && monthOf(date) == month;
+
+  /// The dates a month grid shows, in the display calendar: whole weeks, with
+  /// the days of the neighbouring months needed to fill the first and last row.
+  ///
+  /// Returned as real Gregorian dates so every cell can be tapped, styled and
+  /// compared like any other date. [firstDayOfWeek] is a `DateTime` weekday
+  /// number (Monday = 1 … Sunday = 7).
+  static List<DateTime> monthGridDates({
+    required int year,
+    required int month,
+    required int firstDayOfWeek,
+  }) {
+    final first = firstDayOfMonth(year, month);
+    final leading = (first.weekday - firstDayOfWeek + DateTime.daysPerWeek) % DateTime.daysPerWeek;
+    final cells = ((leading + daysInMonth(year, month)) / DateTime.daysPerWeek).ceil() * DateTime.daysPerWeek;
+
+    // Built from day offsets on a real date rather than by adding Durations, so
+    // a DST transition cannot shift a cell onto the previous day.
+    return List.generate(cells, (index) => DateTime(first.year, first.month, first.day + index - leading));
+  }
 }

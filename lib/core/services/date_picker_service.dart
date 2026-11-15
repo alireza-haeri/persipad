@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
+import 'package:storypad/widgets/dialogs/sp_date_picker_dialog.dart';
 import 'package:storypad/widgets/sp_single_state_widget.dart';
 
 class DatePickerService {
@@ -18,13 +20,28 @@ class DatePickerService {
     DateTime? date;
     final bool hasMousePointer = RendererBinding.instance.mouseTracker.mouseIsConnected;
 
-    if (kIsCupertino && !hasMousePointer) {
+    final firstDate = DateTime(1900);
+    final lastDate = DateTime.now().add(const Duration(days: 100 * 365));
+
+    if (CalendarConfig.isPersian) {
+      // Flutter's pickers can only draw a Gregorian grid (they take it from
+      // MaterialLocalizations/DateUtils), so with the Shamsi calendar the user
+      // would be choosing from a Gregorian month while all dates around it read
+      // Shamsi. The custom dialog draws the display calendar and still returns
+      // a Gregorian DateTime — nothing is ever stored differently.
+      date = await SpDatePickerDialog.show(
+        context: context,
+        initialDate: currentDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+      );
+    } else if (kIsCupertino && !hasMousePointer) {
       date = await _showCupertinoDatePicker();
     } else {
       date = await showDatePicker(
         context: context,
-        firstDate: DateTime(1900),
-        lastDate: DateTime.now().add(const Duration(days: 100 * 365)),
+        firstDate: firstDate,
+        lastDate: lastDate,
         currentDate: currentDate,
       );
     }

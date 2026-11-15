@@ -36,9 +36,9 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | C-1a | `✅` Story list grouping + month chip + monogram day | Grouped by `CalendarDisplay.monthKeyOf`, so Azar 1405 starts a new header mid-November |
 | C-1b | `✅` "Months with stories" tab bar | Derived from the loaded stories in Shamsi mode (all pages are prefetched) |
 | C-1c | `✅` Full dates + home year scope | `DateFormatHelper` switches internally; a Shamsi year becomes a `date_range` query |
-| C-1d | `🔜` Mood/period calendars paging through Shamsi months | Grid + header + feelings query still Gregorian; the header is explicitly Gregorian so it cannot lie |
+| C-1d | `🔜` Mood/period calendars paging through Shamsi months | Grid + header + feelings query still Gregorian; the header and day numbers are explicitly Gregorian so they cannot lie. `CalendarDisplay.monthGridDates` is ready for the grid |
 | C-1e | `✅` Settings tile (calendar system) | Settings → Region → Calendar System |
-| C-1f | `🔜` Search date filters + Material date pickers in Shamsi | Both still hand the user Gregorian months/days; the pickers need a custom calendar delegate |
+| C-1f | `🚧` Search date filters in Shamsi (+ month picker) | The story *date* picker is done (`SpDatePickerDialog`); the search filter's year/month lists and `MonthPickerService` are still Gregorian |
 | C-1g | `🔜` Stats aggregation per Shamsi month/year | Bars are counted per Gregorian month; labels stay Gregorian until the counting moves |
 
 ## 1. Product features (candidates)

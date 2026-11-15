@@ -28,10 +28,11 @@ class CalendarSystemTile extends StatelessWidget {
           calendarSystem: provider.calendarSystem,
           onChanged: (value) async {
             provider.setCalendarSystem(value);
-            // The home list is scoped to a *display* year/month, so the same
-            // stories have to be regrouped under the new calendar. Reloading is
-            // cheap and keeps every screen consistent with the setting.
-            await HomeView.reload(debugSource: '$CalendarSystemTile#onChanged');
+            // The list is scoped to a *display* year/month, and the same year
+            // number means a different span in the other calendar. Re-anchor on
+            // today (rather than just reloading the same year, which would show
+            // an empty 2026-as-a-Jalali-year and look broken).
+            await HomeView.resetToToday();
           },
         );
       },

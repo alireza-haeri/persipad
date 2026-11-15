@@ -80,6 +80,13 @@ class HomeView extends StatelessWidget {
     return _homeContext?.read<HomeViewModel>().reload(debugSource: debugSource);
   }
 
+  /// Re-anchors Home on today's date in the current display calendar. Called
+  /// when the calendar setting changes, because the same year number means a
+  /// different span in a different calendar.
+  static Future<void> resetToToday() async {
+    return _homeContext?.read<HomeViewModel>().resetToToday();
+  }
+
   /// Applies a single story change locally, without a full DB refetch.
   ///
   /// Unlike the per-tile [SpStoryListenerBuilder] callbacks, this doesn't

@@ -143,7 +143,7 @@ class SpCalendarDateCell extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            DateFormatHelper.d(date, context.locale),
+            DateFormatHelper.gregorianDay(date, context.locale),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: foregroundColor,

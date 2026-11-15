@@ -82,6 +82,16 @@ class DateFormatHelper {
     return DateFormat.Md(locale.toLanguageTag()).format(date);
   }
 
+  /// Day number in the active calendar, optionally zero-padded (`05` / `۰۵`).
+  ///
+  /// Exists because a big date display wants the padding but `story.day` would
+  /// be the *stored* (Gregorian) day — that used to print "15" next to "آبان
+  /// ۱۴۰۵" for a story dated 24 Aban.
+  static String dayNumber(DateTime date, Locale locale, {int pad = 0}) {
+    final day = _persian ? PersianCalendar.dayOf(date) : date.day;
+    return _digits(day.toString().padLeft(pad, '0'), locale);
+  }
+
   static String d(DateTime date, Locale locale) {
     if (_persian) return _digits('${_persianDate(date).day}', locale);
     return DateFormat.d(locale.toLanguageTag()).format(date);
@@ -194,6 +204,13 @@ class DateFormatHelper {
   /// a Shamsi label there would describe a different month than the one shown.
   static String yMMMMGregorian(DateTime date, Locale locale) {
     return DateFormat.yMMMM(locale.toLanguageTag()).format(date);
+  }
+
+  /// Day number, always Gregorian. For the calendar grid, whose months are still
+  /// paged Gregorian while the rest of the app may be in Shamsi — a Shamsi day
+  /// number there would print 24 next to a Gregorian month header.
+  static String gregorianDay(DateTime date, Locale locale) {
+    return DateFormat.d(locale.toLanguageTag()).format(date);
   }
 
   static String gregorianYear(DateTime date, Locale locale) {

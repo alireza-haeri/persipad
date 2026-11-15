@@ -483,3 +483,35 @@ Template:
 - **Consequences:** the feature is safe to ship half-way (both modes are always self-consistent),
   a third calendar would only need `CalendarDisplay` + a `DateFormatHelper` branch, and the
   database format is untouched — an old build opening the same data sees exactly what it expects.
+
+## D-026 — Date picking and calendar switching follow the display calendar (2026-11-15)
+- **Status:** accepted
+- **Context:** two concrete reports: the date picker at the top of a story ("تاریخ رو عوض کن") stayed
+  Gregorian in Shamsi mode, and switching the calendar left the home screen pointing at the same
+  *number* (2026), which in the other calendar means a different span — an empty list with no
+  explanation.
+- **Decision:**
+  1. **A picker that speaks the display calendar** (`SpDatePickerDialog`). Flutter's
+     `showDatePicker` can only draw a Gregorian grid — the grid comes from
+     `MaterialLocalizations`/`DateUtils` — so with the Shamsi calendar the user would pick from a
+     Gregorian month while every date around it reads Shamsi. The dialog is built on
+     `CalendarDisplay.monthGridDates`, honours the configured first day of week and the user's
+     weekend days, and still returns a Gregorian `DateTime`. Gregorian mode keeps the stock
+     Material/Cupertino pickers: no reason to replace a working path with our own.
+  2. **Switching calendar re-anchors on today** (`HomeView.resetToToday` →
+     `HomeViewModel.resetToToday`). A bare reload would have kept `year = 2026`, and a Jalali 2026
+     starts on 21 March 2026, so the list would legitimately be empty — a silent data-looks-lost
+     moment. `year` and the visible month are re-derived from `DateTime.now()` in the new
+     calendar before reloading.
+  3. **Day numbers are explicit about their calendar.** Three different numbers are now
+     distinguishable by name: `d` (display calendar), `dayNumber` (display, padded),
+     `gregorianDay` (forced Gregorian). The mood/period calendar grid still pages Gregorian months,
+     so it uses `gregorianDay` — otherwise 15 November would have shown "24" under a November
+     header. The story header now uses `dayNumber`, which fixes "15 آبان ۱۴۰۵" for a story dated
+     24 Aban.
+  4. `CalendarDisplay.monthGridDates` is the single source of "which dates does a month grid
+     show", for any calendar, so the picker and (later) the mood/period grid cannot disagree.
+- **Still Gregorian on purpose** (`BACKLOG.md` C-1d/f/g): the mood/period calendar grid and its
+  queries, the search date filters, and the stats aggregation. Their data is fetched or counted
+  per Gregorian month, and a Shamsi label on top of Gregorian counts would be a lie; each needs
+  the same "display month → Gregorian day range" treatment the home list already has.

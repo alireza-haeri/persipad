@@ -64,7 +64,13 @@
       displayed month, month chips/monogram days/full dates render in Shamsi, and a Shamsi year or
       month is converted back into an exact Gregorian day range (`date_range` DB filter) before
       querying.
-- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1): mood/period calendar grid, date pickers,
+- [x] **Shamsi date picker** (`SpDatePickerDialog`, D-026): the story date picker draws the display
+      calendar (grid, header, first day of week, weekend colours) and returns a Gregorian date.
+- [x] **Switching calendar re-anchors on today** instead of keeping a year number that means a
+      different span in the other calendar.
+- [x] Day numbers are now explicit per calendar (`d` / `dayNumber` / `gregorianDay`), which fixed
+      "15 آبان ۱۴۰۵" for a story dated 24 Aban and kept the Gregorian mood grid printing Gregorian days.
+- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1): mood/period calendar grid and its queries,
       search date filters, stats aggregation.
 - [x] 2 new translation keys in all 21 locales.
 

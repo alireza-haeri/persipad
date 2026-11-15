@@ -265,7 +265,9 @@ class _StoryHeaderDateSelector extends StatelessWidget {
     }
 
     return Text(
-      story.day.toString().padLeft(2, '0'),
+      // Display calendar — `story.day` is the stored Gregorian day and used to
+      // print "15" next to a Shamsi month for a story dated 24 Aban.
+      DateFormatHelper.dayNumber(story.displayPathDate, context.locale, pad: 2),
       style: TextTheme.of(context).headlineLarge?.copyWith(color: color),
     );
   }

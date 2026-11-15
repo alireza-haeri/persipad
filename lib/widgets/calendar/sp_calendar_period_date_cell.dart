@@ -71,7 +71,7 @@ class SpCalendarPeriodDateCell extends StatelessWidget {
               Positioned.fill(
                 child: Center(
                   child: Text(
-                    DateFormatHelper.d(date, context.locale),
+                    DateFormatHelper.gregorianDay(date, context.locale),
                     textAlign: .center,
                     style: TextStyle(
                       fontWeight: isPeriodDate ? FontWeight.bold : FontWeight.normal,

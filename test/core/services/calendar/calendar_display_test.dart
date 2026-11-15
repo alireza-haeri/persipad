@@ -7,6 +7,7 @@ import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
+import 'package:storypad/core/types/first_day_of_week_option.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +89,59 @@ void main() {
     });
   });
 
+  group('month grid', () {
+    test('Gregorian grid starts on the configured first day of week', () {
+      final dates = CalendarDisplay.monthGridDates(
+        year: 2026,
+        month: 11,
+        firstDayOfWeek: DateTime.monday,
+      );
+
+      // 1 Nov 2026 is a Sunday, so a Monday-first grid opens on 26 October.
+      expect(dates.first, DateTime(2026, 10, 26));
+      expect(dates.first.weekday, DateTime.monday);
+      expect(dates.length % DateTime.daysPerWeek, 0);
+      expect(dates, contains(DateTime(2026, 11, 1)));
+      expect(dates, contains(DateTime(2026, 11, 30)));
+    });
+
+    test('Shamsi grid is the Shamsi month, as real Gregorian dates', () {
+      CalendarConfig.apply(
+        system: CalendarSystemOption.persian,
+        firstDayOfWeek: FirstDayOfWeekOption.saturday,
+      );
+
+      final dates = CalendarDisplay.monthGridDates(
+        year: 1405,
+        month: 8,
+        firstDayOfWeek: DateTime.saturday,
+      );
+
+      // 1 Aban 1405 = 23 Oct 2026 (a Friday), so a Saturday-first grid opens on
+      // 17 October and the month itself starts six cells in.
+      expect(dates.first, DateTime(2026, 10, 17));
+      expect(dates.first.weekday, DateTime.saturday);
+      expect(dates[6], DateTime(2026, 10, 23));
+      expect(dates.length, 42);
+
+      // Every day of Aban is present, and the day numbers the picker prints come
+      // from the Shamsi calendar while the dates stay Gregorian.
+      final monthDays = dates.where((date) => CalendarDisplay.isInMonth(date, 1405, 8)).toList();
+      expect(monthDays.length, 30);
+      expect(DateFormatHelper.d(monthDays.first, const Locale('en')), '1');
+      expect(DateFormatHelper.d(monthDays.last, const Locale('en')), '30');
+    });
+
+    test('a day number can be forced back to Gregorian for Gregorian grids', () {
+      CalendarConfig.apply(system: CalendarSystemOption.persian);
+
+      // The mood/period calendar still pages Gregorian months, so it must keep
+      // printing the Gregorian day even in Shamsi mode.
+      expect(DateFormatHelper.d(november15, const Locale('en')), '24');
+      expect(DateFormatHelper.gregorianDay(november15, const Locale('en')), '15');
+    });
+  });
+
   group('DateFormatHelper in Shamsi mode', () {
     setUp(() => CalendarConfig.apply(system: CalendarSystemOption.persian));
 
@@ -116,6 +170,13 @@ void main() {
     test('monthName answers for the active calendar', () {
       expect(DateFormatHelper.monthName(8, const Locale('fa')), 'آبان');
       expect(DateFormatHelper.gregorianMonthName(11, const Locale('en')), 'November');
+    });
+
+    test('a padded day number follows the display calendar', () {
+      // 24 Aban 1405, and 2 Aban 1405 (which is 24 Oct 2026) for the padding.
+      expect(DateFormatHelper.dayNumber(november15, const Locale('en'), pad: 2), '24');
+      expect(DateFormatHelper.dayNumber(november15, const Locale('fa'), pad: 2), '۲۴');
+      expect(DateFormatHelper.dayNumber(DateTime(2026, 10, 24), const Locale('en'), pad: 2), '02');
     });
 
     test('day suffixes are dropped', () {

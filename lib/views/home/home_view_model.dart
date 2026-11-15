@@ -429,6 +429,21 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     return filters;
   }
 
+  /// Re-anchors the screen on *today* after the display calendar changed.
+  ///
+  /// `year` is a display year, so keeping the same number across a calendar
+  /// switch silently moves the user: "2026" was a Gregorian year and becomes a
+  /// Jalali one (21 Mar 2026 … 20 Mar 2027), which usually holds no stories at
+  /// all — the list then looks empty for no reason. Re-deriving the year (and
+  /// the visible month) from today keeps the user where they were.
+  Future<void> resetToToday() async {
+    final today = DateTime.now();
+    year = CalendarDisplay.yearOf(today);
+    _monthsForYear = [CalendarDisplay.monthOf(today)];
+
+    await reload(debugSource: '$runtimeType#resetToToday');
+  }
+
   Future<void> changeYear(int newYear) async {
     if (year == newYear) return;
 
