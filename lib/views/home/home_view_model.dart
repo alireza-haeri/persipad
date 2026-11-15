@@ -610,7 +610,10 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
   }
 
   void onAStoryReloaded(StoryDbModel updatedStory) {
-    if (updatedStory.type != PathType.docs || updatedStory.year != year) {
+    // Compare *display* years: `year` is a Shamsi year in Shamsi mode while
+    // `updatedStory.year` is the stored Gregorian one, so the old comparison kept
+    // and dropped the wrong stories after an edit.
+    if (updatedStory.type != PathType.docs || CalendarDisplay.yearOf(updatedStory.displayPathDate) != year) {
       // Either archived/binned, or moved back into a year Home isn't
       // currently showing — in both cases it doesn't belong in the
       // current view, so just drop it if present rather than inserting it.

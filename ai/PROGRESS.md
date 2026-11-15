@@ -74,6 +74,10 @@
       filter chips show display years, counted exactly; `CalendarDisplay.yearsFilter` converts them
       to Gregorian years + `date_ranges` at the query boundary. Calendar switch clears the saved
       search filter so a stale display year can't empty the list.
+- [x] **Year numerals + a stale-year comparison**: the app-bar year, the empty-state year, the
+      story month header year and the tile monogram day print in the locale's digits
+      (`DateFormatHelper.number`). `onAStoryReloaded` compared a display year with the stored
+      Gregorian year, so an edited story was dropped from (or kept in) the wrong list.
 - [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1d/C-1g): mood/period calendar grid, its
       `MonthPickerService` and the feelings query, stats aggregation.
 - [x] 2 new translation keys in all 21 locales.

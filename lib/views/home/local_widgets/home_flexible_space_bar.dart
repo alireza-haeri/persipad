@@ -125,7 +125,9 @@ class _HomeFlexibleSpaceBar extends StatelessWidget {
           onTap: () => viewModel.openYearsView(context),
           child: FittedBox(
             child: Text(
-              viewModel.year.toString(),
+              // The big year in the app bar is the *display* year, so its digits
+              // follow the language (۱۴۰۵ in a Persian UI, 2026 in English).
+              DateFormatHelper.number(viewModel.year, context.locale),
               overflow: TextOverflow.ellipsis,
               style: TextTheme.of(context).displayLarge?.copyWith(color: Theme.of(context).disabledColor, height: 1.0),
               textAlign: TextAlign.end,

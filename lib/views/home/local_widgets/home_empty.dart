@@ -12,7 +12,7 @@ class _HomeEmpty extends StatelessWidget {
     String message = tr(
       'page.home.empty_message',
       namedArgs: {
-        "YEAR": viewModel.year.toString(),
+        "YEAR": DateFormatHelper.number(viewModel.year, context.locale),
       },
     );
 
