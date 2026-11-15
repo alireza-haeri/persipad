@@ -63,7 +63,7 @@ class _SearchFilterContent extends StatelessWidget {
       wrapWidth: 800,
       choices: viewModel.years?.keys.toList() ?? [],
       storiesCount: (int year) => viewModel.years?[year],
-      toLabel: (int year) => year.toString(),
+      toLabel: (int year) => DateFormatHelper.number(year, context.locale),
       selected: (int year) => viewModel.searchFilter.years.contains(year),
       onToggle: (int year) => viewModel.toggleYear(year),
     );

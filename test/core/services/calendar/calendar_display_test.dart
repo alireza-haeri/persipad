@@ -215,6 +215,11 @@ void main() {
       expect(DateFormatHelper.dayNumber(DateTime(2026, 10, 24), const Locale('en'), pad: 2), '02');
     });
 
+    test('a bare number uses the locale digits', () {
+      expect(DateFormatHelper.number(1405, const Locale('fa')), '۱۴۰۵');
+      expect(DateFormatHelper.number(1405, const Locale('en')), '1405');
+    });
+
     test('day suffixes are dropped', () {
       expect(DateFormatHelper.getDaySuffix(24, const Locale('en')), isNull);
     });

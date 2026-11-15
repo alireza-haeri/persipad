@@ -92,6 +92,12 @@ class DateFormatHelper {
     return _digits(day.toString().padLeft(pad, '0'), locale);
   }
 
+  /// A bare number in the locale's digits (Latin for every language but `fa`).
+  ///
+  /// For values that are numbers rather than dates — a display year on a tab, for
+  /// instance, which has no `DateTime` to format through [y].
+  static String number(int value, Locale locale) => _digits('$value', locale);
+
   static String d(DateTime date, Locale locale) {
     if (_persian) return _digits('${_persianDate(date).day}', locale);
     return DateFormat.d(locale.toLanguageTag()).format(date);

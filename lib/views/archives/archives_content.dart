@@ -30,7 +30,7 @@ class _ArchivesContent extends StatelessWidget {
                         isScrollable: true,
                         tabAlignment: TabAlignment.start,
                         onTap: (_) => state.turnOffEditing(),
-                        tabs: years.map((y) => Tab(text: y.toString())).toList(),
+                        tabs: years.map((y) => Tab(text: DateFormatHelper.number(y, context.locale))).toList(),
                       ),
               ),
               bottomNavigationBar: buildBottomNavigationBar(context),

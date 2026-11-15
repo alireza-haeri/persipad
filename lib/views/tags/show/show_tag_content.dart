@@ -41,7 +41,7 @@ class _ShowTagContent extends StatelessWidget {
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
                 onTap: (_) => state.turnOffEditing(),
-                tabs: years.map((year) => Tab(text: year.toString())).toList(),
+                tabs: years.map((year) => Tab(text: DateFormatHelper.number(year, context.locale))).toList(),
               ),
       ),
       bottomNavigationBar: buildBottomNavigationBar(context, state),

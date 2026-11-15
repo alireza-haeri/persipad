@@ -40,7 +40,7 @@ class StoryMonthHeader extends StatelessWidget {
             const SizedBox(width: 7.0),
             Text(
               // Display calendar: 1404 in Shamsi mode, 2025 in Gregorian.
-              CalendarDisplay.yearOf(story.displayPathDate).toString(),
+              DateFormatHelper.number(CalendarDisplay.yearOf(story.displayPathDate), context.locale),
               style: TextTheme.of(
                 context,
               ).labelSmall?.copyWith(color: ColorScheme.of(context).onSurface.withValues(alpha: 0.5)),

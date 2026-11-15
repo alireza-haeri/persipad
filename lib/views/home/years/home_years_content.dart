@@ -45,7 +45,7 @@ class _HomeYearsContent extends StatelessWidget {
                   loadingNotifier.value = false;
                 },
                 selected: selected,
-                title: Text(entry.key.toString()),
+                title: Text(DateFormatHelper.number(entry.key, context.locale)),
                 subtitle: Text(plural("plural.entry", entry.value)),
                 trailing: Visibility(visible: selected, child: const Icon(SpIcons.check)),
               ),
