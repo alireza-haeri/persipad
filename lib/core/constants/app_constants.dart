@@ -33,6 +33,19 @@ const String kCdnBaseUrl = String.fromEnvironment('CDN_BASE_URL', defaultValue: 
 
 const bool kIsCupertino = String.fromEnvironment('CUPERTINO') == 'yes';
 
+/// Font families tried, in order, for glyphs the selected Google font does not
+/// contain — in practice Arabic-script text (Persian, Arabic UI). Families are
+/// resolved by the OS, so a name that is not installed is skipped rather than
+/// breaking the text.
+const List<String> kScriptFontFamilyFallback = [
+  'Vazirmatn',
+  'Noto Naskh Arabic',
+  'Noto Sans Arabic',
+  'Noto Sans',
+  'DejaVu Sans',
+  'Arial',
+];
+
 const Color kDefaultColorSeed = Colors.black;
 const String kDefaultFontFamily = 'Quicksand';
 const FontWeight kDefaultFontWeight = FontWeight.normal;

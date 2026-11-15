@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart' show EasyLocalization;
+// ignore: depend_on_referenced_packages
+import 'package:intl/date_symbol_data_local.dart' show initializeDateFormatting;
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:storypad/app.dart' show App;
 import 'package:storypad/core/initializers/android_photo_picker_initializer.dart' show AndroidPhotoPickerInitializer;
@@ -46,6 +48,11 @@ Future<void> _initializeApp({
 
   // core
   await EasyLocalization.ensureInitialized();
+  // DateFormat is called with `context.locale` everywhere, and intl throws
+  // "locale data has not been initialized" for any locale it has not been told
+  // about. Loading all of them costs a few milliseconds at startup and is what
+  // makes the date strings work for every language, Persian included.
+  await initializeDateFormatting();
   await ConstantsInitializer.call();
   await DatabaseInitializer.call();
   await AppLockInitializer.call();

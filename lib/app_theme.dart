@@ -96,7 +96,14 @@ class AppTheme extends StatelessWidget {
     ThemeData baseTheme = darkMode ? ThemeData.dark() : ThemeData.light();
 
     TextStyle calculateTextStyle(TextStyle textStyle, FontWeight defaultFontWeight) {
-      return textStyle.copyWith(fontWeight: _calculateFontWeight(defaultFontWeight, fontWeight));
+      return textStyle.copyWith(
+        fontWeight: _calculateFontWeight(defaultFontWeight, fontWeight),
+        // The selectable fonts are Latin families; Persian/Arabic glyphs are not
+        // in them, so the OS is asked for the next family in this list. Missing
+        // entries are simply skipped (fontconfig on Linux, the system stack
+        // elsewhere), which is why the list can be generous.
+        fontFamilyFallback: kScriptFontFamilyFallback,
+      );
     }
 
     Color? dividerColor = colorScheme.onSurface.withValues(alpha: 0.15);
