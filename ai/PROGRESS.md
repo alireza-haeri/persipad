@@ -160,6 +160,7 @@
 | 2026-11-15 | Desktop media picking (`file_picker`) | GitHub Actions | ✅ all three jobs green (run 43716086122) |
 | 2026-11-15 | Formatting | GitHub Actions | ✅ "All Dart files are formatted" |
 | 2026-11-15 | Bundled font + calendar settings (weekends, any first day) | GitHub Actions | ✅ Analyze 80s, Test ×2, Build Linux — run 43727580987 |
+| 2026-11-15 | Shamsi display mode (list grouping, chips, dates, year scope) | GitHub Actions | ✅ Analyze 84s, Test ×2 — run 43731618364 |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI is the verifier now — see D-013. Nothing is "done" until it is green.
