@@ -25,9 +25,14 @@ class _StatsTrend extends StatelessWidget {
     final ColorScheme colorScheme = ColorScheme.of(context);
     final TextTheme textTheme = TextTheme.of(context);
 
+    final int displayYear = range.displayYear;
     final List<int> totals = List.filled(12, 0);
     stats.dailyCounts.forEach((day, count) {
-      if (day.year == range.anchor.year) totals[day.month - 1] += count;
+      // Buckets are display months: a Shamsi month is not a Gregorian month, so
+      // `day.month` would put آبان's entries into the July bar.
+      if (CalendarDisplay.yearOf(day) == displayYear) {
+        totals[CalendarDisplay.monthOf(day) - 1] += count;
+      }
     });
     final int maxCount = totals.fold(
       0,
@@ -37,14 +42,7 @@ class _StatsTrend extends StatelessWidget {
     final List<({String label, int count})> bars = [
       for (int month = 1; month <= 12; month++)
         (
-          // Stats are still aggregated per Gregorian month (BACKLOG C-1f), so
-          // the label must stay Gregorian too — a Shamsi month name here would
-          // describe a different month than the bar is counting.
-          label: DateFormatHelper.gregorianMonthName(
-            month,
-            context.locale,
-            short: true,
-          ),
+          label: DateFormatHelper.monthName(month, context.locale, short: true),
           count: totals[month - 1],
         ),
     ];
@@ -63,7 +61,7 @@ class _StatsTrend extends StatelessWidget {
                   spacing: 4.0,
                   children: [
                     Text(
-                      bar.count > 0 ? '${bar.count}' : '',
+                      bar.count > 0 ? DateFormatHelper.number(bar.count, context.locale) : '',
                       style: textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurface.withValues(alpha: 0.6),
                       ),

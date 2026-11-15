@@ -133,6 +133,11 @@ class CalendarDisplay {
     return month == 1 ? (year: year - 1, month: 12) : (year: year, month: month - 1);
   }
 
+  /// The display month after (year, month).
+  static ({int year, int month}) nextMonth(int year, int month) {
+    return month == 12 ? (year: year + 1, month: 1) : (year: year, month: month + 1);
+  }
+
   /// True when [date] belongs to the displayed (year, month).
   static bool isInMonth(DateTime date, int year, int month) => yearOf(date) == year && monthOf(date) == month;
 

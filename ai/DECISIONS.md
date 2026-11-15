@@ -584,3 +584,24 @@ Template:
 - **Consequence:** mood/period paging, `MonthPickerService`, feelings, period events and their story
   lists are all display-calendar. The stats screen is the only remaining Gregorian surface and it is
   labelled as such (`BACKLOG.md` C-1g).
+
+## D-029 — Stats is a display-calendar screen (2026-11-15)
+- **Status:** accepted · completes D-027 §4 (stats was its last Gregorian exception)
+- **Context:** with the calendar screen migrated (D-028), the stats screen was the only surface left
+  showing Gregorian years, Gregorian month tabs and Gregorian trend bars while the rest of the app
+  read Shamsi. Keeping it "honestly Gregorian" stopped being defensible once nothing else was.
+- **Decision:**
+  1. **`StatsRange` snaps to the display calendar.** Its `start`/`end`/`month`/`years`/`label`/
+     `previous`/`next` all derive from `CalendarDisplay`, so a month range is that display month's
+     day span (23 Oct – 21 Nov 2026 for آبان ۱۴۰۵) and `previous`/`next` step display months, not
+     `DateTime.month - 1`.
+  2. **Counting is by display month.** The twelve trend bars bucket `dailyCounts` by
+     `CalendarDisplay.monthOf(day)` within the display year, and the tab/bar labels use
+     `DateFormatHelper.monthName`. Bar values and the year title print in the locale's digits.
+  3. **Queries use exact day ranges** (`DateRangeFilterObject`), never `month`/`year` columns, so a
+     display month that straddles two Gregorian months is counted once and correctly.
+  4. **Year lists come from `getStoryCountsByDisplayYear`**, so the picker offers years that actually
+     hold stories.
+- **Consequence:** `StatsRange.anchor` is still a real `DateTime` — only the numbers the screen shows
+  are display values. The month recap tiles on the home list are the one remaining Gregorian
+  aggregation and are deliberately skipped in Shamsi mode (`BACKLOG.md` C-1h).

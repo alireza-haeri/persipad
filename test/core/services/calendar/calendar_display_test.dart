@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart' show initializeDateFormatting;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
+import 'package:storypad/core/objects/stats/stats_range.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
@@ -234,6 +235,33 @@ void main() {
     test('monthName answers for the active calendar', () {
       expect(DateFormatHelper.monthName(8, const Locale('fa')), 'آبان');
       expect(DateFormatHelper.gregorianMonthName(11, const Locale('en')), 'November');
+    });
+
+    test('a stats range covers the display month, not the Gregorian one', () {
+      // 15 Nov 2026 is 24 Aban 1405; Aban runs 23 Oct – 21 Nov 2026.
+      final range = StatsRange.month(november15);
+
+      expect(range.displayYear, 1405);
+      expect(range.displayMonth, 8);
+      expect(range.start, DateTime(2026, 10, 23));
+      expect(range.end, DateTime(2026, 11, 21, 23, 59, 59, 999));
+      expect(range.totalDays, 30);
+      expect(range.month, 8);
+      expect(range.years, {2026, 2027});
+      expect(range.label(const Locale('fa')), 'آبان ۱۴۰۵');
+
+      expect(range.previous.start, DateTime(2026, 9, 23));
+      expect(range.next.start, DateTime(2026, 11, 22));
+    });
+
+    test('a stats year range starts on the display new year', () {
+      final range = StatsRange.year(november15);
+
+      expect(range.start, DateTime(2026, 3, 21));
+      expect(range.end, DateTime(2027, 3, 20, 23, 59, 59, 999));
+      expect(range.month, isNull);
+      expect(range.previous.start, CalendarDisplay.firstDayOfYear(1404));
+      expect(range.next.start, CalendarDisplay.firstDayOfYear(1406));
     });
 
     test('a padded day number follows the display calendar', () {

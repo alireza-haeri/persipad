@@ -7,6 +7,7 @@ import 'package:storypad/core/extensions/color_scheme_extension.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/objects/stats/stats_range.dart';
 import 'package:storypad/core/objects/stats/story_stats_object.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/remote_config/remote_config_service.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/types/app_logo.dart';
@@ -53,7 +54,7 @@ class StatsView extends StatelessWidget {
 
   int get _initialTabIndex {
     final range = params.initialRange;
-    return range.type == StatsRangeType.month ? range.anchor.month : 0;
+    return range.type == StatsRangeType.month ? range.displayMonth : 0;
   }
 
   @override

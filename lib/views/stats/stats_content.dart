@@ -21,7 +21,9 @@ class _StatsContent extends StatelessWidget {
             mainAxisSize: .min,
             spacing: 4.0,
             children: [
-              Text('$year'),
+              // The stats screen pages the display calendar, so the year it shows
+              // is a display year in the locale's digits (۱۴۰۵, 2026).
+              Text(DateFormatHelper.number(year, context.locale)),
               const Icon(SpIcons.dropDown),
             ],
           ),
@@ -48,12 +50,8 @@ class _StatsContent extends StatelessWidget {
             Tab(text: tr('general.all')),
             for (int month = 1; month <= 12; month++)
               Tab(
-                // Aggregated by Gregorian month — see the note in stats_trend.
-                text: DateFormatHelper.gregorianMonthName(
-                  month,
-                  context.locale,
-                  short: true,
-                ),
+                // Same calendar as the numbers: month 1 of 1405 is فروردین.
+                text: DateFormatHelper.monthName(month, context.locale, short: true),
               ),
           ],
         ),

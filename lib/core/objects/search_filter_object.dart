@@ -109,6 +109,7 @@ class DateRangeFilterObject extends SearchFilterObject {
     int? month,
     int? day,
     Set<int>? tagIds,
+    Set<int>? storyIds,
   }) : super(
          years: years ?? const {},
          types: types,
@@ -116,6 +117,7 @@ class DateRangeFilterObject extends SearchFilterObject {
          month: month,
          day: day,
          tagIds: tagIds,
+         storyIds: storyIds,
        );
 
   /// First and last day of the range, inclusive.

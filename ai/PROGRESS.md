@@ -83,8 +83,12 @@
       by range, keyed by display day), period events (`EventsBox` gained `date_range`) and the story
       lists (`DateRangeFilterObject`). Fixed the `Instance of 'DateTime'` crash by encoding filter
       maps with `SearchFilterObject.encode` instead of `jsonEncode`.
-- [ ] Remaining Shamsi surface (`BACKLOG.md` C-1g): stats aggregation (still counted and labelled
-      Gregorian).
+- [x] **Stats screen in Shamsi** (D-029): `StatsRange` snaps to display months/years (its
+      start/end/month/years/label/previous/next all go through `CalendarDisplay`), the tab labels and
+      the twelve trend bars count display months, the year picker lists display years, and story
+      queries use exact day ranges.
+- [ ] Month recap tiles still group by the Gregorian `month` column, so they are skipped in Shamsi
+      mode (`BACKLOG.md` C-1h).
 - [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux

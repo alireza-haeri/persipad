@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/tag_db_model.dart';
+import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/objects/sp_latlng.dart';
@@ -21,7 +22,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     required StatsRange initialRange,
     required TabController tabController,
     required this.devicePreferencesProvider,
-  }) : _selectedYear = initialRange.anchor.year,
+  }) : _selectedYear = initialRange.displayYear,
        _tabController = tabController {
     _tabController.addListener(_onTabChanged);
     loadAvailableYears();
@@ -38,7 +39,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   /// changes are written back but never notify (the global provider stays quiet).
   final DevicePreferencesProvider devicePreferencesProvider;
 
-  List<int> _availableYears = [DateTime.now().year];
+  List<int> _availableYears = [CalendarDisplay.yearOf(DateTime.now())];
 
   // Resolved stats for the *currently selected year only*, keyed '$year-$tabIndex'.
   // Cleared on year change so at most one year is held in memory.
@@ -54,9 +55,29 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   /// still loading (or not yet requested).
   StoryStatsObject? statsFor(int tabIndex) => _statsCache[_key(_selectedYear, tabIndex)];
 
-  /// Derives the date range for a tab: 0 = full year, 1–12 = that month.
-  StatsRange rangeForTab(int tabIndex) =>
-      tabIndex == 0 ? StatsRange.year(DateTime(_selectedYear)) : StatsRange.month(DateTime(_selectedYear, tabIndex));
+  /// Derives the date range for a tab: 0 = full year, 1–12 = that month, both in
+  /// the display calendar (a Shamsi month starts on a Gregorian date in March and
+  /// runs to the next one, so the anchor is a real `DateTime`).
+  StatsRange rangeForTab(int tabIndex) {
+    if (tabIndex == 0) {
+      return StatsRange.year(CalendarDisplay.firstDayOfYear(_selectedYear));
+    }
+
+    return StatsRange.month(CalendarDisplay.dateOf(_selectedYear, tabIndex, 1));
+  }
+
+  /// The story filter for a range: an exact day range, since a display month is a
+  /// run of days rather than a `month` column value.
+  DateRangeFilterObject filterFor(StatsRange range, {Set<int>? storyIds, Set<int>? tagIds}) {
+    return DateRangeFilterObject(
+      start: range.start,
+      end: range.end,
+      years: CalendarDisplay.displayYearsCovering(range.start, range.end).toSet(),
+      types: {PathType.docs},
+      storyIds: storyIds,
+      tagIds: tagIds,
+    );
+  }
 
   // Sections the user has hidden (e.g. to declutter a screenshot). Global across
   // tabs/years and in-memory only — resets when the screen is closed. Countries
@@ -137,12 +158,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   }) async {
     try {
       final stories = await StoryDbModel.db.where(
-        filters: SearchFilterObject(
-          years: _displayYears(range),
-          month: range.month,
-          types: {PathType.docs},
-          assetId: null,
-        ).toDatabaseFilter(),
+        filters: filterFor(range).toDatabaseFilter(),
       );
 
       final tags = await TagDbModel.db.where();
@@ -165,7 +181,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   Future<void> pickYear(BuildContext context) {
     return SpPickerSheet(
       selectedValue: _selectedYear,
-      options: [for (final y in _availableYears) (value: y, label: '$y')],
+      options: [for (final y in _availableYears) (value: y, label: DateFormatHelper.number(y, context.locale))],
       onChanged: (year) {
         if (year == _selectedYear) return; // same year → keep cache, no reload
         _selectedYear = year;
@@ -191,13 +207,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     SpStoriesBottomSheet(
       storyLocation: storyLocation,
-      filter: SearchFilterObject(
-        years: _displayYears(range),
-        month: range.month,
-        types: {PathType.docs},
-        storyIds: place.storyIds,
-        assetId: null,
-      ),
+      filter: filterFor(range, storyIds: place.storyIds),
     ).show(context: context);
   }
 
@@ -206,12 +216,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
       storyLocation: null,
-      filter: SearchFilterObject(
-        years: _displayYears(range),
-        month: range.month,
-        types: {PathType.docs},
-        assetId: null,
-      ),
+      filter: filterFor(range),
     ).show(context: context);
   }
 
@@ -222,13 +227,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
       storyLocation: null,
-      filter: SearchFilterObject(
-        years: _displayYears(range),
-        month: range.month,
-        types: {PathType.docs},
-        storyIds: storyIds,
-        assetId: null,
-      ),
+      filter: filterFor(range, storyIds: storyIds),
     ).show(context: context);
   }
 
@@ -236,32 +235,15 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
       storyLocation: null,
-      filter: SearchFilterObject(
-        years: _displayYears(range),
-        month: range.month,
-        types: {PathType.docs},
-        tagIds: {tagId},
-        assetId: null,
-      ),
+      filter: filterFor(range, tagIds: {tagId}),
     ).show(context: context);
   }
 
-  /// This screen is deliberately Gregorian — its tabs, month names and
-  /// aggregation are all Gregorian (D-025). `SearchFilterObject.years` holds
-  /// *display* years, so a Gregorian window is expanded to the display years it
-  /// touches; AND-ing that with the Gregorian `month` filter keeps the result
-  /// exact in either calendar.
-  Set<int> _displayYears(StatsRange range) {
-    return CalendarDisplay.displayYearsCovering(range.start, range.end).toSet();
-  }
-
   Future<void> loadAvailableYears() async {
-    final counts = await StoryDbModel.db.getStoryCountsByYear(
-      filters: SearchFilterObject(
-        years: {},
-        types: {PathType.docs},
-        assetId: null,
-      ).toDatabaseFilter(),
+    final counts = await StoryDbModel.db.getStoryCountsByDisplayYear(
+      filters: {
+        'types': [PathType.docs.name],
+      },
     );
     if (disposed) return;
     _availableYears = counts.keys.toList();

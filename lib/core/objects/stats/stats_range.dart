@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 
 /// Granularity of a stats range. Prefill-only: month or year.
 enum StatsRangeType { month, year }
@@ -34,24 +35,29 @@ class StatsRange {
     }
   }
 
-  /// First day of the window (00:00).
+  /// Year and month of the window in the *display* calendar (1405/8 in Shamsi,
+  /// 2026/11 in Gregorian). [anchor] is a real date; these are the numbers the
+  /// screen labels and pages with.
+  int get displayYear => CalendarDisplay.yearOf(anchor);
+
+  int get displayMonth => CalendarDisplay.monthOf(anchor);
+
+  /// First day of the window (00:00), in the display calendar.
   DateTime get start {
-    switch (type) {
-      case StatsRangeType.month:
-        return DateTime(anchor.year, anchor.month, 1);
-      case StatsRangeType.year:
-        return DateTime(anchor.year, 1, 1);
-    }
+    final DateTime first = switch (type) {
+      StatsRangeType.month => CalendarDisplay.firstDayOfMonth(displayYear, displayMonth),
+      StatsRangeType.year => CalendarDisplay.firstDayOfYear(displayYear),
+    };
+    return DateTime(first.year, first.month, first.day);
   }
 
-  /// Last day of the window (23:59:59.999).
+  /// Last day of the window (23:59:59.999), in the display calendar.
   DateTime get end {
-    final lastDay = switch (type) {
-      // Day 0 of next month == last day of this month.
-      StatsRangeType.month => DateTime(anchor.year, anchor.month + 1, 0),
-      StatsRangeType.year => DateTime(anchor.year, 12, 31),
+    final DateTime last = switch (type) {
+      StatsRangeType.month => CalendarDisplay.lastDayOfMonth(displayYear, displayMonth),
+      StatsRangeType.year => CalendarDisplay.lastDayOfYear(displayYear),
     };
-    return DateTime(lastDay.year, lastDay.month, lastDay.day, 23, 59, 59, 999);
+    return DateTime(last.year, last.month, last.day, 23, 59, 59, 999);
   }
 
   bool contains(DateTime date) => !date.isBefore(start) && !date.isAfter(end);
@@ -59,45 +65,44 @@ class StatsRange {
   /// Total whole days in the window (28–31 or 365/366).
   int get totalDays => end.difference(start).inDays + 1;
 
-  /// Month number for a month range, null for a year range — convenient when
-  /// building a story query filter.
-  int? get month => type == StatsRangeType.month ? anchor.month : null;
+  /// Display month number for a month range, null for a year range.
+  int? get month => type == StatsRangeType.month ? displayMonth : null;
 
   StatsRange get previous {
     switch (type) {
       case StatsRangeType.month:
-        return StatsRange.month(DateTime(anchor.year, anchor.month - 1, 1));
+        final previous = CalendarDisplay.previousMonth(displayYear, displayMonth);
+        return StatsRange.month(CalendarDisplay.dateOf(previous.year, previous.month, 1));
       case StatsRangeType.year:
-        return StatsRange.year(DateTime(anchor.year - 1, 1, 1));
+        return StatsRange.year(CalendarDisplay.firstDayOfYear(displayYear - 1));
     }
   }
 
   StatsRange get next {
     switch (type) {
       case StatsRangeType.month:
-        return StatsRange.month(DateTime(anchor.year, anchor.month + 1, 1));
+        final next = CalendarDisplay.nextMonth(displayYear, displayMonth);
+        return StatsRange.month(CalendarDisplay.dateOf(next.year, next.month, 1));
       case StatsRangeType.year:
-        return StatsRange.year(DateTime(anchor.year + 1, 1, 1));
+        return StatsRange.year(CalendarDisplay.firstDayOfYear(displayYear + 1));
     }
   }
 
-  /// The calendar years the window touches (always one).
-  Set<int> get years => {start.year};
+  /// Gregorian years the window touches — what the indexed `year` column can
+  /// narrow a query to before the exact day range does the rest.
+  Set<int> get years => CalendarDisplay.gregorianYearsOfYear(displayYear).toSet();
 
   /// True when the window includes [now] (i.e. it is the current, in-progress
   /// month/year). Used to cap "days elapsed".
   bool isCurrent([DateTime? now]) => contains(now ?? DateTime.now());
 
-  /// Human label for the selected window, e.g. "June 2026", "2026".
+  /// Human label for the selected window, e.g. "آبان ۱۴۰۵", "۱۴۰۵".
   String label(Locale locale) {
     switch (type) {
-      // Stats are still aggregated per Gregorian month/year (BACKLOG C-1f), so
-      // these labels stay Gregorian too — a Shamsi label would name a range the
-      // numbers do not cover.
       case StatsRangeType.month:
-        return DateFormatHelper.yMMMMGregorian(start, locale);
+        return DateFormatHelper.yMMMM(start, locale);
       case StatsRangeType.year:
-        return DateFormatHelper.gregorianYear(start, locale);
+        return DateFormatHelper.y(start, locale);
     }
   }
 
