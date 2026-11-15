@@ -10,17 +10,25 @@ void main() {
 
   late MediaQueryData seen;
 
-  Future<void> pump(WidgetTester tester, {required bool bigScreen, required MediaQueryData screen}) {
+  Future<void> pump(
+    WidgetTester tester, {
+    required bool bigScreen,
+    required MediaQueryData screen,
+    TextDirection direction = TextDirection.ltr,
+  }) {
     return tester.pumpWidget(
-      MediaQuery(
-        data: screen,
-        child: RootPagesMediaQuery(
-          bigScreen: bigScreen,
-          child: Builder(
-            builder: (context) {
-              seen = MediaQuery.of(context);
-              return const SizedBox();
-            },
+      Directionality(
+        textDirection: direction,
+        child: MediaQuery(
+          data: screen,
+          child: RootPagesMediaQuery(
+            bigScreen: bigScreen,
+            child: Builder(
+              builder: (context) {
+                seen = MediaQuery.of(context);
+                return const SizedBox();
+              },
+            ),
           ),
         ),
       ),
@@ -65,6 +73,20 @@ void main() {
     expect(seen.padding.bottom, 0);
     expect(seen.viewPadding.bottom, 20);
     expect(seen.viewInsets.bottom, 300);
+  });
+
+  testWidgets('big window in RTL: the sidebar is on the right, so the insets mirror', (tester) async {
+    const screen = MediaQueryData(
+      size: Size(1200, 900),
+      padding: EdgeInsets.fromLTRB(10, 24, 0, 20),
+      viewPadding: EdgeInsets.fromLTRB(10, 24, 0, 20),
+    );
+    await pump(tester, bigScreen: true, screen: screen, direction: TextDirection.rtl);
+
+    // The 88pt is exact on the sidebar's side (right in RTL) and added to the
+    // screen's own notch on the other, so the pages stay clear of the sidebar.
+    expectSides(seen.padding, 10 + inset, inset, 'padding');
+    expectSides(seen.viewPadding, 10 + inset, inset, 'view padding');
   });
 
   testWidgets('small window: the screen\'s own sides (a notch), in both', (tester) async {
