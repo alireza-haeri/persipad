@@ -2,6 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
+import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_single_state_widget.dart';
 
 class MonthPickerResult {
@@ -35,11 +38,90 @@ class MonthPickerService {
   MonthPickerResult get initialMonth => MonthPickerResult(month: month, year: year);
 
   Future<MonthPickerResult?> showPicker() async {
+    if (CalendarDisplay.isPersian) return _showDisplayCalendarPicker();
     if (kIsCupertino) {
       return _showCupertinoTimePicker();
     } else {
       return _showMaterialTimePicker();
     }
+  }
+
+  /// Month/year picker for the Shamsi calendar.
+  ///
+  /// `CupertinoDatePicker(mode: monthYear)` draws Gregorian month names in the
+  /// device language and offers no way to feed it Jalali months, so this lists the
+  /// twelve display months itself next to a year stepper. The returned
+  /// (year, month) are display values, exactly like the picker's input.
+  Future<MonthPickerResult?> _showDisplayCalendarPicker() {
+    return showModalBottomSheet<MonthPickerResult>(
+      context: context,
+      isScrollControlled: false,
+      showDragHandle: true,
+      builder: (context) {
+        var current = initialMonth;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            void select({int? year, int? month}) {
+              setState(() {
+                current = MonthPickerResult(year: year ?? current.year, month: month ?? current.month);
+              });
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: null,
+                          onPressed: () => select(year: current.year - 1),
+                          icon: const Icon(SpIcons.keyboardLeft),
+                        ),
+                        Expanded(
+                          child: Text(
+                            DateFormatHelper.number(current.year, context.locale),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: null,
+                          onPressed: () => select(year: current.year + 1),
+                          icon: const Icon(SpIcons.keyboardRight),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8.0),
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (var month = 1; month <= 12; month++)
+                          ChoiceChip(
+                            label: Text(DateFormatHelper.monthName(month, context.locale)),
+                            selected: current.month == month,
+                            onSelected: (_) => select(month: month),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16.0),
+                    FilledButton(
+                      child: Text(tr("button.done")),
+                      onPressed: () => Navigator.pop(context, current),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<MonthPickerResult?> _showMaterialTimePicker() async {

@@ -43,6 +43,11 @@ void main() {
       expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 3, 1), DateTime(2026, 3, 31)), [2026]);
     });
 
+    test('previousMonth wraps inside the year', () {
+      expect(CalendarDisplay.previousMonth(2026, 11), (year: 2026, month: 10));
+      expect(CalendarDisplay.previousMonth(2026, 1), (year: 2025, month: 12));
+    });
+
     test('a year touches exactly one Gregorian year', () {
       expect(CalendarDisplay.gregorianYearsOfYear(2026), [2026]);
     });
@@ -73,6 +78,27 @@ void main() {
       expect(CalendarDisplay.displayYearsOf([2026]), [1405, 1404]);
       expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 3, 1), DateTime(2026, 3, 31)), [1404, 1405]);
       expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 11, 15)), [1405]);
+    });
+
+    test('previousMonth stays inside twelve months of the display calendar', () {
+      expect(CalendarDisplay.previousMonth(1405, 8), (year: 1405, month: 7));
+      expect(CalendarDisplay.previousMonth(1405, 1), (year: 1404, month: 12));
+    });
+
+    test('a range filter scopes to exact days and keeps the throwback fields', () {
+      final start = CalendarDisplay.firstDayOfMonth(1405, 8);
+      final end = CalendarDisplay.lastDayOfMonth(1405, 8);
+      final filter = DateRangeFilterObject(
+        start: start,
+        end: end,
+        years: CalendarDisplay.displayYearsCovering(start, end).toSet(),
+        types: {PathType.docs},
+      );
+
+      final filters = filter.toDatabaseFilter()!;
+      expect(filters['date_range'], [DateTime(2026, 10, 23), DateTime(2026, 11, 21)]);
+      expect(filters['years'], [2026]);
+      expect((filters['date_ranges'] as List).length, 1);
     });
 
     test('a search filter keeps display years for the UI and storage years for the query', () {

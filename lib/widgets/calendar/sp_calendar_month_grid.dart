@@ -40,7 +40,9 @@ class _SpCalendarMonthGrid extends StatelessWidget {
       itemCount: itemCount,
       itemBuilder: (context, index) {
         final date = visibleDays[index];
-        final isCurrentMonth = date.month == month;
+        // In the display calendar: a Shamsi month starts mid-Gregorian-month, so
+        // comparing `date.month` would shade the first three weeks of every grid.
+        final isCurrentMonth = CalendarDisplay.isInMonth(date, year, month);
         return cellBuilder(context, date, isCurrentMonth);
       },
     );

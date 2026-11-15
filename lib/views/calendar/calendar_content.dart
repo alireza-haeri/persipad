@@ -45,11 +45,12 @@ class _CalendarContent extends StatelessWidget {
               }
             },
             child: Text(
-              // The month grid below still pages through Gregorian months, so
-              // the header must stay Gregorian with it (BACKLOG C-1d converts
-              // both together; a Shamsi header over a Gregorian grid would be a
-              // lie).
-              DateFormatHelper.yMMMMGregorian(DateTime(monthYear.year, monthYear.month, 1), context.locale),
+              // Same calendar as the grid below: both go through CalendarDisplay,
+              // so "آبان ۱۴۰۵" sits over آبان's days.
+              DateFormatHelper.yMMMM(
+                CalendarDisplay.firstDayOfMonth(monthYear.year, monthYear.month),
+                context.locale,
+              ),
               key: ValueKey("${monthYear.month}-${monthYear.year}"),
               style: Theme.of(context).appBarTheme.titleTextStyle,
             ),

@@ -548,3 +548,39 @@ Template:
 - **Consequence:** "does this story belong to the shown year" is answered by date ranges, never
   by comparing numbers. Any new year-scoped surface must go through `CalendarDisplay` rather
   than reading `story.year`.
+
+## D-028 — The calendar screen pages the display calendar too (2026-11-15)
+- **Status:** accepted · supersedes the "mood/period calendars stay Gregorian" carve-out in D-025/D-027
+- **Context:** with Shamsi on, the calendar screen (mood + period) was the last place that paged
+  *Gregorian* months: header, grid and day numbers were Gregorian while every other screen showed
+  Shamsi, which is exactly the mismatch the user kept reporting ("توی قسمت انتخاب تقویم هنوز
+  میلادی میمونه"). On top of that the screen crashed with
+  `Converting object to an encodable object failed: Instance of 'DateTime'`, because its widget
+  keys run `jsonEncode` over a filter map that now legitimately contains the `date_ranges` a Shamsi
+  year resolves to.
+- **Decision:**
+  1. **One grid generator.** `CalendarDaysGenerator.generate` delegates to
+     `CalendarDisplay.monthGridDates` in Shamsi mode, so the grid holds the display month's real
+     days (whole weeks, real Gregorian `DateTime`s). `_SpCalendarMonthGrid` asks
+     `CalendarDisplay.isInMonth` instead of comparing `date.month`, and the cells print
+     `DateFormatHelper.d`.
+  2. **Header and month picker follow it.** The title uses `DateFormatHelper.yMMMM` on the display
+     month. `CupertinoDatePicker(mode: monthYear)` cannot show Jalali months, so the Shamsi month
+     picker is our own sheet: a year stepper plus the twelve display month names.
+  3. **Queries by day range, not by month number.** A Shamsi month is a run of days spanning two
+     Gregorian months, so `EventsBox` gained the same `date_range` condition `StoriesBox` already
+     had, and both the period events (this/last display month) and the mood feelings are fetched
+     with the display month's exact range. Feelings come back keyed by **display** day
+     (`CalendarDisplay.dayOf`), because the grid asks for "day 24 of آبان", not "day 24 of a
+     Gregorian month".
+  4. **Story lists scope by `DateRangeFilterObject`** — a `SearchFilterObject` that carries an exact
+     day range — instead of `month`/`day` columns. For a single day the Gregorian month/day are kept
+     as well, which preserves the "on this day in another year" throwback tile.
+  5. **Conversion only at the edges.** Navigating in (story header, side bar, period reminder) passes
+     display year/month/day; opening the editor or creating a period event passes the real
+     Gregorian date, and both directions go through `CalendarDisplay`.
+  6. **Filter maps are encoded JSON-safely.** `SearchFilterObject.encode` writes `DateTime`s as
+     ISO-8601 for widget keys/equality; `jsonEncode` must never be called on a raw filter map again.
+- **Consequence:** mood/period paging, `MonthPickerService`, feelings, period events and their story
+  lists are all display-calendar. The stats screen is the only remaining Gregorian surface and it is
+  labelled as such (`BACKLOG.md` C-1g).

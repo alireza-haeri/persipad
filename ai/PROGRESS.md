@@ -78,8 +78,13 @@
       story month header year and the tile monogram day print in the locale's digits
       (`DateFormatHelper.number`). `onAStoryReloaded` compared a display year with the stored
       Gregorian year, so an edited story was dropped from (or kept in) the wrong list.
-- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1d/C-1g): mood/period calendar grid, its
-      `MonthPickerService` and the feelings query, stats aggregation.
+- [x] **Calendar screen in Shamsi** (D-028): grid (`CalendarDisplay.monthGridDates` through
+      `CalendarDaysGenerator`), header, month picker, day numbers, feelings (`getStoryFeelingByMonth`
+      by range, keyed by display day), period events (`EventsBox` gained `date_range`) and the story
+      lists (`DateRangeFilterObject`). Fixed the `Instance of 'DateTime'` crash by encoding filter
+      maps with `SearchFilterObject.encode` instead of `jsonEncode`.
+- [ ] Remaining Shamsi surface (`BACKLOG.md` C-1g): stats aggregation (still counted and labelled
+      Gregorian).
 - [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux

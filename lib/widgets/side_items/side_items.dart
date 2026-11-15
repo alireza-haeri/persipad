@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/services/app_store_opener_service.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/views/add_ons/add_ons_view.dart';
@@ -60,8 +61,9 @@ class SideItems {
       ),
       IconButtonSideItem(
         route: CalendarRoute(
-          initialMonth: DateTime.now().month,
-          initialYear: DateTime.now().year,
+          // Display-calendar month today falls in.
+          initialMonth: CalendarDisplay.monthOf(DateTime.now()),
+          initialYear: CalendarDisplay.yearOf(DateTime.now()),
           initialSegment: .mood,
         ),
         title: tr('page.calendar.title'),

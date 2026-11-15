@@ -58,7 +58,8 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
   late SearchFilterObject exportFilter = initialExportFilter;
 
   bool get filtered =>
-      jsonEncode(exportFilter.toDatabaseFilter()) != jsonEncode(initialExportFilter.toDatabaseFilter());
+      SearchFilterObject.encode(exportFilter.toDatabaseFilter()) !=
+          SearchFilterObject.encode(initialExportFilter.toDatabaseFilter());
 
   void setExportFilter(SearchFilterObject result) {
     exportFilter = result;

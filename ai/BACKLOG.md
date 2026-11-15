@@ -36,10 +36,10 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | C-1a | `✅` Story list grouping + month chip + monogram day | Grouped by `CalendarDisplay.monthKeyOf`, so Azar 1405 starts a new header mid-November |
 | C-1b | `✅` "Months with stories" tab bar | Derived from the loaded stories in Shamsi mode (all pages are prefetched) |
 | C-1c | `✅` Full dates + home year scope | `DateFormatHelper` switches internally; a Shamsi year becomes a `date_range` query |
-| C-1d | `🔜` Mood/period calendars paging through Shamsi months | Grid + header + feelings query + `MonthPickerService` still Gregorian; header and day numbers are explicitly Gregorian so they cannot lie, and the story filter is exact via `displayYearsCovering`. `CalendarDisplay.monthGridDates` is ready for the grid |
+| C-1d | `✅` Mood/period calendars in the display calendar | Grid, header, month picker, day numbers, feelings and period events all follow `CalendarDisplay`; both event tables and the story lists query exact day ranges (D-028) |
 | C-1e | `✅` Settings tile (calendar system) | Settings → Region → Calendar System |
 | C-1f | `✅` Year filters in the display calendar | Archive/tag/year-picker tabs and the search filter chips show and filter by display years; `CalendarDisplay.yearsFilter` turns them into Gregorian years + exact day ranges (D-027) |
-| C-1g | `🔜` Stats aggregation per Shamsi month/year | Bars are counted per Gregorian month; labels stay Gregorian until the counting moves |
+| C-1g | `🔜` Stats aggregation per Shamsi month/year | The only remaining Gregorian surface: bars are counted per Gregorian month and the screen's labels say Gregorian, so it cannot mislead — but it is still a visible mismatch in Shamsi mode |
 
 ## 1. Product features (candidates)
 

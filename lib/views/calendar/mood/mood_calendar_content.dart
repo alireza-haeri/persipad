@@ -107,12 +107,9 @@ class _CalendarStoriesContent extends StatelessWidget {
   }
 
   Widget buildStoryList() {
-    // Get the number of days in the current month
-    // DateTime(year, month, 0) returns the last day of the previous month
-    // So DateTime(year, month + 1, 0) gives us the last day of the current month
-    // For example: DateTime(2025, 1, 0) = Dec 31, 2024 (last day of Dec)
-    //              DateTime(2025, 2, 0) = Jan 31, 2025 (last day of Jan)
-    final daysInMonth = DateTime(viewModel.year, viewModel.month + 1, 0).day;
+    // Day count in the *display* calendar: a Shamsi month has 29–31 days too, but
+    // `DateTime(year, month + 1, 0)` would count a Gregorian month.
+    final daysInMonth = CalendarDisplay.daysInMonth(viewModel.year, viewModel.month);
 
     return PageView.builder(
       onPageChanged: (index) {
@@ -129,36 +126,21 @@ class _CalendarStoriesContent extends StatelessWidget {
         // Index 0 shows all stories for the month
         if (index == 0) {
           return SpStoryList.withQuery(
-            key: ValueKey(jsonEncode(viewModel.searchFilter.toDatabaseFilter())),
+            key: ValueKey(SearchFilterObject.encode(viewModel.searchFilter.toDatabaseFilter())),
             disableMultiEdit: true,
             watch: viewModel,
             filter: viewModel.searchFilter,
           );
         }
 
-        // Index 1+ shows stories for specific day
-        final day = index;
-        final filter = SearchFilterObject(
-          years: CalendarDisplay.displayYearsCovering(DateTime(viewModel.year, viewModel.month, day)).toSet(),
-          month: viewModel.month,
-          day: day,
-          types: {PathType.docs},
-          tagIds: viewModel.selectedTagId != null ? {viewModel.selectedTagId!} : {},
-          assetId: null,
-        );
+        // Index 1+ shows stories for specific day (`day` is a display day number).
+        final filter = viewModel.filterFor(day: index);
 
         return SpStoryList.withQuery(
-          key: ValueKey(jsonEncode(filter.toDatabaseFilter())),
+          key: ValueKey(SearchFilterObject.encode(filter.toDatabaseFilter())),
           disableMultiEdit: true,
           watch: viewModel,
-          filter: SearchFilterObject(
-            years: CalendarDisplay.displayYearsCovering(DateTime(viewModel.year, viewModel.month, day)).toSet(),
-            month: viewModel.month,
-            day: day,
-            types: {PathType.docs},
-            tagIds: viewModel.selectedTagId != null ? {viewModel.selectedTagId!} : {},
-            assetId: null,
-          ),
+          filter: filter,
         );
       },
     );
@@ -181,10 +163,12 @@ class _CalendarStoriesContent extends StatelessWidget {
       onMonthChanged: viewModel.onMonthChanged,
       controller: viewModel.calendarController,
       cellBuilder: (context, date, isDisplayMonth) {
-        List<String>? feelings = isDisplayMonth ? viewModel.feelingsMapByDay[date.day] : null;
+        // Feelings are keyed by *display* day — the grid pages display months.
+        final int displayDay = CalendarDisplay.dayOf(date);
+        List<String>? feelings = isDisplayMonth ? viewModel.feelingsMapByDay[displayDay] : null;
 
         return SpCalendarDateCell(
-          feelingVisibleIndexNotifier: date.day.isEven
+          feelingVisibleIndexNotifier: displayDay.isEven
               ? viewModel.evenFeelingVisibleIndexNotifier
               : viewModel.oddFeelingVisibleIndexNotifier,
           date: date,
@@ -197,7 +181,7 @@ class _CalendarStoriesContent extends StatelessWidget {
               ? () => viewModel.selectDay(
                   viewModel.year,
                   viewModel.month,
-                  viewModel.selectedDay == date.day ? null : date.day,
+                  viewModel.selectedDay == displayDay ? null : displayDay,
                 )
               : null,
         );

@@ -5,6 +5,7 @@ import 'package:storypad/core/databases/models/place_db_model.dart';
 import 'package:storypad/core/databases/models/story_content_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/objects/story_page_object.dart';
 import 'package:storypad/core/objects/story_tile_preferences_object.dart';
 import 'package:storypad/core/services/color_from_day_service.dart';
@@ -187,10 +188,14 @@ class _StoryHeaderDateSelector extends StatelessWidget {
   }
 
   Future<void> openCalendar(BuildContext context) async {
+    // The calendar shows the *display* calendar, so it opens on the story's date in
+    // that calendar rather than on its stored Gregorian numbers.
+    final DateTime date = story.displayPathDate;
+
     CalendarRoute(
-      initialMonth: story.month,
-      initialYear: story.year,
-      initialDay: story.day,
+      initialMonth: CalendarDisplay.monthOf(date),
+      initialYear: CalendarDisplay.yearOf(date),
+      initialDay: CalendarDisplay.dayOf(date),
       initialSegment: .mood,
     ).push(context);
   }

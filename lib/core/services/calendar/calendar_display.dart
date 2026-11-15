@@ -127,6 +127,12 @@ class CalendarDisplay {
     return [for (var year = from; year <= to; year++) year];
   }
 
+  /// The display month before (year, month) — same arithmetic in every calendar,
+  /// since every calendar here has twelve months of 29–31 days.
+  static ({int year, int month}) previousMonth(int year, int month) {
+    return month == 1 ? (year: year - 1, month: 12) : (year: year, month: month - 1);
+  }
+
   /// True when [date] belongs to the displayed (year, month).
   static bool isInMonth(DateTime date, int year, int month) => yearOf(date) == year && monthOf(date) == month;
 

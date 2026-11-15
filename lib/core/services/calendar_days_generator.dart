@@ -1,3 +1,4 @@
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/days_count_in_month_service.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 
@@ -16,6 +17,13 @@ class CalendarDaysGenerator {
     required int month,
     FirstDayOfWeekOption firstDayOfWeek = FirstDayOfWeekOption.monday,
   }) {
+    // A Shamsi month is not a `DateTime(year, month)` — it starts on 21 March and
+    // straddles two Gregorian months — so the whole grid comes from the calendar
+    // engine, which also returns whole weeks only.
+    if (CalendarDisplay.isPersian) {
+      return CalendarDisplay.monthGridDates(year: year, month: month, firstDayOfWeek: firstDayOfWeek.value);
+    }
+
     final firstDayWeekday = DateTime(year, month, 1).weekday;
     final visiblePreviousMonthDayCount =
         (firstDayWeekday - firstDayOfWeek.value + DateTime.daysPerWeek) % DateTime.daysPerWeek;

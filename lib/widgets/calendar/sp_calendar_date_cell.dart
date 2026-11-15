@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_tap_effect.dart';
@@ -70,7 +71,13 @@ class SpCalendarDateCell extends StatelessWidget {
   }
 
   bool get isSelected {
-    return "${date.day}-${date.month}-${date.year}" == "$selectedDay-$selectedMonth-$selectedYear";
+    if (selectedDay == null) return false;
+
+    // Compared in the display calendar: the grid pages Shamsi months, where the
+    // stored Gregorian day/month of a cell are different numbers.
+    return CalendarDisplay.dayOf(date) == selectedDay &&
+        CalendarDisplay.monthOf(date) == selectedMonth &&
+        CalendarDisplay.yearOf(date) == selectedYear;
   }
 
   bool get isToday {
@@ -143,7 +150,7 @@ class SpCalendarDateCell extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            DateFormatHelper.gregorianDay(date, context.locale),
+            DateFormatHelper.d(date, context.locale),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: foregroundColor,

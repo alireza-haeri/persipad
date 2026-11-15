@@ -54,9 +54,9 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
 
     selectedDay =
         params.initialSelectedDay ??
-        (params.monthYearNotifier.value.month == DateTime.now().month &&
-                params.monthYearNotifier.value.year == DateTime.now().year
-            ? DateTime.now().day
+        (params.monthYearNotifier.value.month == CalendarDisplay.monthOf(DateTime.now()) &&
+                params.monthYearNotifier.value.year == CalendarDisplay.yearOf(DateTime.now())
+            ? CalendarDisplay.dayOf(DateTime.now())
             : 1);
   }
 
@@ -90,18 +90,29 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   Map<int, List<String>> feelingsMapByDay = {};
 
   bool tagSelected(TagDbModel tag) => (selectedTagId == tag.id) || (tag.id == 0 && selectedTagId == null);
-  SearchFilterObject get searchFilter {
-    return SearchFilterObject(
-      // This calendar pages *Gregorian* months (see BACKLOG C-1d), so `year` and
-      // `month` are Gregorian. `years` is a display-year set, hence the
-      // conversion: a Gregorian month can straddle two Shamsi years, and both are
-      // needed for the filter to cover the whole month.
-      years: CalendarDisplay.displayYearsCovering(DateTime(year, month)).toSet(),
-      month: month,
-      day: selectedDay,
+
+  SearchFilterObject get searchFilter => filterFor(day: selectedDay);
+
+  /// The story filter for this screen, in the *display* calendar.
+  ///
+  /// `year`/`month` are display values, and a Shamsi month is a run of days rather
+  /// than a `month` column value, so the scope is always an exact day range. For a
+  /// single day the Gregorian month/day are kept as well, which is what lets the
+  /// list show its "on this day in another year" throwback.
+  SearchFilterObject filterFor({int? day}) {
+    final DateTime start = day == null
+        ? CalendarDisplay.firstDayOfMonth(year, month)
+        : CalendarDisplay.dateOf(year, month, day);
+    final DateTime end = day == null ? CalendarDisplay.lastDayOfMonth(year, month) : start;
+
+    return DateRangeFilterObject(
+      start: start,
+      end: end,
+      years: CalendarDisplay.displayYearsCovering(start, end).toSet(),
+      month: day == null ? null : start.month,
+      day: day == null ? null : start.day,
       types: {PathType.docs},
       tagIds: selectedTagId != null ? {selectedTagId!} : {},
-      assetId: null,
     );
   }
 
@@ -117,20 +128,29 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   }
 
   Future<void> goToNewPage(BuildContext context) async {
+    // The edit screen takes storage (Gregorian) dates, so the display month/day
+    // is converted on the way in and back on the way out.
+    final DateTime date = selectedDay == null
+        ? CalendarDisplay.firstDayOfMonth(year, month)
+        : CalendarDisplay.dateOf(year, month, selectedDay!);
+
     final addedStory = await EditStoryRoute(
       id: null,
-      initialYear: year,
-      initialMonth: month,
-      initialDay: selectedDay,
+      initialYear: date.year,
+      initialMonth: date.month,
+      initialDay: date.day,
       initialTagIds: selectedTagId != null ? [selectedTagId!] : null,
     ).push(context);
 
     if (addedStory is StoryDbModel) {
+      final int storyYear = CalendarDisplay.yearOf(addedStory.displayPathDate);
+      final int storyMonth = CalendarDisplay.monthOf(addedStory.displayPathDate);
+
       // Navigate to the story's month if different
-      if (addedStory.month != month || addedStory.year != year) {
-        calendarController.goToMonth(addedStory.year, addedStory.month);
+      if (storyMonth != month || storyYear != year) {
+        calendarController.goToMonth(storyYear, storyMonth);
       }
-      selectedDay = addedStory.day;
+      selectedDay = CalendarDisplay.dayOf(addedStory.displayPathDate);
     }
 
     refreshList();

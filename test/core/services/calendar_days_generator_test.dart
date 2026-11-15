@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar_days_generator.dart';
+import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/services/days_count_in_month_service.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 
@@ -55,6 +57,26 @@ void main() {
       expect(currentMonthDays, expectedCurrentMonthDayCount);
       expect(previousMonthDays, expectedPreviousMonthDayCount);
       expect(nextMonthDays, expectedNextMonthDayCount);
+    });
+  });
+
+  group('CalendarDaysGenerator.generate in Shamsi mode', () {
+    setUp(() => CalendarConfig.apply(system: CalendarSystemOption.persian));
+    tearDown(CalendarConfig.reset);
+
+    test('it returns the display-calendar month, not a Gregorian one', () {
+      // Aban 1405 runs 23 Oct – 21 Nov 2026; Saturday-first, so the grid opens on
+      // Saturday 17 Oct 2026 and holds 30 in-month days.
+      final result = CalendarDaysGenerator.generate(
+        year: 1405,
+        month: 8,
+        firstDayOfWeek: FirstDayOfWeekOption.saturday,
+      );
+
+      expect(result.first, DateTime(2026, 10, 17));
+      expect(result.length % DateTime.daysPerWeek, 0);
+      expect(result.where((d) => d.month == 10 && d.day >= 23).length, 9);
+      expect(result.where((d) => d.month == 11 && d.day <= 21 && d.day >= 1).length, 21);
     });
   });
 

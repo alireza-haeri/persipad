@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/storages/search_filter_storage.dart';
@@ -32,7 +31,9 @@ class SearchFilterViewModel extends ChangeNotifier with DisposeAwareMixin {
   // null key = non-emoji tags (no category); non-null key = emoji category
   Map<TagCategoryDbModel?, List<TagDbModel>>? tagsByCategory;
 
-  bool get filtered => jsonEncode(searchFilter.toDatabaseFilter()) != jsonEncode(params.resetTune.toDatabaseFilter());
+  bool get filtered =>
+      SearchFilterObject.encode(searchFilter.toDatabaseFilter()) !=
+      SearchFilterObject.encode(params.resetTune.toDatabaseFilter());
 
   Future<void> load() async {
     if (params.filterTagModifiable) {

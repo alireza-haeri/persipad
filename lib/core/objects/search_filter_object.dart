@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:copy_with_extension/copy_with_extension.dart';
@@ -75,6 +76,54 @@ class SearchFilterObject {
     return filters;
   }
 
+  /// A JSON-safe string for a filter map — for widget keys and equality checks.
+  ///
+  /// [toDatabaseFilter] can carry `DateTime`s (the exact day range a Shamsi year
+  /// resolves to; see `CalendarDisplay.yearsFilter`), which `jsonEncode` refuses
+  /// to serialize and crashes on. Writing them as ISO-8601 keeps the key unique
+  /// per filter without touching the filter itself.
+  static String encode(Map<String, dynamic>? filters) {
+    return jsonEncode(filters, toEncodable: (value) => value is DateTime ? value.toIso8601String() : value.toString());
+  }
+
   Map<String, dynamic> toJson() => _$SearchFilterObjectToJson(this);
   factory SearchFilterObject.fromJson(Map<String, dynamic> json) => _$SearchFilterObjectFromJson(json);
+}
+
+/// A [SearchFilterObject] scoped to an exact Gregorian day range.
+///
+/// The calendar screens page months in the *display* calendar, and a Shamsi month
+/// is not a value of the stored `month` column — it is a run of days spanning two
+/// Gregorian months. The range is therefore the only exact way to say "this
+/// month" (or "this day") without changing how anything is stored.
+///
+/// `years` still carries the display years the range touches, so the
+/// filter-object contract (display years in, storage years + ranges out) holds and
+/// the throwback tile keeps working for single-day filters.
+class DateRangeFilterObject extends SearchFilterObject {
+  DateRangeFilterObject({
+    required this.start,
+    required this.end,
+    required Set<PathType> types,
+    Set<int>? years,
+    int? month,
+    int? day,
+    Set<int>? tagIds,
+  }) : super(
+         years: years ?? const {},
+         types: types,
+         assetId: null,
+         month: month,
+         day: day,
+         tagIds: tagIds,
+       );
+
+  /// First and last day of the range, inclusive.
+  final DateTime start;
+  final DateTime end;
+
+  @override
+  Map<String, dynamic> toDatabaseFilter() {
+    return {...super.toDatabaseFilter()!, 'date_range': [start, end]};
+  }
 }

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/databases/models/collection_db_model.dart';
@@ -32,7 +31,7 @@ class SpStoryListWithQuery extends StatefulWidget {
   /// flash a `key` change would cause.
   final Listenable? watch;
 
-  String get uniqueness => jsonEncode(filter?.toDatabaseFilter()) + viewOnly.toString();
+  String get uniqueness => SearchFilterObject.encode(filter?.toDatabaseFilter()) + viewOnly.toString();
 
   static SpStoryListWithQueryState? of(BuildContext context) {
     return context.findAncestorStateOfType<SpStoryListWithQueryState>();

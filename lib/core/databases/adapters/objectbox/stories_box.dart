@@ -488,6 +488,13 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
   // - empty mean has story but no feeling
   // - null mean no story
   // - non-empty mean has story with feeling (emoji strings)
+  /// Day-of-month → feelings, for the month the *calendar* is showing.
+  ///
+  /// Both directions are in the display calendar: `year`/`month` are the ones the
+  /// grid has paged to, and the returned keys are day numbers in that calendar.
+  /// The query itself is an exact Gregorian day range, because a Shamsi month is
+  /// not a value of the stored `month` column — asking for "month 8" of a
+  /// Gregorian year would return part of آبان and part of مهر.
   Map<int, List<String>> getStoryFeelingByMonth({
     required int month,
     required int year,
@@ -495,11 +502,11 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     Map<int, String> feelingEmojiById = const {},
   }) {
     AppLogger.info("Triggering $tableName#getStoryFeelingByMonth 🍎");
-    Map<int, List<String>> storyFeelingByMonth = {};
+    final Map<int, List<String>> storyFeelingByMonth = {};
 
-    Map<String, Object> filters = {
-      'year': year,
-      'month': month,
+    final range = CalendarDisplay.rangeOfMonth(year, month);
+    final Map<String, Object> filters = {
+      'date_range': [range.start, range.end],
       'type': PathType.docs.name,
     };
 
@@ -515,11 +522,12 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
           .toSet()
           .toList();
 
+      final int day = CalendarDisplay.dayOf(DateTime(story.year, story.month, story.day));
       if (storyFeelings.isNotEmpty) {
-        storyFeelingByMonth[story.day] ??= [];
-        storyFeelingByMonth[story.day]!.addAll(storyFeelings);
-      } else if (storyFeelingByMonth[story.day] == null) {
-        storyFeelingByMonth[story.day] = ['exist_but_not_set'];
+        storyFeelingByMonth[day] ??= [];
+        storyFeelingByMonth[day]!.addAll(storyFeelings);
+      } else if (storyFeelingByMonth[day] == null) {
+        storyFeelingByMonth[day] = ['exist_but_not_set'];
       }
     }
 

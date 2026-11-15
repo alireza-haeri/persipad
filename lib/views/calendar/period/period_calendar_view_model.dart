@@ -6,7 +6,6 @@ import 'package:storypad/core/databases/models/event_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
-import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
@@ -56,15 +55,10 @@ class PeriodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Deb
   }
 
   bool isLastMonthPeriodDate(DateTime date) {
-    DateTime thisDateLastMonth = DateTime(
-      date.month - 1 > 0 ? date.year : date.year - 1,
-      date.month - 1 > 0 ? date.month - 1 : 12,
-      date.day,
-    );
-
-    return _lastMonthPeriodEvents.any(
-      (d) => d.year == thisDateLastMonth.year && d.month == thisDateLastMonth.month && d.day == thisDateLastMonth.day,
-    );
+    // Membership by real date: the grid shows a few cells of the neighbouring
+    // display months, and "same day, one calendar month earlier" stopped being a
+    // one-line subtraction once months can be Shamsi.
+    return _lastMonthPeriodEvents.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
   }
 
   bool isDateSelected(DateTime date) {
@@ -77,18 +71,29 @@ class PeriodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Deb
   Future<void> load({
     DateTime? initialSelectedDate,
   }) async {
+    // `year`/`month` are display values, so the event tables (which store
+    // Gregorian year/month/day) are queried by the exact day range each display
+    // month covers — see `EventsBox._dateRangeCondition`.
+    final thisMonth = CalendarDisplay.rangeOfMonth(year, month);
+    final previous = CalendarDisplay.previousMonth(year, month);
+    final lastMonth = CalendarDisplay.rangeOfMonth(previous.year, previous.month);
+
     _lastMonthPeriodEvents = await EventDbModel.db
         .where(
           filters: {
-            "year": month - 1 > 0 ? year : year - 1,
-            "month": month - 1 > 0 ? month - 1 : 12,
-            "event_type": 'period',
+            'date_range': [lastMonth.start, lastMonth.end],
+            'event_type': 'period',
           },
         )
         .then((e) => e?.items ?? []);
 
     _periodEvents = await EventDbModel.db
-        .where(filters: {'year': year, 'month': month, 'event_type': 'period'})
+        .where(
+          filters: {
+            'date_range': [thisMonth.start, thisMonth.end],
+            'event_type': 'period',
+          },
+        )
         .then((e) => e?.items ?? []);
 
     _selectedEvent =
@@ -104,17 +109,10 @@ class PeriodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Deb
 
     _selectedEventStories = selectedEvent != null
         ? await StoryDbModel.db.where(
-            filters: SearchFilterObject(
-              // Gregorian-paged calendar (BACKLOG C-1d): the event's year/month/day
-              // are Gregorian, `years` is a display-year set.
-              years: CalendarDisplay.displayYearsCovering(
-                DateTime(selectedEvent!.year, selectedEvent!.month, selectedEvent!.day),
-              ).toSet(),
-              month: selectedEvent!.month,
-              day: selectedEvent!.day,
-              types: {PathType.docs},
-              assetId: null,
-            ).toDatabaseFilter(),
+            filters: {
+              'date_range': [selectedEventDate!, selectedEventDate!],
+              'types': [PathType.docs.name],
+            },
           )
         : null;
 
@@ -166,19 +164,23 @@ class PeriodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Deb
   void goToNewPage(BuildContext context) async {
     if (selectedEvent == null) return;
 
-    DateTime date = DateTime(selectedEvent!.year, selectedEvent!.month, selectedEvent!.day);
+    // Storage dates: the event's own Gregorian day is what the edit screen wants.
+    DateTime date = selectedEventDate!;
     final addedStory = await EditStoryRoute(
       id: null,
-      initialYear: year,
-      initialMonth: month,
-      initialDay: selectedEvent?.day,
+      initialYear: date.year,
+      initialMonth: date.month,
+      initialDay: date.day,
     ).push(context);
 
     if (addedStory is StoryDbModel) {
-      if (addedStory.month != month || addedStory.year != year) {
-        calendarController.goToMonth(addedStory.year, addedStory.month);
+      final int storyYear = CalendarDisplay.yearOf(addedStory.displayPathDate);
+      final int storyMonth = CalendarDisplay.monthOf(addedStory.displayPathDate);
+
+      if (storyMonth != month || storyYear != year) {
+        calendarController.goToMonth(storyYear, storyMonth);
       }
-      date = DateTime(addedStory.year, addedStory.month, addedStory.day);
+      date = addedStory.displayPathDate;
     }
 
     await load(initialSelectedDate: date);

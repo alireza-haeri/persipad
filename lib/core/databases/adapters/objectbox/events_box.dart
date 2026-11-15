@@ -28,6 +28,7 @@ class EventsBox extends BaseBox<EventObjectBox, EventDbModel> {
     int? month = filters?["month"];
     int? day = filters?["day"];
     int? year = filters?["year"];
+    List<DateTime>? dateRange = filters?["date_range"];
     String? eventType = filters?["event_type"];
 
     Condition<EventObjectBox>? conditions = EventObjectBox_.id.notNull();
@@ -45,6 +46,9 @@ class EventsBox extends BaseBox<EventObjectBox, EventDbModel> {
         ),
       );
     }
+    if (dateRange != null && dateRange.length == 2) {
+      conditions = conditions.and(_dateRangeCondition(dateRange[0], dateRange[1]));
+    }
 
     QueryBuilder<EventObjectBox> queryBuilder = box.query(conditions);
 
@@ -57,6 +61,43 @@ class EventsBox extends BaseBox<EventObjectBox, EventDbModel> {
     }
 
     return queryBuilder;
+  }
+
+  /// Matches events whose own date (`year`/`month`/`day`) falls inside the
+  /// inclusive range — the shape a display-calendar month needs, since a Shamsi
+  /// month straddles two Gregorian months and has no `month` column value.
+  ///
+  /// Same construction as `StoriesBox._dateRangeCondition`: ObjectBox has no tuple
+  /// comparison, so the range becomes an OR of one condition per Gregorian month
+  /// it touches.
+  Condition<EventObjectBox> _dateRangeCondition(DateTime start, DateTime end) {
+    var from = DateTime(start.year, start.month, start.day);
+    var to = DateTime(end.year, end.month, end.day);
+    if (to.isBefore(from)) {
+      final swapped = from;
+      from = to;
+      to = swapped;
+    }
+
+    Condition<EventObjectBox>? result;
+    var cursor = DateTime(from.year, from.month, 1);
+
+    while (!cursor.isAfter(to)) {
+      final daysInMonth = DateTime(cursor.year, cursor.month + 1, 0).day;
+      final firstDay = cursor.isBefore(from) ? from.day : 1;
+      final lastDayOfMonth = DateTime(cursor.year, cursor.month, daysInMonth);
+      final lastDay = lastDayOfMonth.isAfter(to) ? to.day : daysInMonth;
+
+      final condition = EventObjectBox_.year
+          .equals(cursor.year)
+          .and(EventObjectBox_.month.equals(cursor.month))
+          .and(EventObjectBox_.day.oneOf([for (var day = firstDay; day <= lastDay; day++) day]));
+
+      result = result == null ? condition : result.or(condition);
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+
+    return result ?? EventObjectBox_.year.equals(-1);
   }
 
   @override

@@ -8,6 +8,7 @@ import 'package:storypad/core/databases/models/template_db_model.dart';
 import 'package:storypad/core/objects/gallery_template_object.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
 import 'package:storypad/core/objects/calendar_segment_id.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/gallery_template_service.dart';
 import 'package:storypad/core/services/notifications/reminder_notification_copy_service.dart';
 import 'package:storypad/core/types/reminder_type.dart';
@@ -64,8 +65,9 @@ class ReminderNavigationService {
         case ReminderType.period:
           final now = DateTime.now();
           await CalendarRoute(
-            initialYear: now.year,
-            initialMonth: now.month,
+            // The calendar pages the display calendar (Shamsi when selected).
+            initialYear: CalendarDisplay.yearOf(now),
+            initialMonth: CalendarDisplay.monthOf(now),
             initialSegment: CalendarSegmentId.period,
           ).push(context);
           break;
