@@ -81,12 +81,17 @@ class _StatsTrend extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(
-                      bar.label,
-                      maxLines: 1,
-                      overflow: .clip,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.5),
+                    // Full month names (Persian is never abbreviated, D-030 §4)
+                    // are wider than a twelfth of the chart, so they scale down
+                    // rather than clip.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        bar.label,
+                        maxLines: 1,
+                        style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                   ],
