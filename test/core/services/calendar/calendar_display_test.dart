@@ -97,7 +97,9 @@ void main() {
 
       final filters = filter.toDatabaseFilter()!;
       expect(filters['date_range'], [DateTime(2026, 10, 23), DateTime(2026, 11, 21)]);
-      expect(filters['years'], [2026]);
+      // The display year 1405 touches 2026 and 2027; the exact range is what makes
+      // the filter right, `years` only narrows the index scan.
+      expect(filters['years'], [2026, 2027]);
       expect((filters['date_ranges'] as List).length, 1);
     });
 
