@@ -26,9 +26,12 @@
 #   2. APIs & Services -> Library -> "Google Drive API" -> Enable
 #   3. Google Auth Platform -> Branding: app name + support email;
 #      Audience: External; add your own account under Test users
-#   4. Credentials -> Create credentials -> OAuth client ID -> Desktop app
+#   4. Data access -> Add or remove scopes: add
+#      .../auth/drive.appdata, openid, .../auth/userinfo.email,
+#      .../auth/userinfo.profile  (Google rejects scopes it was not told about)
+#   5. Credentials -> Create credentials -> OAuth client ID -> Desktop app
 #      (this hands you a client_secret_*.json to pass to --google-json)
-#   5. Publish the app when you are done testing: while it stays in "Testing",
+#   6. Publish the app when you are done testing: while it stays in "Testing",
 #      Google expires the refresh token after 7 days. The scopes used here
 #      (drive.appdata, email, profile) are non-sensitive, so publishing does not
 #      require a Google security review.

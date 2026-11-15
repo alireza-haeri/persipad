@@ -118,6 +118,7 @@ If you prefer the raw command (e.g. for a debugger / IDE launch config):
 | Install step: `Permission denied` on `/usr/local/storypad` | CMake install prefix cached from an older build | `rm -rf build/linux` and rebuild — granting permissions does **not** help |
 | Drive tile says "Google Drive needs one setup step" | this build has no OAuth client id | `bin/setup_sync --google-json ~/Downloads/client_secret_*.json`, then restart `bin/dev` (D-019) |
 | Browser: `Error 400: invalid_client` when connecting Drive | empty/wrong `GOOGLE_DESKTOP_CLIENT_ID`, or a client of type Web/Android instead of **Desktop app** | recreate the credential as Desktop app; check `bin/setup_sync --show` |
+| Browser: `Error 400: invalid_scope` | the scope is not listed on the OAuth consent screen | Google Auth Platform → Data access → add `drive.appdata`, `openid`, `userinfo.email`, `userinfo.profile` |
 | Browser: "Access blocked … has not completed verification" / app not found | Google project is in Testing and your account is not a test user | add the account under Audience → Test users, or publish the app |
 | Drive re-asks for sign-in every ~7 days | consent screen still in **Testing** (Google expires refresh tokens after 7 days) | publish the app (non-sensitive scopes, no review needed) |
 | `Invalid client_id: ""` page from Dropbox | `DROPBOX_APP_KEY` is empty in the build | `bin/setup_sync --dropbox-key <app key>`; Dropbox app needs redirect `http://localhost:8763/callback` |
