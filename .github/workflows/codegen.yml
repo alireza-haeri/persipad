@@ -25,13 +25,21 @@ on:
       - 'arena/**'
       - main
       - develop
+    # A docs push must not even create a run: the workflow-level concurrency group
+    # would cancel an in-flight codegen job even though the new commit would skip it.
+    paths-ignore:
+      - 'ai/**'
+      - '**/*.md'
+      - 'LICENSE'
 
 permissions:
   contents: write
 
 concurrency:
   group: codegen
-  cancel-in-progress: true
+  # Never cancel a running regeneration: the result is published to a branch, and
+  # losing it mid-run wastes a full toolchain cycle.
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.50.0'
