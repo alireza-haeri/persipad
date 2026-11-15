@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Не все изменения ещё синхронизированы.",
   "list_tile.backup.title": "Бэкапы",
   "list_tile.backup.unknown_error": "Что-то пошло не так. Попробуйте ещё раз.",
+  "list_tile.backup.unavailable_subtitle": "Этот сервис недоступен на этой платформе.",
   "list_tile.backup.unsignin_subtitle": "Подключись, чтобы делать резервные копии данных.",
   "list_tile.backup.waiting_to_sync_subtitle": "Ожидание синхронизации...",
   "list_tile.color_seed.title": "Основной цвет",

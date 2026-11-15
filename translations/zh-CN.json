@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "部分更改尚未同步",
   "list_tile.backup.title": "备份",
   "list_tile.backup.unknown_error": "出了点问题。请重试。",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "连接以备份您的数据。",
   "list_tile.backup.waiting_to_sync_subtitle": "正在等待同步...",
   "list_tile.color_seed.title": "颜色",

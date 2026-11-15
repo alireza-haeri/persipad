@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "การเปลี่ยนแปลงบางอย่างยังไม่ได้ซิงค์",
   "list_tile.backup.title": "การสำรองข้อมูล",
   "list_tile.backup.unknown_error": "เกิดข้อผิดพลาดบางอย่าง โปรดลองใหม่อีกครั้ง",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "เชื่อมต่อเพื่อสำรองข้อมูลของคุณ",
   "list_tile.backup.waiting_to_sync_subtitle": "กำลังรอการซิงค์...",
   "list_tile.color_seed.title": "สีตั้งต้น",

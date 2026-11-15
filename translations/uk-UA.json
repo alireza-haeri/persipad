@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Деякі зміни ще не синхронізовані.",
   "list_tile.backup.title": "Резервні копії",
   "list_tile.backup.unknown_error": "Щось пішло не так. Спробуйте ще раз.",
+  "list_tile.backup.unavailable_subtitle": "Цей сервіс недоступний на цій платформі.",
   "list_tile.backup.unsignin_subtitle": "Підключіться, щоб створити резервну копію даних.",
   "list_tile.backup.waiting_to_sync_subtitle": "Очікування синхронізації...",
   "list_tile.color_seed.title": "Кольорова палітра",

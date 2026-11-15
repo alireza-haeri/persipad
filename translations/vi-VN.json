@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Một số dữ liệu chưa được đồng bộ hóa",
   "list_tile.backup.title": "Sao lưu",
   "list_tile.backup.unknown_error": "Có lỗi xảy ra. Vui lòng thử lại.",
+  "list_tile.backup.unavailable_subtitle": "Dịch vụ này không khả dụng trên nền tảng này.",
   "list_tile.backup.unsignin_subtitle": "Kết nối để sao lưu dữ liệu của bạn.",
   "list_tile.backup.waiting_to_sync_subtitle": "Đang chờ đồng bộ hóa...",
   "list_tile.color_seed.title": "Màu chủ đạo",

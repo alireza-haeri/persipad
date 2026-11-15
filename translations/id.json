@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Beberapa data belum disinkronkan",
   "list_tile.backup.title": "Cadangan",
   "list_tile.backup.unknown_error": "Terjadi kesalahan. Silakan coba lagi.",
+  "list_tile.backup.unavailable_subtitle": "Layanan ini tidak tersedia di platform ini.",
   "list_tile.backup.unsignin_subtitle": "Hubungkan untuk mencadangkan data Anda.",
   "list_tile.backup.waiting_to_sync_subtitle": "Menunggu sinkronisasi...",
   "list_tile.color_seed.title": "Benih Warna",

@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Niektóre zmiany nie zostały jeszcze zsynchronizowane.",
   "list_tile.backup.title": "Kopie zapasowe",
   "list_tile.backup.unknown_error": "Coś poszło nie tak. Spróbuj ponownie.",
+  "list_tile.backup.unavailable_subtitle": "Ta usługa nie jest dostępna na tej platformie.",
   "list_tile.backup.unsignin_subtitle": "Połącz się, aby wykonać kopię zapasową danych.",
   "list_tile.backup.waiting_to_sync_subtitle": "Oczekiwanie na synchronizację...",
   "list_tile.color_seed.title": "Kolor motywu",

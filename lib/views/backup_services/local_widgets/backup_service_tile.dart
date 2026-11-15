@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
+import 'package:storypad/core/services/platform_capabilities.dart';
 import 'package:storypad/core/types/backup_connection_status.dart';
 import 'package:storypad/providers/backup_provider.dart';
 import 'package:storypad/providers/backup_sync_state_store.dart';
@@ -29,6 +30,24 @@ class BackupServiceTile extends StatelessWidget {
     final status = provider.statusFor(service.serviceType);
     final metadata = service.serviceType;
 
+    // Some services simply cannot work on every platform (Drive needs
+    // google_sign_in, which has no Linux implementation — see
+    // GoogleDriveLinuxCloudService). Offering a Connect button that can only
+    // ever fail is the worst option, so explain it and disable the tile.
+    final unavailable = !PlatformCapabilities.cloudSyncOnThisDevice(service.serviceType);
+    if (unavailable) {
+      return ListTile(
+        enabled: false,
+        leading: Icon(metadata.icon),
+        title: Text(metadata.displayName),
+        subtitle: Text(tr('list_tile.backup.unavailable_subtitle')),
+        trailing: const Icon(SpIcons.cloudOff),
+      );
+    }
+
+    // isProUser is always true in this fork (everything is unlocked), so this
+    // branch only fires if gating is ever turned back on — see
+    // ProEntitlementService.
     final locked = metadata.isProOnly && !Provider.of<InAppPurchaseProvider>(context).isProUser;
     if (locked) {
       return ListTile(

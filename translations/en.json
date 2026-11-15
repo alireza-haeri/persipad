@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Some changes haven't been synced yet.",
   "list_tile.backup.title": "Backups",
   "list_tile.backup.unknown_error": "Something went wrong. Please try again.",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "Connect to back up your data.",
   "list_tile.backup.waiting_to_sync_subtitle": "Waiting to sync...",
   "list_tile.color_seed.title": "Color Seed",

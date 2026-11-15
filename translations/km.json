@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "ទិន្នន័យខ្លះនៅមិនទាន់ធ្វើសមកាលកម្មនៅឡើយ",
   "list_tile.backup.title": "ការបម្រុងទុក",
   "list_tile.backup.unknown_error": "មានអ្វីមួយខុសប្រក្រតី។ សូមសាកម្តងទៀត។",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "ភ្ជាប់ដើម្បីបម្រុងទុកទិន្នន័យរបស់អ្នក។",
   "list_tile.backup.waiting_to_sync_subtitle": "កំពុងរង់ចាំធ្វើសមកាលកម្ម...",
   "list_tile.color_seed.title": "ពណ៌ចម្បង",

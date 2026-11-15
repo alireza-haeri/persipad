@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Algunos datos aún no se han sincronizado",
   "list_tile.backup.title": "Copias de seguridad",
   "list_tile.backup.unknown_error": "Algo salió mal. Inténtalo de nuevo.",
+  "list_tile.backup.unavailable_subtitle": "Este servicio no está disponible en esta plataforma.",
   "list_tile.backup.unsignin_subtitle": "Conéctate para hacer una copia de seguridad de tus datos.",
   "list_tile.backup.waiting_to_sync_subtitle": "Esperando a sincronizar...",
   "list_tile.color_seed.title": "Semilla de color",

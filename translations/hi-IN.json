@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "कुछ डेटा अभी तक सिंक नहीं हुआ है",
   "list_tile.backup.title": "बैकअप",
   "list_tile.backup.unknown_error": "कुछ गड़बड़ हुई है। कृपया दोबारा प्रयास करें।",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "अपने डेटा का बैकअप लेने के लिए कनेक्ट करें।",
   "list_tile.backup.waiting_to_sync_subtitle": "सिंक होने का इंतज़ार है...",
   "list_tile.color_seed.title": "रंग बीज",

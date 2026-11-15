@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Bazı değişiklikler henüz senkronize edilmedi.",
   "list_tile.backup.title": "Yedeklemeler",
   "list_tile.backup.unknown_error": "Bir sorun oluştu. Lütfen tekrar deneyin.",
+  "list_tile.backup.unavailable_subtitle": "Bu hizmet bu platformda kullanılamıyor.",
   "list_tile.backup.unsignin_subtitle": "Verilerinizi yedeklemek için bağlanın.",
   "list_tile.backup.waiting_to_sync_subtitle": "Senkronizasyon bekleniyor...",
   "list_tile.color_seed.title": "Renk Kodu",

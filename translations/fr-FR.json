@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "Certaines données n'ont pas encore été synchronisées",
   "list_tile.backup.title": "Sauvegardes",
   "list_tile.backup.unknown_error": "Une erreur s'est produite. Veuillez réessayer.",
+  "list_tile.backup.unavailable_subtitle": "Ce service n'est pas disponible sur cette plateforme.",
   "list_tile.backup.unsignin_subtitle": "Connectez-vous pour sauvegarder vos données.",
   "list_tile.backup.waiting_to_sync_subtitle": "En attente de synchronisation...",
   "list_tile.color_seed.title": "Couleur de base",

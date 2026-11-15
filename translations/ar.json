@@ -339,6 +339,7 @@
   "list_tile.backup.some_data_has_not_sync_subtitle": "لم تتم مزامنة بعض البيانات بعد",
   "list_tile.backup.title": "النسخ الاحتياطية",
   "list_tile.backup.unknown_error": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
+  "list_tile.backup.unavailable_subtitle": "This service isn't available on this platform.",
   "list_tile.backup.unsignin_subtitle": "قم بالاتصال لعمل نسخة احتياطية من بياناتك.",
   "list_tile.backup.waiting_to_sync_subtitle": "جارٍ المزامنة...",
   "list_tile.color_seed.title": "اللون الأساسي",
