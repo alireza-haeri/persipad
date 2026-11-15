@@ -111,7 +111,7 @@ class _SpDatePickerDialogState extends State<SpDatePickerDialog> {
     return Dialog(
       clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(28.0))),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360.0),
         child: Column(
