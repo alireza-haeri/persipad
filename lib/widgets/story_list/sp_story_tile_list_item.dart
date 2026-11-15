@@ -67,8 +67,10 @@ class SpStoryTileListItem extends StatelessWidget {
     // mid-month (or hide a real one).
     final monthKey = CalendarDisplay.monthKeyOf(story.displayPathDate);
 
-    ({int year, int month})? previousMonthKey;
-    if (previousStory != null) previousMonthKey = CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
+    // Inferred as a record type; an explicit `({int year, int month})?` local
+    // declaration is not accepted at statement position (the parser reads the
+    // leading `(` as an expression).
+    final previousMonthKey = previousStory == null ? null : CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
 
     if (previousMonthKey != monthKey) {
       // Recaps are aggregated per Gregorian month, so they are skipped in Shamsi
