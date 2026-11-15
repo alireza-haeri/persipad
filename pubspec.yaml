@@ -59,12 +59,17 @@ dependencies:
   in_app_review: 2.0.12
   in_app_update: 5.0.0
   json_annotation: 4.12.0
-  json_serializable: 6.14.1
+  # ^6.15.2 is the first release compatible with the Dart 3.14 SDK we build with on
+  # Linux; 6.14.1 conflicts with source_helper and build_runner fails to compile.
+  json_serializable: ^6.15.2
   just_audio: 0.10.6
   latlong2: 0.9.1
   local_auth: 3.0.2
   flutter_material_design_icons: 3.1.0+7447
-  objectbox: 5.3.2
+  # 5.x does not compile against the Dart 3.14 SDK. Pinned to the 6.0.0 preview
+  # until a stable 6.x is out - revisit then (see ai/DECISIONS.md D-009).
+  # NOTE: bumping this requires regenerating code: bin/build_runner --delete
+  objectbox: 6.0.0-preview.6
   objectbox_flutter_libs: any
   open_location_code: 1.0.1
   package_info_plus: 10.2.1
