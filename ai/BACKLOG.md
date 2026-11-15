@@ -49,7 +49,8 @@ Generic journaling-app ideas; your preferences set the priority.
 |---|---|---|
 | T-0 | `objectbox 6.0.0-preview.6` is a preview release we now depend on | Revisit when 6.0.0 stable ships (D-009) |
 | T-6 | Committed `*.g.dart` is stale vs the objectbox 6 generator | CI regenerates on every job (~2 min each). Commit the regenerated output to skip `build_runner` entirely |
-| T-7 | 2 files are not `dart format` clean | The sandbox cannot run the formatter; `bin/format` once fixes it, then flip CI back to blocking |
+| T-7 | Formatting gate is advisory | It is green now; flip `continue-on-error` off in `linux.yml` once it stays green for a couple of runs |
+| T-8 | True multi-select on the desktop | Needs the correct `file_picker 13` multi-select API; current code degrades to a single file dialog |
 | T-1 | ~981 Dart files without feature-based layering | Hard to discover things; a big refactor isn't wise right now |
 | T-2 | Committed `*.g.dart` files | Model/codegen mismatch risk |
 | T-3 | `bin/docs` points to a `docs/` folder that doesn't exist in this version | Dead reference |

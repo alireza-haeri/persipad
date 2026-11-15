@@ -3,7 +3,7 @@
 **Last updated:** 2026-11-15
 **Current session:** session 4 — Linux feature parity + a CI loop that doesn't block
 **Branch:** `arena/f59917e7-notely` (base: `a0d9f727` on `main`)
-**Phase:** 🟡 features landing; CI green on Test + Build, formatting advisory
+**Phase:** 🟢 CI fully green (Test / Analyze / Build Linux) — features landing
 
 ---
 
@@ -52,7 +52,8 @@
 
 ## 🔄 In progress
 
-- [ ] Confirm the media-picker change on CI (run for `feat(linux): pick videos …`).
+- [ ] You pull, run `bin/setup_linux` + `bin/dev --community-linux`, and try adding a photo
+      and a video to an entry (the flows that used to fail on the desktop).
 
 ## ⏳ Remaining (roadmap)
 
@@ -75,12 +76,13 @@
 
 ## 🧹 Known debt (small, tracked)
 
-- **2 files need `dart format`** (`bin/format` fixes both). The sandbox cannot run the
-  formatter, so the gate is advisory until you run it once: `bin/format && git commit -am
-  "chore: format"`.
 - **Committed `*.g.dart` is stale** relative to the pinned objectbox 6 generator (proved by
   CI): every job must run `build_runner`. Committing the regenerated output would cut
   ~2 minutes per job — `BACKLOG.md` T-6.
+- **Formatting gate is advisory** even though it is currently green (`BACKLOG.md` T-7). The
+  sandbox cannot run `dart format`, so a blocking gate would cost a full round trip per
+  line-break guess.
+- **Desktop multi-select** degrades to a single file dialog (`BACKLOG.md` T-8).
 
 ## 📊 Metrics
 
@@ -99,7 +101,9 @@
 |---|---|---|---|
 | 2026-11-15 | Base app runs as Linux desktop on Fedora | you | ✅ runs; ObjectBox + features work (N-006) |
 | 2026-11-15 | Dep bumps + `bin/dev --community-linux` + `bin/setup_linux` | you | ⏳ pending |
-| 2026-11-15 | Pro unlock + capability layer + CI | GitHub Actions | ⏳ pending first run |
+| 2026-11-15 | Pro unlock + capability layer + CI | GitHub Actions | ✅ Test + Build green (run 43712927893) |
+| 2026-11-15 | Desktop media picking (`file_picker`) | GitHub Actions | ✅ all three jobs green (run 43716086122) |
+| 2026-11-15 | Formatting | GitHub Actions | ✅ "All Dart files are formatted" |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI is the verifier now — see D-013. Nothing is "done" until it is green.

@@ -197,8 +197,11 @@ Template:
      ~75s of fixed cost in every job.
 - **Also:** the formatting gate is advisory again until clean. A blocking formatter I
   cannot run locally costs one full CI round trip per guess.
-- **Consequences:** the remaining big win is committing freshly generated `*.g.dart` so
-  CI can skip `build_runner` entirely (~2 min per job). Tracked as `BACKLOG.md` T-6.
+- **Measured effect:** the blocking `Test` job went from 6m33s to 5m09s, and all three jobs
+  run in parallel so wall clock is the slowest one (5m09s). A docs-only commit now costs
+  zero minutes instead of ~6.
+- **Remaining big win:** commit freshly generated `*.g.dart` so CI can skip `build_runner`
+  entirely (~2 min per job). Tracked as `BACKLOG.md` T-6.
 
 ## D-015 — Fix media picking on the desktop instead of hiding it (2026-11-15)
 - **Status:** accepted
@@ -207,11 +210,19 @@ Template:
   `UnimplementedError` there. So "record video" and "select from photos" were dead taps on
   the desktop, and single images worked only by accident of that plugin.
 - **Decision:** On Linux/Windows, `AppFilePickerService` opens the OS file dialog through
-  `file_picker` (already a dependency) with an extension filter, for images, videos and
-  multi-select. Mobile and Apple keep using `image_picker`, unchanged.
+  `file_picker` (already a dependency) with an extension filter for single images and
+  videos. Multi-select uses `image_picker.pickMultiImage` and falls back to a single file
+  dialog if the platform doesn't implement it. Mobile and Apple keep using `image_picker`,
+  unchanged.
+- **Implementation constraint (learned the hard way):** only call the `file_picker`
+  surface this repo already proves compiles — `FilePicker.pickFiles(type:,
+  allowedExtensions:)` then `result.firstOrNull?.xFile`, exactly as `pickJsonFile` does.
+  Guessing an `allowMultiple` flag broke the Linux build (`file_picker 13.1.0` is the
+  federated rewrite and does not accept it). Real multi-select on the desktop is tracked in
+  `BACKLOG.md` T-8.
 - **Consequences:**
   - Picking is one code path per platform, no try/catch guessing at runtime.
-  - Desktop images are not re-compressed (there is no `imageQuality` equivalent);
-    acceptable, video is the only media the app encodes itself.
+  - Desktop images are not re-compressed when picked through the file dialog (there is no
+    `imageQuality` equivalent); acceptable, video is the only media the app encodes itself.
   - The extension lists must agree with `AssetFileTypeService`, otherwise a video is
     inserted as an image — enforced by `media_picker_extensions_test.dart`.
