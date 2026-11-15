@@ -99,7 +99,11 @@ jobs:
             -not -name "*.mocks.dart" -not -path "*/firebase_options/*" -print0 \
             | xargs -0 dart format --line-length=120 > /dev/null
 
-          changed=$(git status --porcelain -- '*.dart' | awk '{print $2}')
+          # Exclude generated code: build_runner rewrites *.g.dart in this job,
+          # so they always show up as "changed" and would be false positives.
+          changed=$(git status --porcelain -- '*.dart' \
+            ':!*.g.dart' ':!*.gen.dart' ':!*.mocks.dart' ':!lib/firebase_options/*' \
+            | awk '{print $2}')
           if [ -n "$changed" ]; then
             echo "::error::Some Dart files are not formatted (run bin/format):"
             for f in $changed; do
