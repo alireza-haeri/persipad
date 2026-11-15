@@ -117,6 +117,8 @@ If you prefer the raw command (e.g. for a debugger / IDE launch config):
 | `flutter pub get` complains about stale lock | `pubspec.yaml` changed | `flutter pub get` (setup script does it) |
 | Install step: `Permission denied` on `/usr/local/storypad` | CMake install prefix cached from an older build | `rm -rf build/linux` and rebuild — granting permissions does **not** help |
 | Google sign-in / Drive sync unavailable | `google_sign_in` has no Linux support | expected; test that path on Android later |
+| `objectbox.g.dart: Error: Method not found: 'loadObjectBoxLibraryAndroidCompat'` | committed generated code is older than the pinned objectbox 6 preview | run `bin/build_runner --delete` once (or `bin/setup_linux`); `bin/dev` now catches this in a second (D-016) |
+| `bin/dev` refuses to start: "Generated code has not been built in this checkout" | codegen stamp missing (fresh clone or pubspec change) | `bin/setup_linux`, or bypass once with `SKIP_CODEGEN_CHECK=1` |
 
 ## 2.6 Known Linux limitations (product-level, not build errors)
 
