@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Export Text (.txt)",
   "list_tile.file_size.title": "File size",
   "list_tile.first_day_of_week.title": "First Day of Week",
+  "list_tile.weekend_days.title": "Weekend Days",
+  "list_tile.weekend_days.subtitle": "Days marked as non-working in the calendar.",
   "list_tile.font_family.title": "Font Family",
   "list_tile.font_weight.title": "Font Weight",
   "list_tile.github_star.title": "Star us on {ARG_NAME}",

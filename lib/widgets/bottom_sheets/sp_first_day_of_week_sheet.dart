@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:storypad/core/services/calendar/weekday_name_service.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 import 'package:storypad/widgets/bottom_sheets/base_bottom_sheet.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
@@ -57,11 +58,7 @@ class SpFirstDayOfWeekSheet extends BaseBottomSheet {
   }
 
   String _label(BuildContext context, FirstDayOfWeekOption value) {
-    final localeName = context.locale.toLanguageTag();
-    final baseLabel = switch (value) {
-      FirstDayOfWeekOption.monday => DateFormat.EEEE(localeName).format(DateTime(2024, 1, 1)),
-      FirstDayOfWeekOption.sunday => DateFormat.EEEE(localeName).format(DateTime(2024, 1, 7)),
-    };
+    final baseLabel = WeekdayNameService.full(context.locale, value.value);
 
     if (value == FirstDayOfWeekOption.defaultValue) {
       return '$baseLabel (${tr('general.default')})';

@@ -385,6 +385,28 @@ Template:
   `intl`, so dates render with Persian digits while data-driven counts stay Latin — mixed
   digits are accepted for now rather than re-implementing number formatting app-wide.
 
+## D-023 — Vazirmatn is bundled in the app instead of relying on system fonts (2026-11-15)
+- **Status:** accepted
+- **Context:** "Download the font and put it inside the app itself." After D-022 the app already
+  *asked* for an Arabic-script font via `fontFamilyFallback`, but nothing shipped it: on a Fedora
+  box with no Persian font installed, `fontconfig` substitutes something arbitrary, so the same
+  text looked different on two machines and could look broken (wrong joining/shaping) on a
+  minimal install.
+- **Decision:** ship the four static Vazirmatn faces (Regular/Medium/SemiBold/Bold, 492 KB
+  total) under `assets/fonts/`, declare family `Vazirmatn` in `pubspec.yaml` with weights
+  400/500/600/700, and keep it as the **first** entry of `kScriptFontFamilyFallback`
+  (`lib/core/constants/app_constants.dart`). The `OFL.txt` licence file ships next to the
+  fonts, as the SIL Open Font License requires when redistributing.
+- **Why a fallback and not `fontFamily`:** `fontFamily` would replace the user's chosen Google
+  font for *all* text. A fallback only fills in the glyphs the primary font lacks, so Latin text
+  keeps the user's choice and Persian/Arabic text is now identical on every OS.
+- **Reproducibility:** fetched from `rastikerdar/vazirmatn` (`fonts/ttf/`) through the GitHub
+  contents API, since pub.dev and most other hosts are unreachable from the sandbox. Verified
+  each file starts with the TrueType magic `00 01 00 00`.
+- **Consequences:** +492 KB in the binary, zero network dependency at runtime, no per-OS
+  variability. To add another script later: drop the TTFs in `assets/fonts/`, add a `fonts:`
+  entry, and prepend the family name to `kScriptFontFamilyFallback`.
+
 ## D-024 — Calendar settings: user-defined weekends and any first day of week; Shamsi is the next slice (2026-11-15)
 - **Status:** accepted (D-024 covers the settings; the calendar-system switch is scoped in
   `ai/BACKLOG.md` C-1)

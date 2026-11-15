@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Xuất văn bản (.txt)",
   "list_tile.file_size.title": "Kích thước tập tin",
   "list_tile.first_day_of_week.title": "Ngày đầu tiên trong tuần",
+  "list_tile.weekend_days.title": "Ngày cuối tuần",
+  "list_tile.weekend_days.subtitle": "Những ngày được đánh dấu là ngày nghỉ trong lịch.",
   "list_tile.font_family.title": "Họ phông chữ",
   "list_tile.font_weight.title": "Trọng lượng phông chữ",
   "list_tile.github_star.title": "Hãy thả sao cho chúng tôi trên {ARG_NAME}",

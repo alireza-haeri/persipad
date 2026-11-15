@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Экспорт текста (.txt)",
   "list_tile.file_size.title": "Размер файла",
   "list_tile.first_day_of_week.title": "Первый день недели",
+  "list_tile.weekend_days.title": "Выходные дни",
+  "list_tile.weekend_days.subtitle": "Дни, отмеченные в календаре как нерабочие.",
   "list_tile.font_family.title": "Шрифт",
   "list_tile.font_weight.title": "Толщина шрифта",
   "list_tile.github_star.title": "Поставь нам звезду на {ARG_NAME}",

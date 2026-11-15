@@ -24,7 +24,20 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | I-13 | `✅` Media picking on Linux/Windows via `file_picker` | Video and multi-select were `UnimplementedError` (D-015) |
 | I-14 | `💡` Biometrics on Linux | `local_auth` unsupported; PIN lock already covers it. Probably leave as-is |
 | I-15 | `💡` Camera / quick actions / video compression | Android-only; keep guarded, don't pretend they exist |
-| I-16 | `💡` Add a Persian (fa) locale | The app ships 20 locales and none is Persian |
+| I-16 | `✅` Add a Persian (fa) locale | Done — `translations/fa.json`, D-022 |
+| I-17 | `✅` Bundle an Arabic-script font (persian text looks the same on every OS) | Done — Vazirmatn, D-023 |
+| I-18 | `✅` Any first day of week + user-defined weekend days | Done — D-024 |
+
+## 0b. Calendar (the Persian-calendar track)
+
+| # | Item | Why |
+|---|---|---|
+| C-1 | `🔜` Shamsi (Solar Hijri) as the **displayed** calendar | Engine is done and tested (`lib/core/services/calendar/persian_calendar.dart`); what is left is switching the surfaces, which must happen together or not at all |
+| C-1a | Story list grouping + month chip + monogram day (`home_view_model._buildRunItems`, `story_month_header`, `story_tile_monogram`) | Groups are keyed on Gregorian `story.year`/`story.month`; a Jalali month straddles two Gregorian months |
+| C-1b | "Months with stories" tab bar (`home_view_model.months`, DB-backed) | Comes from a `month`/`year` query; needs a date-range query or 12 fixed Jalali tabs |
+| C-1c | Full dates in the story view, search date filters, stats labels/trends, month pickers | Each one formats a real `DateTime` (safe) or a synthetic `DateTime(2000, month)` (must be replaced by a month-name helper first) |
+| C-1d | Mood/period calendars paging through Jalali months | Their data is fetched per Gregorian month; needs the same date-range query |
+| C-1e | Settings tile for the calendar system (`CalendarSystemOption {gregorian, persian}`) | Only makes sense together with C-1a…d; a toggle that changes nothing is worse than no toggle |
 
 ## 1. Product features (candidates)
 

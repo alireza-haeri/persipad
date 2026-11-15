@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/core/services/calendar/weekday_name_service.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_first_day_of_week_sheet.dart';
@@ -47,13 +48,6 @@ class FirstDayOfWeekTile extends StatelessWidget {
   }
 
   String _label(BuildContext context, FirstDayOfWeekOption value) {
-    final localeName = context.locale.toLanguageTag();
-
-    switch (value) {
-      case FirstDayOfWeekOption.monday:
-        return DateFormat.EEEE(localeName).format(DateTime(2024, 1, 1));
-      case FirstDayOfWeekOption.sunday:
-        return DateFormat.EEEE(localeName).format(DateTime(2024, 1, 7));
-    }
+    return WeekdayNameService.full(context.locale, value.value);
   }
 }

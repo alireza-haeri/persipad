@@ -1,7 +1,7 @@
 # Status
 
 **Last updated:** 2026-11-15
-**Current session:** session 4 — Linux feature parity + a CI loop that doesn't block
+**Current session:** session 9 — Persian font bundled + calendar settings (weekends, first day)
 **Branch:** `arena/f59917e7-notely` (base: `a0d9f727` on `main`)
 **Phase:** 🟢 fresh clones run again; CI green (Test / Analyze / Build Linux)
 
@@ -46,6 +46,23 @@
 - [x] Registered `fa` for the app picker, Android per-app languages and iOS.
 - [x] Date locale data is initialized at startup; Arabic-script font fallback added.
 - [ ] User review of the wording/glossary — it is one file, cheap to iterate on.
+
+### Session 9 — Persian font bundled + calendar settings
+- [x] **Vazirmatn bundled in the app** (4 faces, 492 KB, OFL included) and kept as the first
+      Arabic-script fallback, so Persian text is identical on every OS instead of depending on
+      whatever the distro has installed (D-023).
+- [x] **Any first day of the week** (Monday…Sunday; Saturday was missing before).
+- [x] **User-defined weekend days** — a `weekendDays` preference plus a settings screen, and the
+      calendar header/day cells now colour *the user's* weekend instead of a hard-coded
+      Saturday+Sunday (D-024). Iran: Friday (or Thursday+Friday); Europe: Saturday+Sunday.
+- [x] `CalendarConfig` — one place to publish session-wide calendar settings for widgets that
+      have no `Provider` (the calendar grid), filled before the first frame.
+- [x] **Shamsi (Solar Hijri) conversion engine** (`PersianCalendar`, hand-written because pub.dev
+      is unreachable) with known-vector, leap-year and 45-year day-by-day round-trip tests.
+- [ ] **Shamsi as the displayed calendar** — the remaining surfaces are listed in `BACKLOG.md`
+      C-1a…C-1e; they have to switch together, otherwise a Jalali header would sit on top of a
+      Gregorian grid.
+- [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux
 - [x] `GoogleDriveAuthStrategy` split out; mobile keeps `google_sign_in` unchanged (D-019).
@@ -125,7 +142,7 @@
 | Dart files (lib + packages) | 983 (+2 new services) |
 | Active platform targets | **1** (Linux desktop) |
 | CI on a plain push | 1 job (Analyze, ~2 min); `[test]`/`[build]`/`[full]` add more |
-| Tests added by us | 20 |
+| Tests added by us | 30 |
 | Existing tests | 92 + 57 (editor package) |
 | Pro feature gates opened by one switch | ~30 call sites |
 

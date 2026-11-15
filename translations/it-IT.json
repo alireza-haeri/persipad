@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Esporta testo (.txt)",
   "list_tile.file_size.title": "Dimensione del file",
   "list_tile.first_day_of_week.title": "Primo giorno della settimana",
+  "list_tile.weekend_days.title": "Giorni del fine settimana",
+  "list_tile.weekend_days.subtitle": "Giorni contrassegnati come non lavorativi nel calendario.",
   "list_tile.font_family.title": "Famiglia di caratteri",
   "list_tile.font_weight.title": "Peso del carattere",
   "list_tile.github_star.title": "Aggiungici alle tue preferenze su {ARG_NAME}",

@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "텍스트(.txt) 내보내기",
   "list_tile.file_size.title": "파일 크기",
   "list_tile.first_day_of_week.title": "한 주의 시작 요일",
+  "list_tile.weekend_days.title": "주말 요일",
+  "list_tile.weekend_days.subtitle": "달력에서 휴무일로 표시할 요일입니다.",
   "list_tile.font_family.title": "글꼴",
   "list_tile.font_weight.title": "글꼴 굵기",
   "list_tile.github_star.title": "{ARG_NAME}에서 별표를 눌러 주세요.",

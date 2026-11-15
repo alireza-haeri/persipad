@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_tap_effect.dart';
@@ -78,10 +79,20 @@ class SpCalendarDateCell extends StatelessWidget {
   }
 
   Widget _buildDateContent(BuildContext context) {
-    Color? backgroundColor = isSelected ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1) : null;
-    Color foregroundColor = isSelected
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurface;
+    final colorScheme = Theme.of(context).colorScheme;
+    Color? backgroundColor = isSelected ? colorScheme.primary.withValues(alpha: 0.1) : null;
+
+    // Weekends are user-defined (Friday for Iranian users, Saturday+Sunday for
+    // most of Europe), so the highlight asks the preferences instead of
+    // assuming a pair of days. Selection still wins over the weekend tint.
+    late Color foregroundColor;
+    if (isSelected) {
+      foregroundColor = colorScheme.primary;
+    } else if (CalendarConfig.isWeekend(date)) {
+      foregroundColor = colorScheme.error;
+    } else {
+      foregroundColor = colorScheme.onSurface;
+    }
 
     if (!isDisplayMonth) {
       foregroundColor = foregroundColor.withValues(alpha: 0.5);

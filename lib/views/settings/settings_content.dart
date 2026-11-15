@@ -40,6 +40,7 @@ class _SettingsContent extends StatelessWidget {
             const LanguageTile(weekday: 5),
             TimeFormatTile.globalTheme(weekday: 6),
             FirstDayOfWeekTile.globalTheme(weekday: 7),
+            WeekendDaysTile.globalTheme(weekday: 2),
             MapProviderTile.globalTheme(weekday: 1),
           ],
           ...[

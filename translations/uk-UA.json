@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Експорт Text (.txt)",
   "list_tile.file_size.title": "Розмір файлу",
   "list_tile.first_day_of_week.title": "Перший день тижня",
+  "list_tile.weekend_days.title": "Вихідні дні",
+  "list_tile.weekend_days.subtitle": "Дні, позначені в календарі як неробочі.",
   "list_tile.font_family.title": "Сімейство шрифтів",
   "list_tile.font_weight.title": "Товщина шрифту",
   "list_tile.github_star.title": "Познач нас зірочкою на {ARG_NAME}",

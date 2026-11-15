@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar_days_generator.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 
@@ -188,9 +189,9 @@ class _SpCalendarState extends State<SpCalendar> {
                 DateFormatHelper.E(_dateFromWeekday(weekday), context.locale),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: weekday == DateTime.saturday || weekday == DateTime.sunday
-                      ? Theme.of(context).colorScheme.error
-                      : null,
+                  // Weekend days come from the user's preferences, not from a
+                  // hard-coded Saturday+Sunday: an Iranian week rests on Friday.
+                  color: CalendarConfig.isWeekendWeekday(weekday) ? Theme.of(context).colorScheme.error : null,
                 ),
               ),
             ),

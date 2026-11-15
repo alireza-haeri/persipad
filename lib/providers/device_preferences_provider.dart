@@ -9,6 +9,7 @@ import 'package:storypad/core/objects/device_preferences_object.dart';
 import 'package:storypad/core/objects/default_story_preferences_object.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
 import 'package:storypad/core/objects/story_tile_preferences_object.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/notifications/local_notification_service.dart';
 import 'package:storypad/core/types/reminder_type.dart';
 import 'package:storypad/core/services/app_quick_actions_service.dart';
@@ -191,14 +192,29 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
     );
   }
 
+  /// Weekend / non-working days as `DateTime` weekday numbers. Falls back to
+  /// the default pair when the user never chose (see [CalendarConfig]).
+  List<int> get weekendDays => CalendarConfig.normalizeWeekendDays(preferences.weekendDays);
+
   void setFirstDayOfWeek(FirstDayOfWeekOption value) {
     _preferences = _preferences.copyWith(firstDayOfWeek: value);
+    // Widgets that build outside a provider (the calendar grid) read the value
+    // from CalendarConfig, so it has to be updated in the same tick.
+    CalendarConfig.apply(firstDayOfWeek: value);
     storage.writeObject(_preferences);
     notifyListeners();
 
     AnalyticsUserProperyService.instance.logSetFirstDayOfWeek(
       firstDayOfWeek: value,
     );
+  }
+
+  void setWeekendDays(List<int> value) {
+    final normalized = CalendarConfig.normalizeWeekendDays(value).toList();
+    _preferences = _preferences.copyWith(weekendDays: normalized);
+    CalendarConfig.apply(weekendDays: normalized);
+    storage.writeObject(_preferences);
+    notifyListeners();
   }
 
   void setAssetCompression(AssetCompressionOption value) {

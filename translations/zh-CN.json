@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "导出文本（.txt）",
   "list_tile.file_size.title": "文件大小",
   "list_tile.first_day_of_week.title": "一周的第一天",
+  "list_tile.weekend_days.title": "周末",
+  "list_tile.weekend_days.subtitle": "在日历中标记为休息日的星期。",
   "list_tile.font_family.title": "字体",
   "list_tile.font_weight.title": "字重",
   "list_tile.github_star.title": "在 {ARG_NAME} 上给我们点赞",

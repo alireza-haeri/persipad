@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "នាំចេញអត្ថបទ (.txt)",
   "list_tile.file_size.title": "ទំហំឯកសារ",
   "list_tile.first_day_of_week.title": "ថ្ងៃដំបូងនៃសប្តាហ៍",
+  "list_tile.weekend_days.title": "ថ្ងៃចុងសប្តាហ៍",
+  "list_tile.weekend_days.subtitle": "ថ្ងៃដែលសម្គាល់ថាមិនធ្វើការនៅក្នុងប្រតិទិន។",
   "list_tile.font_family.title": "ក្រុមពុម្ពអក្សរ",
   "list_tile.font_weight.title": "ទម្ងន់ពុម្ពអក្សរ",
   "list_tile.github_star.title": "ដាក់ផ្កាយឱ្យយើងលើ {ARG_NAME}",

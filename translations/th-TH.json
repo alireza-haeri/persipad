@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "ส่งออกข้อความ (.txt)",
   "list_tile.file_size.title": "ขนาดไฟล์",
   "list_tile.first_day_of_week.title": "วันแรกของสัปดาห์",
+  "list_tile.weekend_days.title": "วันหยุดสุดสัปดาห์",
+  "list_tile.weekend_days.subtitle": "วันที่ทำเครื่องหมายว่าไม่ทำงานในปฏิทิน",
   "list_tile.font_family.title": "ตระกูลฟอนต์",
   "list_tile.font_weight.title": "น้ำหนักตัวอักษร",
   "list_tile.github_star.title": "ให้ดาวเราบน {ARG_NAME}",

@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "テキストのエクスポート (.txt)",
   "list_tile.file_size.title": "ファイルサイズ",
   "list_tile.first_day_of_week.title": "週の初日",
+  "list_tile.weekend_days.title": "週末の曜日",
+  "list_tile.weekend_days.subtitle": "カレンダーで休業日として表示する曜日です。",
   "list_tile.font_family.title": "フォントの種類",
   "list_tile.font_weight.title": "フォントの太さ",
   "list_tile.github_star.title": "{ARG_NAME}で私たちをスターにしてください",

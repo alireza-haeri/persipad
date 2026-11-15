@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "Exporter le texte (.txt)",
   "list_tile.file_size.title": "Taille du fichier",
   "list_tile.first_day_of_week.title": "Premier jour de la semaine",
+  "list_tile.weekend_days.title": "Jours de week-end",
+  "list_tile.weekend_days.subtitle": "Jours marqués comme non travaillés dans le calendrier.",
   "list_tile.font_family.title": "Famille de polices",
   "list_tile.font_weight.title": "Poids de la police",
   "list_tile.github_star.title": "Mettez-nous une étoile sur {ARG_NAME}",

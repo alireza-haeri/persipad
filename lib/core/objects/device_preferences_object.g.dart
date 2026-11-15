@@ -25,6 +25,8 @@ abstract class _$DevicePreferencesObjectCWProxy {
 
   DevicePreferencesObject firstDayOfWeek(FirstDayOfWeekOption? firstDayOfWeek);
 
+  DevicePreferencesObject weekendDays(List<int>? weekendDays);
+
   DevicePreferencesObject assetCompression(
     AssetCompressionOption? assetCompression,
   );
@@ -140,6 +142,10 @@ class _$DevicePreferencesObjectCWProxyImpl
   ) => call(firstDayOfWeek: firstDayOfWeek);
 
   @override
+  DevicePreferencesObject weekendDays(List<int>? weekendDays) =>
+      call(weekendDays: weekendDays);
+
+  @override
   DevicePreferencesObject assetCompression(
     AssetCompressionOption? assetCompression,
   ) => call(assetCompression: assetCompression);
@@ -214,6 +220,7 @@ class _$DevicePreferencesObjectCWProxyImpl
     Object? themeMode = const $CopyWithPlaceholder(),
     Object? timeFormat = const $CopyWithPlaceholder(),
     Object? firstDayOfWeek = const $CopyWithPlaceholder(),
+    Object? weekendDays = const $CopyWithPlaceholder(),
     Object? assetCompression = const $CopyWithPlaceholder(),
     Object? mediaSync = const $CopyWithPlaceholder(),
     Object? colorSeedValue = const $CopyWithPlaceholder(),
@@ -265,6 +272,10 @@ class _$DevicePreferencesObjectCWProxyImpl
           ? _value.firstDayOfWeek
           // ignore: cast_nullable_to_non_nullable
           : firstDayOfWeek as FirstDayOfWeekOption?,
+      weekendDays: weekendDays == const $CopyWithPlaceholder()
+          ? _value.weekendDays
+          // ignore: cast_nullable_to_non_nullable
+          : weekendDays as List<int>?,
       assetCompression: assetCompression == const $CopyWithPlaceholder()
           ? _value.assetCompression
           // ignore: cast_nullable_to_non_nullable
@@ -354,6 +365,9 @@ DevicePreferencesObject _$DevicePreferencesObjectFromJson(
     _$FirstDayOfWeekOptionEnumMap,
     json['first_day_of_week'],
   ),
+  weekendDays: (json['weekend_days'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
   assetCompression: $enumDecodeNullable(
     _$AssetCompressionOptionEnumMap,
     json['asset_compression'],
@@ -403,6 +417,7 @@ Map<String, dynamic> _$DevicePreferencesObjectToJson(
   'video_muted': instance.videoMuted,
   'time_format': _$TimeFormatOptionEnumMap[instance.timeFormat],
   'first_day_of_week': _$FirstDayOfWeekOptionEnumMap[instance.firstDayOfWeek]!,
+  'weekend_days': instance.weekendDays,
   'asset_compression':
       _$AssetCompressionOptionEnumMap[instance.assetCompression]!,
   'media_sync': _$MediaSyncOptionEnumMap[instance.mediaSync]!,
@@ -439,6 +454,11 @@ const _$TimeFormatOptionEnumMap = {
 
 const _$FirstDayOfWeekOptionEnumMap = {
   FirstDayOfWeekOption.monday: 'monday',
+  FirstDayOfWeekOption.tuesday: 'tuesday',
+  FirstDayOfWeekOption.wednesday: 'wednesday',
+  FirstDayOfWeekOption.thursday: 'thursday',
+  FirstDayOfWeekOption.friday: 'friday',
+  FirstDayOfWeekOption.saturday: 'saturday',
   FirstDayOfWeekOption.sunday: 'sunday',
 };
 

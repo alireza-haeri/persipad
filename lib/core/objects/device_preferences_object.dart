@@ -33,6 +33,12 @@ class DevicePreferencesObject {
   final bool videoMuted;
   final TimeFormatOption? timeFormat;
   final FirstDayOfWeekOption firstDayOfWeek;
+
+  /// Weekdays the user treats as weekend / non-working days, as `DateTime`
+  /// weekday numbers (Monday = 1 … Sunday = 7). `null` means "never configured"
+  /// and falls back to Saturday+Sunday — see `CalendarConfig`, which is the only
+  /// supported reader of this field.
+  final List<int>? weekendDays;
   final AssetCompressionOption assetCompression;
   final MediaSyncOption mediaSync;
   final SpMapStyle mapStyle;
@@ -76,6 +82,7 @@ class DevicePreferencesObject {
     ThemeMode? themeMode,
     this.timeFormat,
     FirstDayOfWeekOption? firstDayOfWeek,
+    this.weekendDays,
     AssetCompressionOption? assetCompression,
     MediaSyncOption? mediaSync,
     this.colorSeedValue,

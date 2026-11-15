@@ -358,6 +358,8 @@
   "list_tile.export_txt.title": "تصدير النص (.txt)",
   "list_tile.file_size.title": "حجم الملف",
   "list_tile.first_day_of_week.title": "أول يوم من الأسبوع",
+  "list_tile.weekend_days.title": "أيام نهاية الأسبوع",
+  "list_tile.weekend_days.subtitle": "الأيام التي تُعلَّم كأيام غير عمل في التقويم.",
   "list_tile.font_family.title": "عائلة الخطوط",
   "list_tile.font_weight.title": "وزن الخط",
   "list_tile.github_star.title": "ضع علامة لنا على {ARG_NAME}",
