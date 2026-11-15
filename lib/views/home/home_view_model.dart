@@ -142,11 +142,12 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
       // month aggregates cannot answer "which months have stories": derive it
       // from the stories themselves (all pages are prefetched right after the
       // first one).
-      _monthsForYear = renderableStories
+      final displayMonths = renderableStories
           .map((story) => CalendarDisplay.monthOf(story.displayPathDate))
           .toSet()
-          .toList()
-        ..sort();
+          .toList();
+      displayMonths.sort();
+      _monthsForYear = displayMonths;
     } else {
       _refreshMonthsForYear();
     }

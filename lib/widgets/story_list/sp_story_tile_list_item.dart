@@ -66,14 +66,15 @@ class SpStoryTileListItem extends StatelessWidget {
     // with Gregorian `story.month`, so comparing those would print a new header
     // mid-month (or hide a real one).
     final monthKey = CalendarDisplay.monthKeyOf(story.displayPathDate);
-    final previousMonthKey = previousStory == null
-        ? null
-        : CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
+
+    ({int year, int month})? previousMonthKey;
+    if (previousStory != null) previousMonthKey = CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
 
     if (previousMonthKey != monthKey) {
       // Recaps are aggregated per Gregorian month, so they are skipped in Shamsi
       // mode instead of being attached to the wrong header.
-      final MonthRecapStatsObject? monthStats = CalendarDisplay.isPersian ? null : monthlyStats?[story.month];
+      final bool recapsAllowed = !CalendarDisplay.isPersian;
+      final MonthRecapStatsObject? monthStats = recapsAllowed ? monthlyStats?[story.month] : null;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

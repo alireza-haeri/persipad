@@ -36,8 +36,12 @@ class SpCalendarSystemSheet extends BaseBottomSheet {
             mainAxisSize: MainAxisSize.min,
             children: [
               ...CalendarSystemOption.values.map((option) {
+                final label = option.isPersian
+                    ? tr('general.calendar_system.persian')
+                    : tr('general.calendar_system.gregorian');
+
                 return ListTile(
-                  title: Text(option == CalendarSystemOption.persian ? tr('general.calendar_system.persian') : tr('general.calendar_system.gregorian')),
+                  title: Text(label),
                   subtitle: option == CalendarSystemOption.defaultValue
                       ? Text(tr('general.default'))
                       : null,
