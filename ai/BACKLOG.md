@@ -66,3 +66,11 @@ Generic journaling-app ideas; your preferences set the priority.
 4. Should we add an `upstream` remote for future updates?
 5. Even though Android is parked — do we ever go back? If yes, we keep Android-only code
    compiling; if no, we could simplify a lot.
+
+## Sync roadmap after D-021
+
+| Id | | Item | Why |
+|---|---|---|---|
+| I-12 | `🔴` | Verify Nextcloud sync against the **official** phone app (same account, same folder) | the only path-based provider both apps already support — this is the realistic phone↔desktop bridge |
+| I-13 | `🟡` | Android build that reuses the **desktop** OAuth client id (loopback flow, not `google_sign_in`) | only then do our own devices share one Drive appDataFolder (D-021) |
+| I-14 | `🟡` | One-time migration flow: import a phone-exported JSON, then let Drive take over | existing notes must not be stranded on the old app |

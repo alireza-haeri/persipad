@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart' as exp;
 import 'package:storypad/core/objects/backup_file_object.dart';
@@ -266,6 +267,7 @@ class GoogleDriveCloudService extends BackupCloudService {
       methodName: 'fetchYearlyBackups',
       operation: () async {
         drive.DriveApi client = await _getAuthenticatedClient();
+        await _logAppDataFolderContents(client);
 
         // First, fetch v4 and v3 yearly backups from the backups/ folder. Apps before v4 query for v3 names only, so
         // they never see a v4 file.
@@ -443,6 +445,41 @@ class GoogleDriveCloudService extends BackupCloudService {
         return result;
       },
     );
+  }
+
+  /// Debug-only: prints what this build can actually see in its own hidden
+  /// appDataFolder.
+  ///
+  /// It exists because of the most confusing failure this feature has: two
+  /// devices, same Google account, both report "synced", nothing moves. Google
+  /// sandboxes appDataFolder **per OAuth client id** — the official app and this
+  /// build are two different clients and therefore two different folders
+  /// (ai/DECISIONS.md D-021). An empty listing here is the proof.
+  Future<void> _logAppDataFolderContents(drive.DriveApi client) async {
+    if (!kDebugMode) return;
+
+    try {
+      final response = await client.files.list(
+        spaces: 'appDataFolder',
+        pageSize: 50,
+        $fields: 'files(id,name,size)',
+      );
+      final files = response.files ?? const <drive.File>[];
+
+      AppLogger.d('Drive appDataFolder: ${files.length} file(s) visible to this build');
+      for (final file in files) {
+        AppLogger.d('  • ${file.name} (${file.size ?? '?'} bytes)');
+      }
+
+      if (files.isEmpty) {
+        AppLogger.d(
+          '  Empty. A build signed in with a different OAuth client id has its own '
+          'folder — see ai/DECISIONS.md D-021.',
+        );
+      }
+    } catch (e) {
+      AppLogger.d('Drive appDataFolder listing failed: $e');
+    }
   }
 
   Future<int> _calculateAppDataUsageBytes(drive.DriveApi client) async {

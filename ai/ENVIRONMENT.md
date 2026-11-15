@@ -142,6 +142,12 @@ These are expected behaviours on Linux and must not be "fixed" by hacking:
 
 - **Firebase is off** — `firebase_initializer.dart` returns early on Linux, so
   Analytics / Crashlytics / RemoteConfig are no-ops. Never assume they run.
+- **Drive sync works only between builds that share one OAuth client id** (D-021).
+  The official StoryPad and this fork use different clients, so each sees a
+  different hidden appDataFolder — both report "synced" and neither sees the
+  other's notes. That is Google's design, not a bug here. Cross-app movement is
+  via Nextcloud/WebDAV or JSON export/import; Drive is for this fork's own
+  devices (see `BACKLOG.md`, I-12…I-14).
 - **Google Drive sync works, after a one-time OAuth client** (D-019). Linux cannot
   use `google_sign_in`, so the app runs the installed-app OAuth2 flow itself and
   needs a client id in the build: `bin/setup_sync`. Without it the Drive tile

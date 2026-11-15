@@ -331,3 +331,32 @@ Template:
   (analyze 82 + test 312, serially gated).
 - **Consequences:** `[full]` should land near its slowest job (~3 min). The fast loop (plain
   push, analyze only) is unchanged at ~90s, and I no longer spend it waiting.
+
+## D-021 — Drive's appDataFolder is sandboxed per OAuth client, so the official app and this fork can never share backups (2026-11-15)
+- **Status:** accepted (a constraint, not a choice)
+- **Context:** Drive sync on Linux reported "connected" and "synced", but nothing moved
+  between the phone (official StoryPad) and the desktop, with the same Google account.
+- **Fact:** Google Drive's hidden `appDataFolder` is scoped to the **OAuth client id**, not to
+  the account and not even to the Cloud project. Google's own docs: the folder "is only
+  accessible by your application and its contents are hidden from the user and from other
+  Drive apps"; the rclone community confirms the practical consequence — "only if you use the
+  client_id and client_secret of the other app … otherwise you can't see its data". So:
+  - official StoryPad (StoryPad's client id) → folder A
+  - this build (the user's own desktop client id) → folder B
+  Both sync *successfully* into their own folder. Neither is broken; they are simply not
+  looking at the same place. **Dropbox has the identical property** (the "App folder" belongs
+  to the app key), so switching provider does not fix cross-app sync.
+- **Decision:**
+  1. Feasible cross-**app** sync (official phone app ↔ this desktop build) goes through a
+     provider that is path-based rather than app-sandboxed: **Nextcloud/WebDAV** (both apps
+     support it), or a manual JSON export/import, which already works in both directions
+     (`ImportExport` → `BackupObject.fromContents`, v2/v3/v4 aware).
+  2. Cross-**device** sync between *our own* builds is possible and stays on Drive, provided
+     every build is the same OAuth client. That is a hard requirement for the future Android
+     build: it must use the **same Desktop-type client id with the loopback flow**, not
+     `google_sign_in` (whose Android client id would open yet another sandbox).
+  3. `GoogleDriveCloudService` logs the visible appDataFolder contents in debug builds, so
+     "synced but empty" is diagnosable in one look instead of a guessing game.
+- **Consequences:** until an Android build of this fork exists (or Nextcloud is set up),
+  phone↔desktop movement is manual. Worth saying plainly rather than shipping a "Sync" that
+  silently syncs nowhere the user expects.
