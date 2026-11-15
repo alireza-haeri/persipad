@@ -30,7 +30,43 @@ if [ -z "$INPUT" ]; then INPUT="--community"; fi
 # "community-linux" and every derived path (dart_defines, keystores) breaks.
 FLAVOR=$(echo "$INPUT" | sed -E 's/--([a-z]+)(-ios|-macos|-linux)?/\1/')
 
+# --- generated-code freshness guard -------------------------------------------
+# *.g.dart and lib/objectbox-model.json are committed, and they are only valid for
+# the dependency set that produced them. Checking a stamp is instant; a mismatch
+# otherwise shows up as a confusing compile error minutes into a build (the
+# `loadObjectBoxLibraryAndroidCompat` incident, ai/DECISIONS.md D-016).
+_pubspec_hash() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    cat pubspec.yaml pubspec.lock 2>/dev/null | sha256sum | cut -d' ' -f1
+  else
+    cat pubspec.yaml pubspec.lock 2>/dev/null | shasum -a 256 | cut -d' ' -f1
+  fi
+}
+
+assert_codegen_is_fresh() {
+  [ "${SKIP_CODEGEN_CHECK:-0}" = "1" ] && return 0
+  local stamp="bin/.tmp/codegen.stamp"
+
+  if [ ! -f "$stamp" ]; then
+    echo "X Generated code has not been built in this checkout."
+    echo "  Run: bin/setup_linux   (or: bin/build_runner --delete)"
+    echo "  Bypass once: SKIP_CODEGEN_CHECK=1 bin/dev ..."
+    exit 1
+  fi
+
+  if [ "$(_pubspec_hash)" != "$(cat "$stamp")" ]; then
+    echo "X pubspec.yaml / pubspec.lock changed since the last code generation."
+    echo "  Generated code is stale; rebuild it first:"
+    echo "    bin/setup_linux    (or: bin/build_runner --delete)"
+    echo "  Bypass once: SKIP_CODEGEN_CHECK=1 bin/dev ..."
+    exit 1
+  fi
+}
+# ------------------------------------------------------------------------------
+
 sync_private_keys
+
+assert_codegen_is_fresh
 
 DART_DEFINES_FILE="bin/.tmp/private_keys/dart_defines/${FLAVOR}.json"
 

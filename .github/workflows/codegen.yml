@@ -1,0 +1,65 @@
+name: Codegen
+
+# Manually dispatched. Regenerates the committed generated code
+# (objectbox.g.dart / objectbox-model.json / *.g.dart / pubspec.lock) with the
+# versions pinned in pubspec.yaml, and publishes the result to the `ci/codegen`
+# branch for review.
+#
+# Why a branch instead of an artifact: the agent sandbox cannot run Dart, and
+# GitHub Actions logs *and* artifacts are served from Azure blob storage, which is
+# blocked there. A git branch is the only transfer channel that works — the agent
+# fetches `ci/codegen`, reviews the diff and merges the files onto its own branch.
+#
+# Why this exists at all: `lib/objectbox.g.dart` was committed from the objectbox
+# 5.x generator while pubspec pins 6.0.0-preview.6, so a fresh clone failed to
+# compile with "Method not found: loadObjectBoxLibraryAndroidCompat". Nothing but a
+# real Dart toolchain can fix that, and this is the only one we can reach.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codegen
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+
+jobs:
+  codegen:
+    name: Regenerate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        # This also refreshes the stale pubspec.lock committed in the repo, which is
+        # why the lock file is part of what gets published.
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Publish to ci/codegen
+        run: |
+          git config user.name "codegen-bot"
+          git config user.email "codegen-bot@users.noreply.github.com"
+          git checkout -b ci/codegen
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::Generated code is already up to date with the pinned dependencies"
+            exit 0
+          fi
+          git commit -m "chore(codegen): regenerate with pinned dependencies"
+          git push --force origin ci/codegen
+          echo "::notice::Published to ci/codegen - fetch it and review the diff"
