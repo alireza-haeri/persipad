@@ -80,6 +80,7 @@ abstract class _$DevicePreferencesObjectCWProxy {
     ThemeMode? themeMode,
     TimeFormatOption? timeFormat,
     FirstDayOfWeekOption? firstDayOfWeek,
+    List<int>? weekendDays,
     AssetCompressionOption? assetCompression,
     MediaSyncOption? mediaSync,
     int? colorSeedValue,
