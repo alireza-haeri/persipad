@@ -7,6 +7,7 @@ import 'package:storypad/core/services/analytics/adaptors/base_analytics_event_a
 import 'package:storypad/core/services/analytics/adaptors/base_analytics_user_property_adaptor.dart';
 import 'package:storypad/core/services/cloud_storage/adaptors/base_cloud_storage_adaptor.dart';
 import 'package:storypad/core/services/error_reporting/adaptors/base_error_reporting_adaptor.dart';
+import 'package:storypad/core/services/pro_entitlement_service.dart';
 import 'package:storypad/core/services/remote_config/adaptors/base_remote_config_adaptor.dart';
 import 'package:storypad/core/types/app_logo.dart';
 
@@ -40,6 +41,26 @@ final bool kIAPEnabled =
     (Platform.isAndroid && kRevenueCatAndroidApiKey.trim().isNotEmpty) ||
     (Platform.isIOS && kRevenueCatIosApiKey.trim().isNotEmpty) ||
     (Platform.isMacOS && kRevenueCatIosApiKey.trim().isNotEmpty);
+
+/// This fork gives every Pro feature away for free — there is no store listing
+/// and no RevenueCat project behind it, and on Linux the store plugin has no
+/// implementation at all. The switch lives in [ProEntitlementService] so the
+/// policy is documented and unit-tested in one place (ai/DECISIONS.md D-011).
+const bool kUnlockAllProFeatures = ProEntitlementService.unlockAll;
+
+/// Pro features can be used: either unlocked for free (this fork) or genuinely
+/// sellable on the current platform. UI that used to ask "is the store enabled?"
+/// should ask this instead — the question it actually means is "can the user use
+/// this feature?".
+final bool kProFeaturesAvailable = kUnlockAllProFeatures || kIAPEnabled;
+
+/// Whether purchase/upsell surfaces (paywall entries, Pro badges, banners)
+/// should be rendered at all. False in this fork, and false on Linux, where a
+/// purchase can never complete.
+final bool kShowProUpsell = ProEntitlementService.showUpsell(
+  unlockAll: kUnlockAllProFeatures,
+  storeAvailable: kIAPEnabled,
+);
 
 final bool kSupportCamera = Platform.isAndroid || Platform.isIOS;
 final bool kSupportQuickActions = Platform.isAndroid || Platform.isIOS;

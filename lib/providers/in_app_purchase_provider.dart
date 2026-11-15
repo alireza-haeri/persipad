@@ -14,6 +14,7 @@ import 'package:storypad/core/services/email_hasher_service.dart';
 import 'package:storypad/core/services/internet_checker_service.dart';
 import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/messenger_service.dart';
+import 'package:storypad/core/services/pro_entitlement_service.dart';
 import 'package:storypad/core/storages/selected_purchase_sync_provider_storage.dart';
 import 'package:storypad/core/repositories/backup_repository.dart' show UserChangeType;
 import 'package:storypad/core/types/app_product.dart';
@@ -29,9 +30,17 @@ class InAppPurchaseProvider extends ChangeNotifier with DisposeAwareMixin {
       !kIAPEnabled ? false : _customerInfo?.entitlements.all[productIdentifier]?.isActive == true;
 
   bool get hasAnyLegacyPurchases => AppLegacyProduct.values.any((product) => isActive(product.productIdentifier));
-  bool get periodCalendar => isActive(AppLegacyProduct.period_calendar.productIdentifier);
+  bool get periodCalendar =>
+      kUnlockAllProFeatures || isActive(AppLegacyProduct.period_calendar.productIdentifier);
 
-  bool get isProUser => isActive(AppProduct.storypad_pro_lifetime.productIdentifier) || hasAnyLegacyPurchases;
+  /// Pro entitlement for the whole app. The single source of truth every
+  /// feature gate reads, so unlocking the fork is one switch, not ~30 call sites
+  /// — see [ProEntitlementService] and ai/DECISIONS.md D-011.
+  bool get isProUser => ProEntitlementService.resolvePro(
+    unlockAll: kUnlockAllProFeatures,
+    hasActivePurchase: isActive(AppProduct.storypad_pro_lifetime.productIdentifier),
+    hasLegacyPurchase: hasAnyLegacyPurchases,
+  );
 
   CustomerInfo? _customerInfo;
   List<StoreProduct>? storeProducts;
