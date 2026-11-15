@@ -213,3 +213,17 @@ markdown export) should now just open.
   `43745523681` green (Analyze 81s, Test (1) 213s, Test (2) 212s).
 - Lesson for the next batch: never rewrite an import block by zipping it against a longer
   list; insert the single new line and leave the existing order alone.
+
+### Run log — 2026-11-15 (fourth round: the whole calendar in Shamsi)
+- `815c5f4` calendar screen pages the display calendar + `SearchFilterObject.encode` fix for the
+  `Instance of 'DateTime'` crash — first CI run (`43746566927`) red on one of the new tests
+  (`years` also contains the second Gregorian year a Shamsi year touches); fixed in `fb5368c`,
+  CI `43746943704` green (Analyze 69s, Test (1) 215s, Test (2) 152s).
+- `0a5f768`/`8181159` stats screen in the display calendar (D-029) — the first run failed Analyze on
+  a missing `easy_localization` import; CI `43747645118` green (Analyze 92s, Test (1) 218s,
+  Test (2) 227s).
+- `9fddf0a`/`d5501ed` month recap tiles in the display calendar (C-1h) — first run failed Analyze
+  because a nullable field is not promoted when indexed (`monthlyStats[...]`); fixed by copying it
+  to a local. CI `43748544073` green (Analyze 68s, Test (1) 162s, Test (2) 222s).
+- Every screen now reads the display calendar; the Gregorian `year`/`month`/`day` columns are only
+  ever a storage detail.
