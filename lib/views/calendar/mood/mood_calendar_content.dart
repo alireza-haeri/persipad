@@ -139,7 +139,7 @@ class _CalendarStoriesContent extends StatelessWidget {
         // Index 1+ shows stories for specific day
         final day = index;
         final filter = SearchFilterObject(
-          years: {viewModel.year},
+          years: CalendarDisplay.displayYearsCovering(DateTime(viewModel.year, viewModel.month, day)).toSet(),
           month: viewModel.month,
           day: day,
           types: {PathType.docs},
@@ -152,7 +152,7 @@ class _CalendarStoriesContent extends StatelessWidget {
           disableMultiEdit: true,
           watch: viewModel,
           filter: SearchFilterObject(
-            years: {viewModel.year},
+            years: CalendarDisplay.displayYearsCovering(DateTime(viewModel.year, viewModel.month, day)).toSet(),
             month: viewModel.month,
             day: day,
             types: {PathType.docs},

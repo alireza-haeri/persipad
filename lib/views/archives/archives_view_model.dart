@@ -21,9 +21,11 @@ class ArchivesViewModel extends ChangeNotifier with DisposeAwareMixin {
   List<int>? years;
 
   Future<void> load() async {
-    // years can't be empty, it will always return current year at least.
+    // years can't be empty, it will always return the current display year at
+    // least. They are display years: the tabs read "1405" in Shamsi mode and the
+    // filter they build resolves back to exact day ranges (`yearsFilter`).
     years = await StoryDbModel.db
-        .getStoryCountsByYear(
+        .getStoryCountsByDisplayYear(
           filters: {
             'types': [type.name],
           },

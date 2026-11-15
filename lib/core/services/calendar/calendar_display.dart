@@ -74,6 +74,59 @@ class CalendarDisplay {
     return (start: firstDayOfYear(year), end: lastDayOfYear(year));
   }
 
+  /// A DB filter meaning "these **display** years".
+  ///
+  /// Gregorian mode is the plain `years` column filter. A Shamsi year is not a
+  /// column value at all — it starts on 21 March and ends 19/20 March — so the
+  /// filter keeps the `years` narrowing (the one or two Gregorian years it can
+  /// touch, which the index handles) and adds the exact day ranges as
+  /// `date_ranges`. The query ANDs them, which drops the January–March stories
+  /// that belong to the *previous* Shamsi year.
+  static Map<String, dynamic> yearsFilter(Iterable<int> years) {
+    final list = years.toSet().toList()..sort();
+    if (list.isEmpty) return const {};
+    if (!isPersian) return {'years': list};
+
+    return {
+      'years': {for (final year in list) ...gregorianYearsOfYear(year)}.toList()..sort(),
+      'date_ranges': [
+        for (final year in list) [firstDayOfYear(year), lastDayOfYear(year)],
+      ],
+    };
+  }
+
+  /// The display years that can hold stories, given the Gregorian years that do.
+  ///
+  /// A Gregorian year touches at most two display years (a Shamsi year begins in
+  /// March), so this is a small *exact* candidate set: every display year with
+  /// stories is in it, and no year without stories is invented. Counting those
+  /// candidates is what makes per-year counts correct in Shamsi mode — year-level
+  /// counts cannot be regrouped, because a Shamsi year straddles two of them.
+  static List<int> displayYearsOf(Iterable<int> gregorianYears) {
+    final years = <int>{
+      for (final year in gregorianYears) ...[yearOf(DateTime(year, 1, 1)), yearOf(DateTime(year, 12, 31))],
+    };
+
+    return years.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  /// Display years touched by the Gregorian range [start]..[end] (a single day
+  /// when [end] is omitted).
+  ///
+  /// The screens that still page *Gregorian* months (mood/period calendars) scope
+  /// their story query to "this month"; a Gregorian month can straddle two Shamsi
+  /// years, so both come back. Combined with the Gregorian `month`/`day` filters
+  /// the pair is exact.
+  static List<int> displayYearsCovering(DateTime start, [DateTime? end]) {
+    final last = end ?? start;
+    final from = yearOf(start);
+    final to = yearOf(last);
+
+    // Display years are consecutive integers, so every year between the two ends
+    // is touched and none outside them is.
+    return [for (var year = from; year <= to; year++) year];
+  }
+
   /// True when [date] belongs to the displayed (year, month).
   static bool isInMonth(DateTime date, int year, int month) => yearOf(date) == year && monthOf(date) == month;
 

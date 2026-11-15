@@ -8,6 +8,7 @@ import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/objects/sp_latlng.dart';
 import 'package:storypad/core/objects/stats/stats_range.dart';
 import 'package:storypad/core/objects/stats/story_stats_object.dart' show LabelStatItem, StoryStatsObject;
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/stories/story_stats_service.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
@@ -137,7 +138,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     try {
       final stories = await StoryDbModel.db.where(
         filters: SearchFilterObject(
-          years: range.years,
+          years: _displayYears(range),
           month: range.month,
           types: {PathType.docs},
           assetId: null,
@@ -191,7 +192,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     SpStoriesBottomSheet(
       storyLocation: storyLocation,
       filter: SearchFilterObject(
-        years: range.years,
+        years: _displayYears(range),
         month: range.month,
         types: {PathType.docs},
         storyIds: place.storyIds,
@@ -206,7 +207,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     SpStoriesBottomSheet(
       storyLocation: null,
       filter: SearchFilterObject(
-        years: range.years,
+        years: _displayYears(range),
         month: range.month,
         types: {PathType.docs},
         assetId: null,
@@ -222,7 +223,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     SpStoriesBottomSheet(
       storyLocation: null,
       filter: SearchFilterObject(
-        years: range.years,
+        years: _displayYears(range),
         month: range.month,
         types: {PathType.docs},
         storyIds: storyIds,
@@ -236,13 +237,22 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     SpStoriesBottomSheet(
       storyLocation: null,
       filter: SearchFilterObject(
-        years: range.years,
+        years: _displayYears(range),
         month: range.month,
         types: {PathType.docs},
         tagIds: {tagId},
         assetId: null,
       ),
     ).show(context: context);
+  }
+
+  /// This screen is deliberately Gregorian — its tabs, month names and
+  /// aggregation are all Gregorian (D-025). `SearchFilterObject.years` holds
+  /// *display* years, so a Gregorian window is expanded to the display years it
+  /// touches; AND-ing that with the Gregorian `month` filter keeps the result
+  /// exact in either calendar.
+  Set<int> _displayYears(StatsRange range) {
+    return CalendarDisplay.displayYearsCovering(range.start, range.end).toSet();
   }
 
   Future<void> loadAvailableYears() async {

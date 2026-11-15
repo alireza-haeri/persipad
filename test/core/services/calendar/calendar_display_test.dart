@@ -4,10 +4,12 @@ import 'dart:ui' show Locale;
 import 'package:intl/date_symbol_data_local.dart' show initializeDateFormatting;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
+import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
+import 'package:storypad/core/types/path_type.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +37,12 @@ void main() {
       expect(range.end, DateTime(2026, 11, 30));
     });
 
+    test('a year filter is the plain storage year', () {
+      expect(CalendarDisplay.yearsFilter([2026]), {'years': [2026]});
+      expect(CalendarDisplay.displayYearsOf([2026]), [2026]);
+      expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 3, 1), DateTime(2026, 3, 31)), [2026]);
+    });
+
     test('a year touches exactly one Gregorian year', () {
       expect(CalendarDisplay.gregorianYearsOfYear(2026), [2026]);
     });
@@ -47,6 +55,34 @@ void main() {
       expect(CalendarDisplay.yearOf(november15), 1405);
       expect(CalendarDisplay.monthOf(november15), 8);
       expect(CalendarDisplay.dayOf(november15), 24);
+    });
+
+    test('a year filter becomes Gregorian years plus exact day ranges', () {
+      final filters = CalendarDisplay.yearsFilter([1405]);
+
+      // 1405 runs 21 Mar 2026 … 20 Mar 2027, so the column can only narrow the
+      // scan; the day ranges are what make the filter exact.
+      expect(filters['years'], [2026, 2027]);
+      expect(filters['date_ranges'], [
+        [DateTime(2026, 3, 21), DateTime(2027, 3, 20)],
+      ]);
+    });
+
+    test('display years are derived from the Gregorian years that hold stories', () {
+      // Every Shamsi year starts in March, so one Gregorian year touches two.
+      expect(CalendarDisplay.displayYearsOf([2026]), [1405, 1404]);
+      expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 3, 1), DateTime(2026, 3, 31)), [1404, 1405]);
+      expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 11, 15)), [1405]);
+    });
+
+    test('a search filter keeps display years for the UI and storage years for the query', () {
+      final filter = SearchFilterObject(years: {1405}, types: {PathType.docs}, assetId: null);
+
+      expect(filter.years, {1405});
+      final filters = filter.toDatabaseFilter()!;
+      expect(filters['years'], [2026, 2027]);
+      expect((filters['date_ranges'] as List).length, 1);
+      expect(filters['types'], ['docs']);
     });
 
     test('a Shamsi month maps to the exact Gregorian day range', () {

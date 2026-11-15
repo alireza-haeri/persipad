@@ -7,6 +7,7 @@ import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/views/calendar/period/period_calendar_view.dart';
@@ -104,7 +105,11 @@ class PeriodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Deb
     _selectedEventStories = selectedEvent != null
         ? await StoryDbModel.db.where(
             filters: SearchFilterObject(
-              years: {selectedEvent!.year},
+              // Gregorian-paged calendar (BACKLOG C-1d): the event's year/month/day
+              // are Gregorian, `years` is a display-year set.
+              years: CalendarDisplay.displayYearsCovering(
+                DateTime(selectedEvent!.year, selectedEvent!.month, selectedEvent!.day),
+              ).toSet(),
               month: selectedEvent!.month,
               day: selectedEvent!.day,
               types: {PathType.docs},

@@ -515,3 +515,36 @@ Template:
   queries, the search date filters, and the stats aggregation. Their data is fetched or counted
   per Gregorian month, and a Shamsi label on top of Gregorian counts would be a lie; each needs
   the same "display month → Gregorian day range" treatment the home list already has.
+
+## D-027 — Year filters are display years; the query is where they turn into dates (2026-11-15)
+- **Status:** accepted
+- **Context:** with Shamsi on, every *year* the user could pick was still a Gregorian year:
+  the archive tabs, the tag screen, the year picker and the search filter chips all read
+  `2026`, and the year counts behind them came from the Gregorian `year` column. The year
+  picker also showed *approximate* counts, because per-Gregorian-year counts were regrouped
+  by "whichever display year owns 1 July".
+- **Decision:**
+  1. **`SearchFilterObject.years` holds display years.** It is UI state (which chips are
+     selected, what the tabs are labelled, what gets remembered), so it speaks the calendar
+     the user sees.
+  2. **`CalendarDisplay.yearsFilter()` is the single conversion.** Gregorian mode returns
+     `{'years': [...]}` unchanged; Shamsi mode returns the one or two Gregorian years the
+     display year can touch (so the indexed column still narrows the scan) **plus**
+     `date_ranges`, an OR of exact day ranges. `buildQuery` gained `date_ranges` next to the
+     existing single `date_range`, and `years`/`year`/`exclude_years` keep their Gregorian
+     meaning, so no other consumer (period events, exclude-years) changed behaviour.
+  3. **Counts are counted, not regrouped.** `getStoryCountsByDisplayYear()` derives the
+     candidate display years from the Gregorian years that actually hold rows
+     (`CalendarDisplay.displayYearsOf`, at most two per Gregorian year) and then counts each
+     with an exact range query. That replaced the 1-July heuristic, so the numbers on the
+     chips are now correct rather than indicative.
+  4. **Gregorian-paged screens stay Gregorian and say so.** The mood/period calendars and the
+     stats screen page Gregorian months; they pass the display years covering their window
+     (`displayYearsCovering`) and keep their Gregorian `month`/`day` filters, which makes the
+     pair exact without pretending their grid is Shamsi (`BACKLOG.md` C-1d/C-1g).
+  5. **Switching calendar clears the saved search filter.** A stored display year means a
+     different span in the other calendar, and silently restoring it would filter the whole
+     list away — the same class of silent-empty bug as D-026 §2.
+- **Consequence:** "does this story belong to the shown year" is answered by date ranges, never
+  by comparing numbers. Any new year-scoped surface must go through `CalendarDisplay` rather
+  than reading `story.year`.

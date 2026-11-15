@@ -18,7 +18,9 @@ class HomeYearsViewModel extends ChangeNotifier with DisposeAwareMixin {
   Map<int, int>? years;
 
   Future<void> load() async {
-    final gregorianCounts = await StoryDbModel.db.getStoryCountsByYear(
+    // Counted per *display* year, so the picker lists Shamsi years in Shamsi
+    // mode (an exact count per year, not a regrouped approximation).
+    years = await StoryDbModel.db.getStoryCountsByDisplayYear(
       filters: {
         'types': [
           PathType.docs.name,
@@ -27,8 +29,6 @@ class HomeYearsViewModel extends ChangeNotifier with DisposeAwareMixin {
       },
     );
 
-    years = CalendarDisplay.isPersian ? _asDisplayYears(gregorianCounts) : gregorianCounts;
-
     if (years == null || years?.isEmpty == true) {
       years = {
         CalendarDisplay.yearOf(DateTime.now()): 0,
@@ -36,25 +36,6 @@ class HomeYearsViewModel extends ChangeNotifier with DisposeAwareMixin {
     }
 
     notifyListeners();
-  }
-
-  /// Regroups per-Gregorian-year counts into display years.
-  ///
-  /// A Shamsi year straddles two Gregorian years, so no exact regrouping is
-  /// possible from year-level counts alone: each Gregorian bucket is attributed
-  /// to the display year that owns most of it (1 July is always in the second
-  /// half of the display year). The counts shown in the picker are therefore
-  /// approximate in Shamsi mode; the list of years itself is not.
-  Map<int, int>? _asDisplayYears(Map<int, int>? counts) {
-    if (counts == null || counts.isEmpty) return counts;
-
-    final result = <int, int>{};
-    for (final entry in counts.entries) {
-      final displayYear = CalendarDisplay.yearOf(DateTime(entry.key, 7, 1));
-      result[displayYear] = (result[displayYear] ?? 0) + entry.value;
-    }
-
-    return result;
   }
 
   Future<void> addYear(BuildContext context) async {

@@ -19,6 +19,7 @@ import 'package:storypad/core/databases/models/tag_category_db_model.dart';
 import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/objects/sp_latlng_bounds.dart';
 import 'package:storypad/core/objects/sp_latlng.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/objectbox.g.dart';
@@ -360,6 +361,42 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     return SplayTreeMap<int, int>.from(storyCountsByYear, (a, b) => b.compareTo(a));
   }
 
+  /// Story counts per **display** year (the years the UI shows).
+  ///
+  /// In Gregorian mode this is [getStoryCountsByYear] unchanged. In Shamsi mode
+  /// the `year` column is Gregorian, so a display year is a day range spanning
+  /// two of them and per-Gregorian-year counts cannot be regrouped into it. The
+  /// candidate display years are derived from the Gregorian years that actually
+  /// hold stories ([CalendarDisplay.displayYearsOf], at most two candidates per
+  /// Gregorian year and never one without stories), and each is then counted with
+  /// an exact range query — a handful of `count()` calls on an indexed table.
+  Future<Map<int, int>> getStoryCountsByDisplayYear({Map<String, dynamic>? filters}) async {
+    if (!CalendarDisplay.isPersian) return getStoryCountsByYear(filters: filters);
+
+    AppLogger.info("Triggering $tableName#getStoryCountsByDisplayYear 🍎");
+
+    final Map<String, dynamic> baseFilters = {...?filters}
+      ..removeWhere((key, value) => key == 'year' || key == 'years' || key == 'date_ranges' || key == 'date_range');
+
+    final List<int> gregorianYears = (buildQuery(
+      filters: baseFilters,
+    ).build().property(StoryObjectBox_.year)..distinct = true).find();
+
+    final List<int> displayYears = {
+      ...CalendarDisplay.displayYearsOf(gregorianYears),
+      CalendarDisplay.yearOf(DateTime.now()),
+    }.toList()..sort((a, b) => b.compareTo(a));
+
+    final counts = <int, int>{
+      for (final year in displayYears)
+        year: buildQuery(
+          filters: {...baseFilters, ...CalendarDisplay.yearsFilter([year])},
+        ).build().count(),
+    };
+
+    return SplayTreeMap<int, int>.from(counts, (a, b) => b.compareTo(a));
+  }
+
   /// Distinct months (1-12) that have at least one story matching [filters]
   /// within [year]. A property-distinct query — no row materialization, no
   /// content decode — so it's cheap enough to run upfront regardless of how
@@ -414,6 +451,10 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     return storyCountsByAssetIds;
   }
 
+  /// Per-tag counts for an optional [years] scope. [years] are **display** years
+  /// (the ones the filter screen shows), so they go through
+  /// [CalendarDisplay.yearsFilter] — Gregorian mode passes them straight through,
+  /// Shamsi mode narrows them to their exact day ranges.
   Map<int, int> getStoryCountByTags({
     required List<int> tagIds,
     String? query,
@@ -429,7 +470,7 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
         filters: {
           'query': query,
           if (tagId != 0) 'tag': tagId,
-          if (years != null && years.isNotEmpty) 'years': years,
+          if (years != null && years.isNotEmpty) ...CalendarDisplay.yearsFilter(years),
           if (types != null && types.isNotEmpty) 'types': types,
         },
       ).build().count();
@@ -683,6 +724,7 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     List<int>? selectedYears = filters?["selected_years"];
     List<int>? yearsRange = filters?["years_range"];
     List<DateTime>? dateRange = filters?["date_range"];
+    List<List<DateTime>>? dateRanges = filters?["date_ranges"];
 
     Condition<StoryObjectBox> conditions = StoryObjectBox_.id.notNull();
 
@@ -720,6 +762,17 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     if (excludeYears != null) conditions = conditions.and(StoryObjectBox_.year.notOneOf(excludeYears));
     if (dateRange != null && dateRange.length == 2) {
       conditions = conditions.and(_dateRangeCondition(dateRange[0], dateRange[1]));
+    }
+    if (dateRanges != null && dateRanges.isNotEmpty) {
+      // OR of exact day ranges — how a set of *display* years is expressed when
+      // one display year is a Gregorian-spanning range (`CalendarDisplay.yearsFilter`).
+      Condition<StoryObjectBox>? rangesCondition;
+      for (final range in dateRanges) {
+        if (range.length != 2) continue;
+        final condition = _dateRangeCondition(range[0], range[1]);
+        rangesCondition = rangesCondition == null ? condition : rangesCondition.or(condition);
+      }
+      if (rangesCondition != null) conditions = conditions.and(rangesCondition);
     }
     if (month != null) conditions = conditions.and(StoryObjectBox_.month.equals(month));
     if (day != null) conditions = conditions.and(StoryObjectBox_.day.equals(day));

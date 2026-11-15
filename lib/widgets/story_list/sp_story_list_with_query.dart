@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/stories/story_content_embed_extractor.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/backup_provider.dart';
@@ -62,7 +63,13 @@ class SpStoryListWithQueryState extends State<SpStoryListWithQuery> {
           .where(
             filters: SearchFilterObject(
               years: {},
-              excludeYears: {widget.filter!.years.first, DateTime.now().year},
+              // `filter.years` are display years; `excludeYears` is a Gregorian
+              // column filter, so expand each display year to the Gregorian years
+              // it touches.
+              excludeYears: {
+                for (final year in widget.filter!.years) ...CalendarDisplay.gregorianYearsOfYear(year),
+                DateTime.now().year,
+              },
               month: widget.filter?.month,
               day: widget.filter?.day,
               types: {PathType.docs, PathType.archives},

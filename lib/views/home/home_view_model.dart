@@ -292,7 +292,9 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
       comparator: (a, b) => b.displayPathDate.compareTo(a.displayPathDate),
     );
 
-    _throwbackDates = DateTime.now().year == year
+    // `year` is a display year, so compare it with today's display year — the
+    // Gregorian comparison silently disabled the throwback tile in Shamsi mode.
+    _throwbackDates = CalendarDisplay.yearOf(DateTime.now()) == year
         ? await StoryDbModel.db
               .where(
                 filters: SearchFilterObject(
@@ -413,20 +415,12 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   /// Narrows a home query to the *display* year currently shown.
   ///
-  /// In Gregorian mode the plain `years` filter already is that year. In Shamsi
-  /// mode `year` is a Jalali year, which starts around 21 March and therefore
-  /// spans two Gregorian years: the `years` filter only bounds the index scan,
-  /// and `date_range` carries the real day range so stories from the
-  /// neighbouring months cannot leak into the list.
+  /// `SearchFilterObject.years` are display years, so `toDatabaseFilter()` is
+  /// already the storage-calendar translation (Gregorian `years` plus the exact
+  /// day ranges in Shamsi mode). Kept as a named seam so the home queries read as
+  /// "this year, in the user's calendar" rather than as a raw filter map.
   Map<String, dynamic> _withDisplayYear(SearchFilterObject filter) {
-    final filters = filter.toDatabaseFilter() ?? <String, dynamic>{};
-    if (!CalendarDisplay.isPersian) return filters;
-
-    final range = CalendarDisplay.rangeOfYear(year);
-    filters['years'] = CalendarDisplay.gregorianYearsOfYear(year);
-    filters['date_range'] = [range.start, range.end];
-
-    return filters;
+    return filter.toDatabaseFilter() ?? <String, dynamic>{};
   }
 
   /// Re-anchors the screen on *today* after the display calendar changed.

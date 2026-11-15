@@ -70,8 +70,12 @@
       different span in the other calendar.
 - [x] Day numbers are now explicit per calendar (`d` / `dayNumber` / `gregorianDay`), which fixed
       "15 آبان ۱۴۰۵" for a story dated 24 Aban and kept the Gregorian mood grid printing Gregorian days.
-- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1): mood/period calendar grid and its queries,
-      search date filters, stats aggregation.
+- [x] **Year filters follow the display calendar** (D-027): archive/tag/year tabs and the search
+      filter chips show display years, counted exactly; `CalendarDisplay.yearsFilter` converts them
+      to Gregorian years + `date_ranges` at the query boundary. Calendar switch clears the saved
+      search filter so a stale display year can't empty the list.
+- [ ] Remaining Shamsi surfaces (`BACKLOG.md` C-1d/C-1g): mood/period calendar grid, its
+      `MonthPickerService` and the feelings query, stats aggregation.
 - [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux

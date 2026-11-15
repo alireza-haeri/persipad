@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/core/storages/search_filter_storage.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/views/home/home_view.dart';
@@ -33,6 +34,11 @@ class CalendarSystemTile extends StatelessWidget {
             // today (rather than just reloading the same year, which would show
             // an empty 2026-as-a-Jalali-year and look broken).
             await HomeView.resetToToday();
+
+            // The saved search filter carries *display* years, which mean a
+            // different span in the other calendar — restoring "1405" as a
+            // Gregorian year would silently filter everything out.
+            SearchFilterStorage().remove();
           },
         );
       },

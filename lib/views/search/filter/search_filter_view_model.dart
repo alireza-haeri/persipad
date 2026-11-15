@@ -25,6 +25,8 @@ class SearchFilterViewModel extends ChangeNotifier with DisposeAwareMixin {
     load();
   }
 
+  /// Per *display* year counts — Shamsi years when that calendar is on, so the
+  /// chips never show a Gregorian number inside a Shamsi screen.
   Map<int, int>? years;
 
   // null key = non-emoji tags (no category); non-null key = emoji category
@@ -34,7 +36,7 @@ class SearchFilterViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   Future<void> load() async {
     if (params.filterTagModifiable) {
-      years = await StoryDbModel.db.getStoryCountsByYear(
+      years = await StoryDbModel.db.getStoryCountsByDisplayYear(
         filters: {
           if (searchFilter.types.isNotEmpty) 'types': searchFilter.types.map((e) => e.name).toList(),
         },
@@ -64,7 +66,7 @@ class SearchFilterViewModel extends ChangeNotifier with DisposeAwareMixin {
             ..sort((a, b) => b.storiesCount!.compareTo(a.storiesCount!)),
       };
     } else {
-      years = await StoryDbModel.db.getStoryCountsByYear(
+      years = await StoryDbModel.db.getStoryCountsByDisplayYear(
         filters: {
           'tags': searchFilter.tagIds.toList(),
           if (searchFilter.types.isNotEmpty) 'types': searchFilter.types.map((e) => e.name).toList(),

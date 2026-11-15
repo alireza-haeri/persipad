@@ -8,6 +8,7 @@ import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/views/home/home_view.dart';
@@ -91,7 +92,11 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   bool tagSelected(TagDbModel tag) => (selectedTagId == tag.id) || (tag.id == 0 && selectedTagId == null);
   SearchFilterObject get searchFilter {
     return SearchFilterObject(
-      years: {year},
+      // This calendar pages *Gregorian* months (see BACKLOG C-1d), so `year` and
+      // `month` are Gregorian. `years` is a display-year set, hence the
+      // conversion: a Gregorian month can straddle two Shamsi years, and both are
+      // needed for the filter to cover the whole month.
+      years: CalendarDisplay.displayYearsCovering(DateTime(year, month)).toSet(),
       month: month,
       day: selectedDay,
       types: {PathType.docs},

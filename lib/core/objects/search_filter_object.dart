@@ -1,3 +1,4 @@
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:copy_with_extension/copy_with_extension.dart';
 import 'package:json_annotation/json_annotation.dart';
@@ -46,7 +47,10 @@ class SearchFilterObject {
 
     if (query != null) filters['query'] = query;
     if (storyIds?.isNotEmpty == true) filters['ids'] = storyIds?.toList();
-    if (years.isNotEmpty) filters['years'] = years.toList();
+    // `years` holds *display* years (the chips the user picked). Gregorian mode
+    // maps them straight to the `year` column; Shamsi mode also needs the exact
+    // day ranges, since a Shamsi year spans two Gregorian years.
+    if (years.isNotEmpty) filters.addAll(CalendarDisplay.yearsFilter(years));
     if (month != null) filters['month'] = month;
     if (day != null) filters['day'] = day;
     if (tagIds.isNotEmpty) filters['tags'] = tagIds.toList();
@@ -64,6 +68,8 @@ class SearchFilterObject {
     if (query?.trim().isNotEmpty == true) {
       filters['types'] = PathType.values.map((e) => e.name).toList();
       filters.remove('years');
+      filters.remove('date_ranges');
+      filters.remove('date_range');
     }
 
     return filters;

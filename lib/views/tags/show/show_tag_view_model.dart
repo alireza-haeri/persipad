@@ -32,8 +32,9 @@ class ShowTagViewModel extends ChangeNotifier with DisposeAwareMixin {
   late final initialTune = SearchFilterObject(years: {}, types: {}, tagIds: {tag.id}, assetId: null);
 
   Future<void> load() async {
+    // Display years — see [ArchivesViewModel.load] for why.
     years = await StoryDbModel.db
-        .getStoryCountsByYear(filters: filter.toDatabaseFilter())
+        .getStoryCountsByDisplayYear(filters: filter.toDatabaseFilter())
         .then((map) => map.keys.toList()..sort((a, b) => b.compareTo(a)));
 
     notifyListeners();
