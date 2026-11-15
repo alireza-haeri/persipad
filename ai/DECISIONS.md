@@ -384,3 +384,36 @@ Template:
   bin = سطل, archive = بایگانی, settings = تنظیمات, font = قلم. Months/year numbers come from
   `intl`, so dates render with Persian digits while data-driven counts stay Latin — mixed
   digits are accepted for now rather than re-implementing number formatting app-wide.
+
+## D-024 — Calendar settings: user-defined weekends and any first day of week; Shamsi is the next slice (2026-11-15)
+- **Status:** accepted (D-024 covers the settings; the calendar-system switch is scoped in
+  `ai/BACKLOG.md` C-1)
+- **Context:** the app assumed a Western week: `FirstDayOfWeekOption` only offered Monday and
+  Sunday, and both the calendar header and the day cells coloured *Saturday/Sunday* red as "the
+  weekend" in code. For an Iranian user the week starts on Saturday and the weekend is Friday
+  (often Thursday+Friday). Hard-coding either pair is wrong for somebody.
+- **Decision:**
+  1. `FirstDayOfWeekOption` now covers all seven weekdays (the Persian defaults are simply
+     values, not a special case). `value` returns real `DateTime` weekday numbers, so the grid
+     math and the storage format stay unchanged (`"first_day_of_week": "saturday"`).
+  2. New preference `weekendDays` (`List<int>?`, `DateTime` weekday numbers, `null` = never
+     configured → Saturday+Sunday). Any subset is valid, including none. It is stored sorted
+     Monday-first and de-duplicated by `CalendarConfig.normalizeWeekendDays`, so the persisted
+     value has one canonical shape regardless of the order the chips were tapped.
+  3. `CalendarConfig` (`lib/core/services/calendar/`) is the single reader of those settings for
+     widgets that build without a `Provider` (the calendar grid/header). It is published once at
+     startup by `ThemeInitializer` (before the first frame, so nothing re-lays-out) and refreshed
+     by `DevicePreferencesProvider` on every change.
+  4. Weekday *names* come from `intl` through `WeekdayNameService`, keyed by weekday number, so
+     the seven options are translated in all 21 locales for free and a new locale needs no new
+     strings. Only the settings labels are new keys (`list_tile.weekend_days.title/.subtitle`).
+  5. **Shamsi is deliberately not wired to the displayed dates in this change.** 154 call sites
+     derive year/month from Gregorian `StoryDbModel` fields, the story list is grouped by
+     Gregorian month, the "months that have stories" tab bar is a DB query over `month`/`year`,
+     and the mood/period calendars page through Gregorian months. Flipping the formatter alone
+     would print a Jalali month name above a Gregorian-month grid — worse than not shipping it.
+     The conversion engine is in place and tested (`PersianCalendar`, `ai/BACKLOG.md` C-1
+     lists the exact remaining surfaces), so the switch lands as one coherent slice.
+- **Consequences:** every calendar surface now respects the user's week; no data migration (both
+  fields are additive JSON keys); a user who never opens the new setting sees exactly the old
+  behaviour.

@@ -111,6 +111,7 @@ flutter:
     - assets/images/
     - assets/images/onboarding/
     - assets/emoji-64/
+
     - assets/logos/storypad_logo_1_0.icon/Assets/storypad_logo_1_0.png
     - assets/logos/storypad_logo_2_0.icon/Assets/storypad_logo_2_0.png
     - assets/logos/storypad_logo_3_0.icon/Assets/storypad_logo_3_0.png
@@ -118,3 +119,19 @@ flutter:
     - assets/logos/storypad_logo_5_0.icon/Assets/storypad_logo_5_0.png
     - assets/logos/storypad_logo_6_0.icon/Assets/storypad_logo_6_0.png
     - assets/logos/storypad_logo_6_1.icon/Assets/storypad_logo_6_1.png
+
+  # Bundled so Persian/Arabic text looks the same on every OS instead of falling
+  # back to whatever the platform substitutes (ai/DECISIONS.md D-023). Used as the
+  # first entry of kScriptFontFamilyFallback, so Latin text keeps the user's
+  # chosen Google font and only Arabic-script glyphs come from here.
+  fonts:
+    - family: Vazirmatn
+      fonts:
+        - asset: assets/fonts/Vazirmatn-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Vazirmatn-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Vazirmatn-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Vazirmatn-Bold.ttf
+          weight: 700
