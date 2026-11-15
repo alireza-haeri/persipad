@@ -30,8 +30,7 @@ class InAppPurchaseProvider extends ChangeNotifier with DisposeAwareMixin {
       !kIAPEnabled ? false : _customerInfo?.entitlements.all[productIdentifier]?.isActive == true;
 
   bool get hasAnyLegacyPurchases => AppLegacyProduct.values.any((product) => isActive(product.productIdentifier));
-  bool get periodCalendar =>
-      kUnlockAllProFeatures || isActive(AppLegacyProduct.period_calendar.productIdentifier);
+  bool get periodCalendar => kUnlockAllProFeatures || isActive(AppLegacyProduct.period_calendar.productIdentifier);
 
   /// Pro entitlement for the whole app. The single source of truth every
   /// feature gate reads, so unlocking the fork is one switch, not ~30 call sites

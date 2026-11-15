@@ -2,95 +2,80 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/platform_capabilities.dart';
 
+// Linux is the only platform we actively ship, and it is also the one that can
+// silently lose features: `google_sign_in` has no Linux implementation, so the
+// Drive tile used to offer a sign-in that could never succeed, and appearing to
+// have no cloud sync at all. These tests pin the matrix down.
 void main() {
-  // Linux is the only platform we actively ship, and it is also the one that
-  // silently loses features: `google_sign_in` has no Linux implementation, so
-  // the Drive tile used to offer a sign-in that could never succeed. These
-  // tests pin the matrix down so a future refactor can't quietly take a working
-  // sync backend away from Linux.
-  group('PlatformCapabilities.cloudSync', () {
-    bool availableOn({
-      required BackupServiceType type,
-      bool linux = false,
-      bool ios = false,
-      bool macos = false,
-    }) {
-      return PlatformCapabilities.cloudSync(
-        type: type,
-        isLinux: linux,
-        isIOS: ios,
-        isMacOS: macos,
-      );
-    }
+  bool onAndroid(BackupServiceType type) {
+    return PlatformCapabilities.cloudSync(type: type, isLinux: false, isIOS: false, isMacOS: false);
+  }
 
-    test('android can use every non-Apple service', () {
-      for (final type in [
-        BackupServiceType.google_drive,
-        BackupServiceType.dropbox,
-        BackupServiceType.nextcloud,
-      ]) {
-        expect(availableOn(type: type), isTrue, reason: '${type.id} on android');
-      }
-      expect(availableOn(type: BackupServiceType.icloud), isFalse, reason: 'icloud on android');
+  bool onLinux(BackupServiceType type) {
+    return PlatformCapabilities.cloudSync(type: type, isLinux: true, isIOS: false, isMacOS: false);
+  }
+
+  bool onIOS(BackupServiceType type) {
+    return PlatformCapabilities.cloudSync(type: type, isLinux: false, isIOS: true, isMacOS: false);
+  }
+
+  bool onMacOS(BackupServiceType type) {
+    return PlatformCapabilities.cloudSync(type: type, isLinux: false, isIOS: false, isMacOS: true);
+  }
+
+  group('PlatformCapabilities.cloudSync on android', () {
+    test('supports drive, dropbox and nextcloud', () {
+      expect(onAndroid(BackupServiceType.google_drive), isTrue);
+      expect(onAndroid(BackupServiceType.dropbox), isTrue);
+      expect(onAndroid(BackupServiceType.nextcloud), isTrue);
     });
 
-    test('apple platforms can use everything, including icloud', () {
-      for (final type in BackupServiceType.values) {
-        expect(availableOn(type: type, ios: true), isTrue, reason: '${type.id} on iOS');
-        expect(availableOn(type: type, macos: true), isTrue, reason: '${type.id} on macOS');
-      }
+    test('does not support icloud', () {
+      expect(onAndroid(BackupServiceType.icloud), isFalse);
+    });
+  });
+
+  group('PlatformCapabilities.cloudSync on linux', () {
+    test('cannot sign in to google drive', () {
+      // google_sign_in has no Linux implementation: the registered Drive service
+      // is a stub whose signIn() always returns false.
+      expect(onLinux(BackupServiceType.google_drive), isFalse);
     });
 
-    test('linux cannot sign in to google drive', () {
-      // google_sign_in has no Linux implementation: the registered Drive
-      // service is a stub whose signIn() always returns false.
-      expect(availableOn(type: BackupServiceType.google_drive, linux: true), isFalse);
+    test('cannot use icloud', () {
+      expect(onLinux(BackupServiceType.icloud), isFalse);
     });
 
-    test('linux cannot use icloud', () {
-      expect(availableOn(type: BackupServiceType.icloud, linux: true), isFalse);
+    test('can use dropbox through loopback oauth', () {
+      expect(onLinux(BackupServiceType.dropbox), isTrue);
     });
 
-    test('linux can use dropbox (loopback OAuth) and nextcloud (WebDAV)', () {
-      expect(availableOn(type: BackupServiceType.dropbox, linux: true), isTrue);
-      expect(availableOn(type: BackupServiceType.nextcloud, linux: true), isTrue);
+    test('can use nextcloud over webdav', () {
+      expect(onLinux(BackupServiceType.nextcloud), isTrue);
     });
 
-    test('linux always keeps at least one working sync backend', () {
-      final usable = BackupServiceType.values
-          .where((type) => availableOn(type: type, linux: true))
-          .toList();
+    test('always keeps at least one working sync backend', () {
+      final usable = BackupServiceType.values.where(onLinux).toList();
 
       expect(
         usable,
         isNotEmpty,
-        reason: 'Linux is our primary target; losing every cloud sync option would make it unusable',
+        reason: 'Linux is our primary target; losing every sync option would make it unusable',
       );
       expect(usable, contains(BackupServiceType.nextcloud));
     });
+  });
 
-    test('every platform keeps at least one working sync backend', () {
-      final platforms = {
-        'android': (linux: false, ios: false, macos: false),
-        'linux': (linux: true, ios: false, macos: false),
-        'ios': (linux: false, ios: true, macos: false),
-        'macos': (linux: false, ios: false, macos: true),
-      };
+  group('PlatformCapabilities.cloudSync on apple platforms', () {
+    test('ios supports every service', () {
+      for (final type in BackupServiceType.values) {
+        expect(onIOS(type), isTrue, reason: 'missing ${type.id} on iOS');
+      }
+    });
 
-      for (final entry in platforms.entries) {
-        final flags = entry.value;
-        final usable = BackupServiceType.values
-            .where(
-              (type) => availableOn(
-                type: type,
-                linux: flags.linux,
-                ios: flags.ios,
-                macos: flags.macos,
-              ),
-            )
-            .toList();
-
-        expect(usable, isNotEmpty, reason: 'no cloud sync backend available on ${entry.key}');
+    test('macos supports every service', () {
+      for (final type in BackupServiceType.values) {
+        expect(onMacOS(type), isTrue, reason: 'missing ${type.id} on macOS');
       }
     });
   });
