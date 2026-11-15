@@ -15,8 +15,16 @@ name: Codegen
 # compile with "Method not found: loadObjectBoxLibraryAndroidCompat". Nothing but a
 # real Dart toolchain can fix that, and this is the only one we can reach.
 
+# `workflow_dispatch` cannot be used here: GitHub only registers dispatchable
+# workflows that exist on the default branch, and this one lives on our feature
+# branch (dispatching by filename returned 404). A commit-message marker is a
+# trigger we fully control from the agent side instead.
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - 'arena/**'
+      - main
+      - develop
 
 permissions:
   contents: write
@@ -31,6 +39,9 @@ env:
 jobs:
   codegen:
     name: Regenerate
+    # Only runs for commits that explicitly ask for it, e.g.
+    #   git commit -m "chore: regenerate [codegen]"
+    if: contains(github.event.head_commit.message, '[codegen]')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
