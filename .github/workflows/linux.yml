@@ -152,19 +152,15 @@ jobs:
           tail -40 /tmp/test.txt
           if [ $status -ne 0 ]; then
             echo "::error::flutter test failed"
-            # Annotations are the agent's only readable channel (the run log
-            # lives in blob storage it cannot reach), so every failed test is
-            # re-emitted with the first lines of its assertion message. The old
-            # grep matched nothing: `[E]` lines start with a timestamp, so the
-            # agent only ever saw "N tests passed, 1 failed" and had to guess.
-            awk '
-              /\[E\]$/ { failing=1; print "::error::" $0; shown=0; next }
-              failing && NF {
-                if (shown < 4) print "::notice::" $0;
-                shown++;
-                if (shown > 4) { failing=0; shown=0 }
-              }
-            ' /tmp/test.txt | head -60
+            # Annotations are the agent's only readable channel (the run log is
+            # in blob storage it cannot reach), so emit the failing test names
+            # and the tail of the output instead of a bare "1 failed".
+            grep -E '\[E\]' /tmp/test.txt | head -10 | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | tr -d '\r')"
+            done
+            tail -50 /tmp/test.txt | while IFS= read -r line; do
+              echo "::notice::$(printf '%s' "$line" | tr -d '\r')"
+            done
           fi
           exit $status
 
