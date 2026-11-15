@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
-import 'package:google_sign_in/google_sign_in.dart' as gsi;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart' as exp;
 import 'package:storypad/core/objects/backup_file_object.dart';
@@ -10,6 +9,7 @@ import 'package:storypad/core/objects/yearly_backup_files_object.dart';
 import 'package:storypad/core/objects/cloud_storage_quota_object.dart';
 import 'package:storypad/core/objects/google_user_object.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
+import 'package:storypad/core/services/backups/google_drive_auth_strategy.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/storages/google_user_storage.dart';
@@ -43,7 +43,6 @@ class GoogleDriveCloudService extends BackupCloudService {
   bool get isSignedIn => _currentUser != null;
 
   final Map<String, String> _folderDriveIdByFolderName = {};
-  final List<String> _requestedScopes = [drive.DriveApi.driveAppdataScope];
 
   Future<drive.DriveApi?> get googleDriveClient async {
     if (_currentUser == null || _currentUser?.accessToken == null) return null;
@@ -53,26 +52,18 @@ class GoogleDriveCloudService extends BackupCloudService {
     return drive.DriveApi(client);
   }
 
+  /// Where this build's tokens come from: `google_sign_in` on Android/iOS/macOS,
+  /// the loopback OAuth2 flow on Linux. Everything in this class below is
+  /// platform-independent Drive REST, which is why Linux no longer needs a stub
+  /// and duplicate copy of it (ai/DECISIONS.md D-019).
+  final GoogleDriveAuthStrategy auth;
+
+  GoogleDriveCloudService({GoogleDriveAuthStrategy? auth}) : auth = auth ?? GoogleSignInAuthStrategy();
+
   // load data locally
   @override
   Future<void> initialize() async {
-    _currentUser = await GoogleUserStorage().readObject();
-  }
-
-  Completer<gsi.GoogleSignIn>? googleServiceCompleter;
-  Future<gsi.GoogleSignIn> get googleServiceInstance async {
-    if (googleServiceCompleter != null) return googleServiceCompleter!.future;
-    googleServiceCompleter = Completer<gsi.GoogleSignIn>();
-
-    try {
-      await gsi.GoogleSignIn.instance.initialize();
-      googleServiceCompleter!.complete(gsi.GoogleSignIn.instance);
-    } catch (e) {
-      googleServiceCompleter!.completeError(e);
-      googleServiceCompleter = null;
-    }
-
-    return googleServiceCompleter!.future;
+    _currentUser = await auth.restore();
   }
 
   @override
@@ -85,8 +76,6 @@ class GoogleDriveCloudService extends BackupCloudService {
 
   @override
   Future<bool> reauthenticateIfNeeded() async {
-    await googleServiceInstance; // ensure initialized
-
     try {
       if (currentUser == null) {
         throw exp.AuthException(
@@ -96,34 +85,18 @@ class GoogleDriveCloudService extends BackupCloudService {
         );
       }
 
-      final authHeaders = await (await googleServiceInstance).authorizationClient.authorizationHeaders(
-        _requestedScopes,
-        promptIfNecessary: true,
-      );
-
-      if (authHeaders != null) {
-        _currentUser = GoogleUserObject(
-          id: _currentUser!.id,
-          email: _currentUser!.email,
-          displayName: _currentUser!.displayName,
-          photoUrl: _currentUser!.photoUrl,
-          accessToken: authHeaders['Authorization']?.replaceFirst(
-            'Bearer ',
-            '',
-          ),
-          refreshedAt: DateTime.now(),
-          autoBackupEnabled: autoBackupEnabled,
+      final refreshed = await auth.refresh(currentUser!);
+      if (refreshed == null) {
+        throw exp.AuthException(
+          'Failed to get auth headers',
+          exp.AuthExceptionType.tokenExpired,
+          serviceType: serviceType,
         );
-
-        await GoogleUserStorage().writeObject(_currentUser!);
-        return true;
       }
 
-      throw exp.AuthException(
-        'Failed to get auth headers',
-        exp.AuthExceptionType.tokenExpired,
-        serviceType: serviceType,
-      );
+      _currentUser = refreshed.copyWith(autoBackupEnabled: autoBackupEnabled);
+      await GoogleUserStorage().writeObject(_currentUser!);
+      return true;
     } on exp.AuthException {
       rethrow;
     } catch (e) {
@@ -139,45 +112,15 @@ class GoogleDriveCloudService extends BackupCloudService {
   @override
   Future<bool> signIn() async {
     try {
-      if (!(await googleServiceInstance).supportsAuthenticate()) {
-        throw exp.AuthException(
-          'Platform does not support authentication',
-          exp.AuthExceptionType.signInFailed,
-          serviceType: serviceType,
-        );
-      }
+      final user = await auth.signIn();
 
-      final account = await (await googleServiceInstance).authenticate(
-        scopeHint: _requestedScopes,
-      );
-      final authHeaders = await account.authorizationClient.authorizationHeaders(
-        _requestedScopes,
-        promptIfNecessary: true,
-      );
-
-      _currentUser = GoogleUserObject(
-        id: account.id,
-        email: account.email,
-        displayName: account.displayName,
-        photoUrl: account.photoUrl,
-        accessToken: authHeaders?['Authorization']?.replaceFirst('Bearer ', ''),
-        refreshedAt: DateTime.now(),
-        autoBackupEnabled: autoBackupEnabled,
-      );
-
+      // autoBackupEnabled is a per-device preference that must survive a
+      // re-sign-in, so it is carried over rather than reset.
+      _currentUser = user.copyWith(autoBackupEnabled: autoBackupEnabled);
       await GoogleUserStorage().writeObject(_currentUser!);
       return true;
     } catch (e) {
       if (e is exp.AuthException) rethrow;
-
-      if (e is gsi.GoogleSignInException) {
-        throw exp.AuthException(
-          e.description ?? e.toString(),
-          exp.AuthExceptionType.signInRequired,
-          context: 'signIn',
-          serviceType: serviceType,
-        );
-      }
 
       throw exp.AuthException(
         'Sign-in failed: $e',
@@ -190,7 +133,7 @@ class GoogleDriveCloudService extends BackupCloudService {
 
   @override
   Future<void> signOut() async {
-    await (await googleServiceInstance).signOut();
+    await auth.signOut();
     await GoogleUserStorage().remove();
     _currentUser = null;
   }
@@ -226,31 +169,18 @@ class GoogleDriveCloudService extends BackupCloudService {
     if (!isSignedIn) return false;
 
     try {
-      final account = await (await googleServiceInstance).authenticate(
-        scopeHint: _requestedScopes,
-      );
-      final authHeaders = await account.authorizationClient.authorizationHeaders(
-        _requestedScopes,
-        promptIfNecessary: true,
-      );
+      final user = await auth.requestScope(_currentUser!);
 
-      if (authHeaders == null) {
-        await (await googleServiceInstance).disconnect();
+      if (user == null) {
+        // The user declined: drop the account, exactly as the previous
+        // google_sign_in implementation did after `disconnect()`.
+        await auth.disconnect();
         _currentUser = null;
         await GoogleUserStorage().remove();
         return false;
       }
 
-      _currentUser = GoogleUserObject(
-        id: account.id,
-        email: account.email,
-        displayName: account.displayName,
-        photoUrl: account.photoUrl,
-        accessToken: authHeaders['Authorization']?.replaceFirst('Bearer ', ''),
-        refreshedAt: DateTime.now(),
-        autoBackupEnabled: autoBackupEnabled,
-      );
-
+      _currentUser = user.copyWith(autoBackupEnabled: autoBackupEnabled);
       await GoogleUserStorage().writeObject(_currentUser!);
 
       return true;

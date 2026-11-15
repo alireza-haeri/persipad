@@ -35,6 +35,23 @@ class GoogleDesktopOAuthConfig {
   );
 }
 
+/// The OAuth surface [GoogleDesktopAuthStrategy] depends on, so the strategy can
+/// be tested with a fake instead of a browser and a live Google project.
+abstract class GoogleOAuthClient {
+  /// False when this build has no client id — callers must show setup
+  /// instructions rather than open a page Google will reject.
+  bool get isConfigured;
+
+  Future<GoogleDesktopToken> authenticate();
+
+  Future<GoogleDesktopToken?> refresh({required GoogleDesktopToken token});
+
+  Future<GoogleUserInfo> fetchUserInfo(String accessToken);
+
+  /// Best-effort grant revocation (used when the user refuses a scope).
+  Future<void> revoke(String token);
+}
+
 /// One Google account's tokens.
 ///
 /// Deliberately a plain class with hand-written JSON instead of a
@@ -82,10 +99,11 @@ class GoogleDesktopToken {
 /// Google accepts *any* loopback port for a "Desktop app" client, so unlike
 /// Dropbox there is nothing to register beyond the client itself — the server
 /// binds port 0 and tells Google the port it got.
-class GoogleDesktopOAuthService {
+class GoogleDesktopOAuthService implements GoogleOAuthClient {
   static const String authorizeUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
   static const String tokenUrl = 'https://oauth2.googleapis.com/token';
   static const String userInfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
+  static const String revokeUrl = 'https://oauth2.googleapis.com/revoke';
 
   /// `drive.appdata` is the same scope the mobile build uses: backups live in
   /// the app's private appDataFolder, invisible in the user's Drive, so the
@@ -103,6 +121,9 @@ class GoogleDesktopOAuthService {
   GoogleDesktopOAuthService({GoogleDesktopOAuthConfig? config, Future<bool> Function(String url)? openBrowser})
     : config = config ?? GoogleDesktopOAuthConfig.fromEnvironment(),
       _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString;
+
+  @override
+  bool get isConfigured => config.isConfigured;
 
   /// RFC 7636 §4.1 verifier: 43–128 chars from the unreserved set. 32 random
   /// bytes base64url-encoded is 43 chars, which is the sweet spot every
@@ -203,8 +224,19 @@ class GoogleDesktopOAuthService {
     );
   }
 
+  @override
+  Future<void> revoke(String token) async {
+    try {
+      await http.post(Uri.parse(revokeUrl), body: {'token': token});
+    } catch (_) {
+      // Revocation is a courtesy, not a requirement: the local tokens are
+      // forgotten either way. A blocked network must not fail sign-out.
+    }
+  }
+
   /// Full interactive flow. Throws [GoogleOAuthException] on a missing
   /// configuration, a cancelled/denied consent, a timeout, or any HTTP failure.
+  @override
   Future<GoogleDesktopToken> authenticate() async {
     if (!config.isConfigured) {
       throw const GoogleOAuthException(
@@ -318,6 +350,7 @@ class GoogleDesktopOAuthService {
   /// Silent renewal — no browser, no user. Returns null only when Google says
   /// the refresh token itself is dead (`invalid_grant`), so callers can tell
   /// "needs a new interactive sign-in" apart from a transient failure.
+  @override
   Future<GoogleDesktopToken?> refresh({required GoogleDesktopToken token}) async {
     final refreshToken = token.refreshToken;
     if (refreshToken == null) return null;
@@ -342,6 +375,7 @@ class GoogleDesktopOAuthService {
 
   /// The account's identity, used for the same footer/avatar the mobile build
   /// shows (and for `GoogleUserObject.id`, which sync state is keyed on).
+  @override
   Future<GoogleUserInfo> fetchUserInfo(String accessToken) async {
     final response = await http.get(
       Uri.parse(userInfoUrl),
