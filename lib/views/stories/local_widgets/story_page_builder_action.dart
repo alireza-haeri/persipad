@@ -1,0 +1,19 @@
+part of 'story_pages_builder.dart';
+
+class StoryPageBuilderAction {
+  final void Function() onAddPage;
+  final void Function(int oldIndex, int newIndex) onSwapPages;
+  final void Function(StoryPageObject page) onDelete;
+
+  final bool canDeletePage;
+
+  StoryPageBuilderAction({
+    required this.onAddPage,
+    required this.onSwapPages,
+    required this.onDelete,
+    required this.canDeletePage,
+  });
+
+  bool canMoveUp(int pageIndex) => pageIndex > 0;
+  bool canMoveDown(int pageIndex, int pagesLength) => pageIndex < pagesLength - 1;
+}

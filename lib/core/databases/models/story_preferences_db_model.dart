@@ -1,0 +1,117 @@
+import 'package:flutter/material.dart';
+import 'package:json_annotation/json_annotation.dart';
+import 'package:copy_with_extension/copy_with_extension.dart';
+import 'package:storypad/core/databases/models/base_db_model.dart';
+import 'package:storypad/core/types/font_size_option.dart';
+import 'package:storypad/core/types/page_layout_type.dart';
+
+part 'story_preferences_db_model.g.dart';
+
+PageLayoutType _layoutTypeFromJson(dynamic layoutType) {
+  for (var type in PageLayoutType.values) {
+    if (type.name == layoutType.toString()) {
+      return type;
+    }
+  }
+
+  // fallback old app version layout.
+  return PageLayoutType.pages;
+}
+
+@CopyWith()
+@JsonSerializable()
+class StoryPreferencesDbModel extends BaseDbModel {
+  final bool? showDayCount;
+
+  final int? colorSeedValue;
+  final int? colorTone;
+  final String? backgroundImagePath;
+
+  final String? fontFamily;
+  final FontSizeOption? fontSize;
+  final int? fontWeightIndex;
+
+  // The title's own font, from before the title was the page's first heading. Unused now; kept so older app versions
+  // (e.g. on another device) keep theirs when this version saves the story.
+  final String? titleFontFamily;
+  final int? titleFontWeightIndex;
+  final bool? titleExpanded;
+
+  @JsonKey(fromJson: _layoutTypeFromJson)
+  final PageLayoutType layoutType;
+
+  Color? get colorSeed => colorSeedValue != null ? Color(colorSeedValue!) : null;
+  FontWeight? get fontWeight => fontWeightIndex != null ? FontWeight.values[fontWeightIndex!] : null;
+
+  int get colorToneFallback => colorTone ?? 0;
+
+  StoryPreferencesDbModel({
+    required this.showDayCount,
+    required this.colorSeedValue,
+    required this.colorTone,
+    required this.backgroundImagePath,
+    required this.fontFamily,
+    required this.fontSize,
+    required this.fontWeightIndex,
+    required this.titleFontFamily,
+    required this.titleFontWeightIndex,
+    required this.titleExpanded,
+    required this.layoutType,
+  });
+
+  @override
+  int get id => 0;
+
+  @override
+  DateTime? get updatedAt => null;
+
+  bool get allReseted =>
+      [
+        colorSeedValue,
+        colorTone,
+        backgroundImagePath,
+        fontFamily,
+        fontSize,
+        fontWeightIndex,
+      ].every((e) => e == null) &&
+      layoutType == PageLayoutType.list;
+
+  StoryPreferencesDbModel resetTheme() {
+    return copyWith(
+      colorSeedValue: null,
+      colorTone: null,
+      backgroundImagePath: null,
+      fontFamily: null,
+      fontSize: null,
+      fontWeightIndex: null,
+      titleFontFamily: null,
+      titleFontWeightIndex: null,
+      titleExpanded: null,
+      layoutType: PageLayoutType.list,
+    );
+  }
+
+  factory StoryPreferencesDbModel.create() {
+    return StoryPreferencesDbModel(
+      showDayCount: false,
+      colorSeedValue: null,
+      colorTone: null,
+      backgroundImagePath: null,
+      fontFamily: null,
+      fontSize: null,
+      fontWeightIndex: null,
+      titleFontFamily: null,
+      titleFontWeightIndex: null,
+      layoutType: PageLayoutType.list,
+      titleExpanded: null,
+    );
+  }
+
+  Map<String, dynamic> toNonNullJson() {
+    return toJson()..removeWhere((e, value) => value == null);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => _$StoryPreferencesDbModelToJson(this);
+  factory StoryPreferencesDbModel.fromJson(Map<String, dynamic> json) => _$StoryPreferencesDbModelFromJson(json);
+}
