@@ -116,6 +116,23 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Verify generated code is committed
+        # Advisory on purpose: if a committed *.g.dart drifts from what the pinned
+        # generators produce, we want to know (annotations), but failing here would
+        # red the branch for something a codegen run fixes. Run the Codegen workflow
+        # (commit marker [codegen]) to refresh them.
+        continue-on-error: true
+        run: |
+          changed=$(git status --porcelain | awk '{print $2}')
+          if [ -n "$changed" ]; then
+            echo "::error::Committed generated code is stale - run the Codegen workflow ([codegen] marker)"
+            for f in $changed; do
+              echo "::error file=$f::differs from a fresh build_runner run"
+            done
+          else
+            echo "::notice::Generated code matches a fresh build_runner run"
+          fi
+
       - name: Verify formatting
         # ADVISORY for now: the sandbox cannot run `dart format`, so a blocking
         # gate would cost a full CI round trip per line-break guess. The
