@@ -284,3 +284,30 @@ Template:
   `FirebaseInitializer` already handles by returning early.
 - **Consequences:** the app boots on the desktop; Analytics/Crashlytics/RemoteConfig stay
   no-ops there, which is the documented Linux behaviour.
+
+## D-019 — Google Drive on Linux reuses the Drive API and only replaces auth (2026-11-15)
+- **Status:** accepted
+- **Context:** the biggest hole in the Linux build was sync. Drive was registered as
+  `GoogleDriveLinuxCloudService`, a stub whose every method returned null/false, because
+  `google_sign_in` has no Linux implementation — so the tile was disabled outright. Dropbox,
+  meanwhile, was fully implemented but sent `client_id=""` (the `community` flavor's
+  `dart_define` file is `{}`), which Dropbox answered with `Invalid client_id: ""`.
+- **Decision:**
+  1. Split the platform-specific part out: `GoogleDriveAuthStrategy` obtains and renews
+     tokens; everything else in `GoogleDriveCloudService` (835 lines of Drive REST) is shared.
+     The mobile implementation is the previous `google_sign_in` code, moved verbatim.
+  2. Linux implements the installed-app OAuth2 flow itself
+     (`GoogleDesktopOAuthService`): system browser, loopback server on an OS-assigned port,
+     PKCE(S256) + `state`, `access_type=offline` for a refresh token.
+  3. Written against `dart:io`/`http` instead of adding `googleapis_auth`: no new dependency
+     means no `pubspec.lock` change, which I cannot generate offline (pub.dev is blocked in
+     the agent sandbox).
+  4. Credentials live in the gitignored `private_keys` checkout next to the repo and are
+     passed as `--dart-define`s; `bin/setup_sync` writes them (accepting Google's downloaded
+     `client_secret_*.json`) so nobody hand-edits JSON.
+  5. "Not configured" is an explicit, explained state (dialog with the checklist) rather than
+     a browser window that ends on Google's `invalid_client` page.
+- **Consequences:** Drive works on the desktop with the same one-tap flow as the phone. It
+  needs a one-time OAuth client, owned by whoever builds/releases — an app identifier, not an
+  account. `drive.appdata` is a non-sensitive scope, so publishing needs no Google security
+  review; while the project stays in Testing, Google expires refresh tokens after 7 days.

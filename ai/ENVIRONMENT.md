@@ -116,7 +116,11 @@ If you prefer the raw command (e.g. for a debugger / IDE launch config):
 | CMake: `libsecret-1`, ALSA, `jsoncpp` not found | missing `-devel` | see 2.2 |
 | `flutter pub get` complains about stale lock | `pubspec.yaml` changed | `flutter pub get` (setup script does it) |
 | Install step: `Permission denied` on `/usr/local/storypad` | CMake install prefix cached from an older build | `rm -rf build/linux` and rebuild — granting permissions does **not** help |
-| Google sign-in / Drive sync unavailable | `google_sign_in` has no Linux support | expected; test that path on Android later |
+| Drive tile says "Google Drive needs one setup step" | this build has no OAuth client id | `bin/setup_sync --google-json ~/Downloads/client_secret_*.json`, then restart `bin/dev` (D-019) |
+| Browser: `Error 400: invalid_client` when connecting Drive | empty/wrong `GOOGLE_DESKTOP_CLIENT_ID`, or a client of type Web/Android instead of **Desktop app** | recreate the credential as Desktop app; check `bin/setup_sync --show` |
+| Browser: "Access blocked … has not completed verification" / app not found | Google project is in Testing and your account is not a test user | add the account under Audience → Test users, or publish the app |
+| Drive re-asks for sign-in every ~7 days | consent screen still in **Testing** (Google expires refresh tokens after 7 days) | publish the app (non-sensitive scopes, no review needed) |
+| `Invalid client_id: ""` page from Dropbox | `DROPBOX_APP_KEY` is empty in the build | `bin/setup_sync --dropbox-key <app key>`; Dropbox app needs redirect `http://localhost:8763/callback` |
 | `objectbox.g.dart: Error: Method not found: 'loadObjectBoxLibraryAndroidCompat'` | committed generated code is older than the pinned objectbox 6 preview | run `bin/build_runner --delete` once (or `bin/setup_linux`); `bin/dev` now catches this in a second (D-016) |
 | `bin/dev` refuses to start: "Generated code has not been built in this checkout" | codegen stamp missing (fresh clone or pubspec change) | `bin/setup_linux`, or bypass once with `SKIP_CODEGEN_CHECK=1` |
 
@@ -126,11 +130,12 @@ These are expected behaviours on Linux and must not be "fixed" by hacking:
 
 - **Firebase is off** — `firebase_initializer.dart` returns early on Linux, so
   Analytics / Crashlytics / RemoteConfig are no-ops. Never assume they run.
-- **Google sign-in + Google Drive sync are unavailable** — the `google_sign_in`
-  package has no Linux implementation. The repo does contain
-  `GoogleDriveLinuxCloudService` (loopback OAuth), but there is no usable sign-in
-  flow today. Treat Drive sync as unsupported on Linux; local backup/export is the
-  Linux path. Tracked in `BACKLOG.md` as I-7.
+- **Google Drive sync works, after a one-time OAuth client** (D-019). Linux cannot
+  use `google_sign_in`, so the app runs the installed-app OAuth2 flow itself and
+  needs a client id in the build: `bin/setup_sync`. Without it the Drive tile
+  explains the setup instead of opening a browser.
+- **Dropbox sync works, after an app key** — same script, `--dropbox-key`. Empty
+  key produces Dropbox's `Invalid client_id: ""` page.
 - **IAP off** (`kIAPEnabled` is Android/iOS/macOS only) — any paywall must be
   escapable without purchasing.
 - **Biometrics off** (`local_auth_service.dart`) — PIN lock is what remains.

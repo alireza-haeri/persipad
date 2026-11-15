@@ -41,6 +41,17 @@
 - [x] 5 more tests pinning the media extension lists to `AssetFileTypeService` (a video
       picked from disk used to be insertable as an image).
 
+### Session 7 — Google Drive works on Linux
+- [x] `GoogleDriveAuthStrategy` split out; mobile keeps `google_sign_in` unchanged (D-019).
+- [x] Loopback OAuth2 client for Google (`GoogleDesktopOAuthService`) — no new dependencies.
+- [x] `GoogleDriveLinuxCloudService` is no longer a stub: it is the real Drive service with
+      the desktop auth strategy.
+- [x] Drive tile enabled on Linux; a missing client id shows a setup checklist instead of a
+      broken browser page.
+- [x] `bin/setup_sync` writes/merges/masks the credentials in gitignored `private_keys/`.
+- [ ] Real end-to-end run with actual credentials (waiting on the user).
+- [ ] Dropbox stays dead until `DROPBOX_APP_KEY` is set — same script, same file.
+
 ### Session 6 — CI levels + the app actually boots on Linux
 - [x] **Fixed the crash that prevented the app from starting on Linux** (D-018):
       `DefaultFirebaseOptions.currentPlatform` throws on Linux and was read eagerly in
