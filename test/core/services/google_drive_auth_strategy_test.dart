@@ -82,7 +82,9 @@ class _FakeOAuth implements GoogleOAuthClient {
 GoogleDesktopToken _token({String access = 'access', bool expired = false}) => GoogleDesktopToken(
   accessToken: access,
   refreshToken: 'refresh',
-  expiresAt: expired ? DateTime.now().subtract(const Duration(minutes: 5)) : DateTime.now().add(const Duration(hours: 1)),
+  expiresAt: expired
+      ? DateTime.now().subtract(const Duration(minutes: 5))
+      : DateTime.now().add(const Duration(hours: 1)),
 );
 
 GoogleUserObject _user({String access = 'stored-access'}) => GoogleUserObject(
@@ -209,7 +211,11 @@ void main() {
         signInError: const GoogleOAuthException('No Google OAuth client is configured.', error: 'not_configured'),
       );
 
-      final future = GoogleDesktopAuthStrategy(oauth: oauth, tokens: _FakeTokenStore(), users: _FakeUserStore()).signIn();
+      final future = GoogleDesktopAuthStrategy(
+        oauth: oauth,
+        tokens: _FakeTokenStore(),
+        users: _FakeUserStore(),
+      ).signIn();
 
       await expectLater(
         future,
@@ -224,7 +230,10 @@ void main() {
 
     test('reports a refused consent as a plain sign-in failure', () async {
       final oauth = _FakeOAuth(
-        signInError: const GoogleOAuthException('Google refused the authorization: access_denied', error: 'access_denied'),
+        signInError: const GoogleOAuthException(
+          'Google refused the authorization: access_denied',
+          error: 'access_denied',
+        ),
       );
 
       await expectLater(
