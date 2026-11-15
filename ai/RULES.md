@@ -35,11 +35,21 @@
 
 ## 3. Platform rules
 
-- Priority 1: **Android** — first-class, fully supported.
-- Priority 2: **Linux** — supported but second-class today (Firebase, biometrics, IAP
-  are disabled there).
+- **Only Linux is an active target right now.** Android is parked (temporarily out of
+  scope, not abandoned — see D-007). Every change must be verifiable with
+  `bin/dev --community-linux` on your Fedora box.
+- **Linux is the dev loop I optimize for:** build and run must stay fast and one-command.
+  If a change makes `bin/setup_linux` + `bin/dev --community-linux` fail, it is not done.
+- **Do not add a dependency that has no Linux implementation** without an explicit
+  decision. If a package is Android-only, gate it behind `Platform.isAndroid` and make
+  sure the Linux UI degrades gracefully (message instead of crash).
+- When a package is disabled on Linux (Firebase, biometrics, IAP, camera, quick actions,
+  video compression, Google sign-in), the code path must still work — no silent no-op
+  that looks like a bug.
 - macOS / Windows / iOS: no commitment. Their code must not be deleted, but we don't
-  spend time on them.
+  spend time on them and we don't add complexity for them.
+- If a change would break macOS/iOS compilation, prefer a platform guard over a global
+  change — but don't block on verifying it.
 
 ## 4. Documentation rules (this folder)
 
@@ -62,6 +72,7 @@
 
 - [ ] `dart format` on touched files (when the tool is available).
 - [ ] New logic is testable and, where reasonable, covered in `test/`.
-- [ ] Both Android **and** Linux paths were considered (at minimum by reading code).
+- [ ] The Linux path was considered (Android is parked, but guards must not break it).
 - [ ] New strings are translated.
+- [ ] I told you exactly what to run (`bin/dev --community-linux`) and what to look at.
 - [ ] `ai/PROGRESS.md` updated, `ai/DECISIONS.md` updated if a decision was made.

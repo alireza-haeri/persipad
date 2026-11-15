@@ -34,13 +34,14 @@ Template:
 - **Consequences:** Our code can drift from upstream; future merges get harder.
 
 ## D-003 — Platform scope: Linux + Android (2026-11-15)
-- **Status:** accepted
+- **Status:** superseded by D-007
 - **Context:** You said: "for now I'm focused on Linux and Android; macOS and Windows
   are not a concern."
 - **Decision:** Android is first-class, Linux is second-class but supported.
   macOS / Windows / iOS / web are out of active scope; their code is left untouched.
 - **Consequences:** Manual testing happens on Linux and Android. Shared changes must
   go through platform-aware paths (`Platform.is*`) so other platforms don't break.
+- **Superseded:** D-007 later parked Android and made Linux the only active target.
 
 ## D-004 — The `ai/` folder is the single source of truth for docs (2026-11-15)
 - **Status:** accepted
@@ -67,3 +68,61 @@ Template:
 - **Consequences:** Slightly harder for a Persian-only reader, but better for
   searching, diffing, and consistency with the codebase and upstream docs.
   All existing files were rewritten in the same session.
+
+## D-007 — Linux-only development; Android parked (2026-11-15)
+- **Status:** accepted — supersedes D-003
+- **Context:** You got the app running on Fedora and said: *"from now on, develop so I
+  can easily build and run the app on my Linux machine and see it… forget Android for
+  now, let's go with Linux so that while developing I can run and see it quickly."*
+- **Decision:** Linux is the **only active target**. Android is parked, not deleted: no
+  Android builds, no Gradle work, no Android-specific feature work for now. Code stays
+  platform-aware so Android does not rot, but nothing is verified there.
+- **Consequences:**
+  - "Done" now means: `bin/setup_linux` and `bin/dev --community-linux` work on Fedora.
+  - New dependencies must have Linux support, or be guarded behind `Platform.isAndroid`.
+  - Android-only features (IAP, camera, quick actions, Google sign-in) can't be tested;
+    keep them compiling, don't extend them.
+
+## D-008 — Toolchain baseline is Flutter 3.50.0 / Dart 3.14.0 (2026-11-15)
+- **Status:** accepted
+- **Context:** The project does not compile on Flutter 3.41 / Dart 3.11 (the previous
+  `.tool-versions` value, 3.47.4, is also below what you have). You installed Flutter
+  3.50.0 stable in `~/development/flutter_stable` alongside the old one and everything
+  builds. Pinning package versions cannot work around missing SDK APIs
+  (`scrollableBuilder`, `onReorderItem`, `TextInputStyle`).
+- **Decision:** The supported dev toolchain is **Flutter 3.50.0 stable (Dart 3.14.0)**.
+  `.tool-versions` updated from `3.47.4-stable` to `3.50.0-stable` so CI and version
+  managers follow along. The old Flutter on PATH must not be used.
+- **Consequences:** Anyone with an older SDK gets compile errors unrelated to our code.
+  `bin/setup_linux` warns when the detected SDK is older than the baseline.
+
+## D-009 — Commit the SDK-driven dependency bumps (2026-11-15)
+- **Status:** accepted (revisit when objectbox 6 is stable)
+- **Context:** To compile on Dart 3.14 you needed `objectbox 6.0.0-preview.6` (5.x does
+  not compile) and `json_serializable ^6.15.2` (6.14.1 conflicts with `source_helper`
+  and breaks `build_runner`). Those were local-only edits in your folder, which means a
+  fresh clone of our repo would not build.
+- **Decision:** Commit both bumps into `pubspec.yaml` as the project baseline, with
+  explanatory comments pointing here.
+- **Consequences:**
+  - A fresh clone now builds on the new SDK after `flutter pub get` + codegen.
+  - `objectbox.g.dart` / `lib/objectbox-model.json` are generated and were produced by
+    5.3.2 — **`bin/setup_linux` (or `bin/build_runner --delete`) must run once** after
+     pulling, otherwise the build fails confusingly.
+  - We depend on a *preview* release. Revisit when objectbox 6.0.0 stable ships.
+  - `pubspec.lock` in the repo is now stale by design; `flutter pub get` rewrites it.
+
+## D-010 — One-command Linux dev loop (2026-11-15)
+- **Status:** accepted
+- **Context:** `bin/dev` had no Linux target, and the working `flutter run` invocation is
+  long (target + dart-defines file + `-d linux`). You want to run the app constantly
+  while we develop.
+- **Decision:** Two additions, both committed:
+  - `bin/dev --community-linux` / `--storypad-linux`: same target and dart-defines as
+    the mobile flavors, but **without** `--flavor` (`flutter run -d linux` rejects
+    flavors). The sed that extracts the flavor now strips `-linux` too, otherwise every
+    derived path breaks.
+  - `bin/setup_linux`: idempotent setup (SDK detection + version warning, Fedora package
+    check, `pub get`, codegen). No sudo.
+- **Consequences:** The daily loop is `bin/setup_linux` once, then
+  `bin/dev --community-linux`. Android/iOS/macOS targets are untouched.

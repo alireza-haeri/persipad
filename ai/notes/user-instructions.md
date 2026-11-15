@@ -47,6 +47,66 @@ touch them — I'll only help with guidance and review.
 
 ---
 
+## Session 2 — 2026-11-15
+
+### N-006 — Report: running StoryPad on Fedora Linux (the working recipe)
+> A full failure-to-success report. Distilled:
+
+**Goal:** run the Flutter project as a Linux desktop app on Fedora.
+
+**Attempt 1 — stay on the old Flutter (failed).** Created `pubspec_overrides.yaml` to pin
+`animations`, `video_player`, `record`, … to older versions, deleted `pubspec.lock`, capped
+`build_runner`/`json_serializable`. `pub get` succeeded and codegen ran, but compilation
+failed: the project and `super_editor` use APIs that only exist in newer Flutter —
+`scrollableBuilder`, `onReorderItem`, `TextInputStyle`. **Conclusion: pinning packages
+cannot fix a missing SDK API.**
+
+**Attempt 2 — install the new Flutter side by side (worked).** Cloned Flutter stable
+**3.50.0 (Dart 3.14.0)** into `~/development/flutter_stable`, leaving the existing
+`flutter_3.41` intact. Removed all overrides, restored `pubspec.yaml`.
+
+**Attempt 3 — dependency conflicts.** Moved `objectbox`, `objectbox_flutter_libs`,
+`objectbox_generator` to `6.0.0-preview.6` (5.x doesn't match the new SDK), and
+`json_serializable` from `6.14.1` to `^6.15.2` (6.14.1 clashes with `source_helper`, so
+`build_runner` itself failed to compile). Codegen then produced 90 outputs successfully.
+
+**Attempt 4 — Fedora dev libraries.** Each CMake error named a missing `-devel` package:
+`webkit2gtk-4.0` → `webkit2gtk4.1-devel` (plus a newer `desktop_webview_window`),
+`libsecret-devel`, `alsa-lib-devel`, `pulseaudio-libs-devel`, `jsoncpp-devel`,
+`libayatana-appindicator-gtk3-devel`, `mesa-libGL-devel`, …
+
+**Attempt 5 — the final install error.** Build failed at install with `Permission denied`
+on `/usr/local/storypad` because a stale CMake cache had that install prefix. Granting
+permissions did **not** help; **`rm -rf build/linux`** did. The bundle landed in
+`build/linux/x64/debug/bundle/storypad` and the app ran.
+
+**Final state:** app runs on Linux; local ObjectBox DB and the rest work.
+**Limitation:** Google sign-in / Google Drive sync are not supported on Linux
+(`google_sign_in` package limitation), not an install problem — test those on Android/web.
+
+**Daily command they used:**
+```bash
+cd ~/Downloads/storypad-/linux/storypad && ~/development/flutter_stable/bin/flutter run -d linux
+```
+(always the new Flutter in `flutter_stable`, never the one on PATH)
+
+**Cleanup notes:** `pubspec.yaml.bak` / `pubspec.yaml.bak2` are left over and can be
+deleted. The `pubspec.yaml` edits were local-only, so check before committing.
+
+**Status:** ✅ adopted as project reality → D-007, D-008, D-009, D-010;
+full detail in [`ENVIRONMENT.md`](../ENVIRONMENT.md).
+
+### N-007 — Develop for the Linux dev loop
+> "From now on, develop so that I can easily build and run the app on my Linux machine to
+> see it. OK? … Forget Android too for now; let's go to Linux so that while developing I
+> can run and see it easily and quickly. Agreed?"
+
+**Status:** ✅ agreed → D-007 (Linux-only), D-010 (one-command loop).
+**Note:** I treat "done" as: `bin/setup_linux` + `bin/dev --community-linux` work on
+Fedora, and I always tell you what to run and what to look at.
+
+---
+
 ## Template for a new note
 
 ```md

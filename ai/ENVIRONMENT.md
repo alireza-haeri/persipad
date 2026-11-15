@@ -1,8 +1,17 @@
 # Environment & builds
 
-## The sandbox I work in — important
+Two different machines are involved. Keep them separate in your head.
 
-Checked on 2026-11-15:
+| | Who | Role |
+|---|---|---|
+| **Sandbox** | me (the agent) | I edit, commit, push. I cannot build. |
+| **Fedora box** | you | The only place the app is compiled and run. |
+
+Everything below was verified by you on 2026-11-15 (see `notes/user-instructions.md` N-006).
+
+---
+
+# 1. The sandbox (my side) — cannot build
 
 | Item | Status | Meaning |
 |---|---|---|
@@ -11,73 +20,124 @@ Checked on 2026-11-15:
 | `storage.googleapis.com` / `dl.google.com` | ❌ blocked | cannot download SDK/NDK |
 | `services.gradle.org` | ❌ blocked | no Gradle/Android build |
 | `github.com`, `api.github.com`, `codeload` | ✅ open | clone/push/PR work |
-| `registry.npmjs.org`, `pypi.org` | ✅ open | (irrelevant for this project) |
+| `registry.npmjs.org`, `pypi.org` | ✅ open | (irrelevant here) |
 
-**Practical consequence:**
+**Consequence:** I never claim "it builds". I read code, write code, and hand you a
+short checklist of what to run. `flutter analyze` / `flutter test` are **your** job,
+and their result goes into `PROGRESS.md` → Test log.
 
-- I **can** read, write, refactor, document, commit and push code.
-- I **cannot** run `flutter analyze`, `flutter test`, or any build here.
-- So **you are the final verifier**, on your own machine (Linux or Android).
-- To compensate I: keep changes small, copy existing code patterns exactly, and end
-  every task with an explicit "what you should test" note.
+---
 
-If any of this changes (e.g. a pub mirror becomes reachable), this table gets updated
-and we can automate the static analysis.
+# 2. The Linux dev box (yours) — this is the target
 
-## Your machine's prerequisites
+## 2.1 Toolchain
 
-From `.tool-versions` and `README.md`:
+| Thing | Value |
+|---|---|
+| Distro | Fedora |
+| Flutter | **3.50.0 stable / Dart 3.14.0** at `~/development/flutter_stable` |
+| Old Flutter | `flutter_3.41` (Dart 3.11) still installed — **must not be used**, it cannot compile this project |
+| Repo | must be the repo root; `flutter run` is always launched from there |
 
-- Flutter `3.47.4-stable` (the README still says 3.29; `pubspec.yaml` requires
-  `sdk: ^3.11.0` — **`.tool-versions` is the authoritative one**)
-- Java 21 (`openjdk-21`) for Android
-- Node 24, Python 3.12 (only for scripts in `bin/`)
-- Android: minSdk 24, compileSdk 37
-- Linux: standard Flutter desktop toolchain
-  (`clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`)
+Why 3.50.0 is mandatory: StoryPad (and `super_editor`) use APIs that only exist in the
+newer Flutter — `scrollableBuilder`, `onReorderItem`, `TextInputStyle`. Pinning package
+versions does **not** fix that; the SDK itself has to be new enough.
 
-## Daily commands
+`.tool-versions` in this repo now says `flutter 3.50.0-stable`, matching your box.
+
+## 2.2 System packages (Fedora)
+
+Each CMake failure in your run pointed at one missing `-devel` package. Full list:
 
 ```bash
-# dependencies + codegen
-flutter pub get
-bin/build_runner --delete        # occasionally needed, since *.g.dart is committed
-
-# Android (public flavor; the "storypad" flavor needs private keys)
-bin/dev --community
-
-# Linux (bin/dev has no linux target, run directly)
-flutter run -d linux --target=lib/main_community.dart \
-  --dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json
-# If that dart-defines file doesn't exist yet, run `bin/dev --community` once so
-# sync_private_keys creates it, or pass the --dart-define flags manually.
-
-# quality
-dart format lib packages
-flutter analyze
-flutter test
-flutter test packages/storypad_editor
+sudo dnf install -y \
+  clang cmake ninja-build pkgconf-pkg-config \
+  gtk3-devel \
+  webkit2gtk4.1-devel \
+  libsecret-devel \
+  alsa-lib-devel \
+  pulseaudio-libs-devel \
+  jsoncpp-devel \
+  libayatana-appindicator-gtk3-devel \
+  mesa-libGL-devel
 ```
 
-### Linux notes
+`bin/setup_linux` checks all of these and prints exactly the missing ones (it never
+runs sudo itself).
 
-`bin/dev` has no `--linux` input (only android/ios/macos). We can add
-`--community-linux`; that idea is tracked in [`BACKLOG.md`](BACKLOG.md) as I-1.
+## 2.3 Package overrides required by the newer SDK
 
-These are deliberately disabled or replaced on Linux — keep them in mind when testing:
+These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
 
-- Firebase (`firebase_initializer.dart`: `if (Platform.isLinux) return;`) → Analytics,
-  Crashlytics and RemoteConfig become no-ops; never assume they work.
-- Local auth / biometrics (`local_auth_service.dart`) → the PIN lock is what remains.
-- IAP (`kIAPEnabled` only Android/iOS/macOS) → the paywall must be escapable without
-  a purchase on Linux.
-- Google Drive uses a separate path: `GoogleDriveLinuxCloudService` (loopback OAuth).
-- Camera, quick actions, video compression are unavailable on Linux:
-  `kSupportCamera`, `kSupportQuickActions`, `kSupportVideoCompression`.
+| Package | Was | Now | Why |
+|---|---|---|---|
+| `objectbox` | 5.3.2 | 6.0.0-preview.6 | 5.x does not compile against Dart 3.14 |
+| `json_serializable` | 6.14.1 | ^6.15.2 | 6.14.1 conflicts with `source_helper`; build_runner itself fails to compile |
 
-## Known hazards
+`build_runner` then produces ~90 outputs. `objectbox.g.dart` and
+`lib/objectbox-model.json` are **generated**: they must be regenerated after this bump.
+`bin/setup_linux` does that for you.
 
-- `lib/main_storypad.dart` and `lib/firebase_options/storypad.dart` are gitignored →
-  the `storypad` flavor fails without private keys. Use `--community`.
-- `*.g.dart` files are committed; if you change a model and skip build_runner you get
-  confusing errors.
+## 2.4 Daily loop
+
+```bash
+# from the repo root, once per fresh clone / after pulling dependency changes
+bin/setup_linux
+
+# then, every time
+bin/dev --community-linux
+```
+
+`bin/setup_linux` = resolve SDK → check system packages → `flutter pub get` →
+`bin/build_runner --delete`. It is idempotent, so it is safe to run anytime something
+feels stale.
+
+If you prefer the raw command (e.g. for a debugger / IDE launch config):
+
+```bash
+~/development/flutter_stable/bin/flutter run -d linux \
+  --target=lib/main_community.dart \
+  --dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json
+```
+
+> Note: **no `--flavor` on Linux.** `flutter run -d linux` rejects flavors; `bin/dev`
+> drops it for the `-linux` targets. `bin/dev` also auto-creates the (empty)
+> `community.json` dart-defines file when the `private_keys/` submodule is absent, so
+> RevenueCat / Maps / Google Sign-In simply no-op instead of failing the build.
+
+## 2.5 Troubleshooting (all of these actually happened)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `pub get` fails, then Dart compile errors in `super_editor` | old Flutter (3.41 / Dart 3.11) | use `~/development/flutter_stable` (3.50.0) |
+| `build_runner` won't compile, `source_helper` conflict | `json_serializable` 6.14.1 | `^6.15.2` (committed) |
+| objectbox fails to compile | objectbox 5.x vs Dart 3.14 | 6.0.0-preview.6 (committed) |
+| CMake: `webkit2gtk-4.0` not found | package renamed | `webkit2gtk4.1-devel` |
+| CMake: `libsecret-1`, ALSA, `jsoncpp` not found | missing `-devel` | see 2.2 |
+| `flutter pub get` complains about stale lock | `pubspec.yaml` changed | `flutter pub get` (setup script does it) |
+| Install step: `Permission denied` on `/usr/local/storypad` | CMake install prefix cached from an older build | `rm -rf build/linux` and rebuild — granting permissions does **not** help |
+| Google sign-in / Drive sync unavailable | `google_sign_in` has no Linux support | expected; test that path on Android later |
+
+## 2.6 Known Linux limitations (product-level, not build errors)
+
+These are expected behaviours on Linux and must not be "fixed" by hacking:
+
+- **Firebase is off** — `firebase_initializer.dart` returns early on Linux, so
+  Analytics / Crashlytics / RemoteConfig are no-ops. Never assume they run.
+- **Google sign-in + Google Drive sync are unavailable** — the `google_sign_in`
+  package has no Linux implementation. The repo does contain
+  `GoogleDriveLinuxCloudService` (loopback OAuth), but there is no usable sign-in
+  flow today. Treat Drive sync as unsupported on Linux; local backup/export is the
+  Linux path. Tracked in `BACKLOG.md` as I-7.
+- **IAP off** (`kIAPEnabled` is Android/iOS/macOS only) — any paywall must be
+  escapable without purchasing.
+- **Biometrics off** (`local_auth_service.dart`) — PIN lock is what remains.
+- **Camera / quick actions / video compression off** — `kSupportCamera`,
+  `kSupportQuickActions`, `kSupportVideoCompression`.
+
+## 2.7 Cleanup notes from your run
+
+- Backup files `pubspec.yaml.bak`, `pubspec.yaml.bak2` were left in your project folder —
+  delete them; the real values are now committed.
+- Any `pubspec_overrides.yaml` you created while testing package pins must be removed,
+  or it will silently override what we commit.

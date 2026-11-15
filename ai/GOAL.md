@@ -14,10 +14,13 @@ features layered on top and parts of the UX redesigned to our taste.
    architecture or the existing test suite.
 3. **Redesign selected parts** that don't match our taste (UI/UX, flows).
 4. **Keep privacy and offline-first as non-negotiables.**
-5. **First-class support for Linux and Android** in every change we make.
+5. **First-class Linux support** in every change we make, and a dev loop you can run
+   yourself in one command.
 
 ## Out of scope (for now)
 
+- **Android: parked** (temporarily). No builds, no Android-only feature work. Code stays
+  platform-aware so it doesn't rot, but nothing is verified there (D-007).
 - macOS / Windows: **explicitly out of scope**. Their code stays in the tree, but we
   don't test, optimize, or add complexity for them.
 - iOS: inactive scope (keep the code, no testing commitment).
