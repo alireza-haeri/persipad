@@ -152,11 +152,9 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
       _refreshMonthsForYear();
     }
 
-    // Month recap stats are aggregated per *Gregorian* month, so they are
-    // skipped in Shamsi mode rather than labelled with the wrong month.
-    _monthlyStats = CalendarDisplay.isPersian
-        ? {}
-        : MonthlyStoryStatsService.getByMonth(stories: renderableStories);
+    // Recap stats are aggregated per *display* month (see the service), so they
+    // work in either calendar.
+    _monthlyStats = MonthlyStoryStatsService.getByMonth(stories: renderableStories);
     _items = _buildItems(renderableStories);
   }
 

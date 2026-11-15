@@ -1,6 +1,6 @@
 import 'package:storypad/core/databases/models/story_db_model.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/objects/month_recap_stats_object.dart';
-import 'package:storypad/core/services/days_count_in_month_service.dart';
 import 'package:storypad/core/services/stories/story_content_embed_extractor.dart';
 
 /// Aggregates a single year's stories into per-month recap stats.
@@ -10,22 +10,31 @@ import 'package:storypad/core/services/stories/story_content_embed_extractor.dar
 /// math) and get back a `month -> stats` map. The view model just calls this
 /// and holds the result.
 class MonthlyStoryStatsService {
-  /// Returns recap stats keyed by month of the year (1–12). Months without any
-  /// stories are absent from the map.
+  /// Returns recap stats keyed by month of the display year (1–12). Months
+  /// without any stories are absent from the map.
+  ///
+  /// Everything here is in the **display** calendar: a Shamsi month starts on a
+  /// Gregorian date in March, so grouping by the stored `month` column would mix
+  /// two months into one tile and count a 31-day month that has 30 days.
+  /// [stories] are expected to be scoped to one display year (which is what the
+  /// home list passes).
   static Map<int, MonthRecapStatsObject> getByMonth({
     required List<StoryDbModel> stories,
     DateTime? now,
   }) {
     final DateTime today = now ?? DateTime.now();
+    final int todayYear = CalendarDisplay.yearOf(today);
+    final int todayMonth = CalendarDisplay.monthOf(today);
 
     final Map<int, List<StoryDbModel>> storiesByMonth = {};
     for (final StoryDbModel story in stories) {
-      storiesByMonth.putIfAbsent(story.month, () => []).add(story);
+      final monthKey = CalendarDisplay.monthKeyOf(story.displayPathDate);
+      storiesByMonth.putIfAbsent(monthKey.month, () => []).add(story);
     }
 
     final Map<int, MonthRecapStatsObject> result = {};
     storiesByMonth.forEach((int month, List<StoryDbModel> monthStories) {
-      final int year = monthStories.first.year;
+      final int year = CalendarDisplay.yearOf(monthStories.first.displayPathDate);
 
       int photoCount = 0;
       int videoCount = 0;
@@ -37,11 +46,11 @@ class MonthlyStoryStatsService {
         photoCount += StoryContentEmbedExtractor.photos(content).length;
         videoCount += StoryContentEmbedExtractor.videos(content).length;
         voiceCount += StoryContentEmbedExtractor.audio(content).length;
-        activeDays.add(story.displayPathDate.day);
+        activeDays.add(CalendarDisplay.dayOf(story.displayPathDate));
       }
 
-      final bool isCurrentMonth = year == today.year && month == today.month;
-      final int totalDays = isCurrentMonth ? today.day : DaysCountInMonthService.get(year: year, month: month);
+      final bool isCurrentMonth = year == todayYear && month == todayMonth;
+      final int totalDays = isCurrentMonth ? CalendarDisplay.dayOf(today) : CalendarDisplay.daysInMonth(year, month);
 
       result[month] = MonthRecapStatsObject(
         month: month,

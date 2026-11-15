@@ -87,8 +87,10 @@
       start/end/month/years/label/previous/next all go through `CalendarDisplay`), the tab labels and
       the twelve trend bars count display months, the year picker lists display years, and story
       queries use exact day ranges.
-- [ ] Month recap tiles still group by the Gregorian `month` column, so they are skipped in Shamsi
-      mode (`BACKLOG.md` C-1h).
+- [x] **Month recap tiles in Shamsi** (closes `BACKLOG.md` C-1h): `MonthlyStoryStatsService` groups by
+      display month, counts active days by display day and scores against the display month's length
+      (Aban = 30 days), so the home list shows recaps in both calendars instead of skipping them.
+      Nothing in the app aggregates by the Gregorian `month` column any more.
 - [x] 2 new translation keys in all 21 locales.
 
 ### Session 7 — Google Drive works on Linux

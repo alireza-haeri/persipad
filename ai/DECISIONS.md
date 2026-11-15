@@ -603,5 +603,7 @@ Template:
   4. **Year lists come from `getStoryCountsByDisplayYear`**, so the picker offers years that actually
      hold stories.
 - **Consequence:** `StatsRange.anchor` is still a real `DateTime` — only the numbers the screen shows
-  are display values. The month recap tiles on the home list are the one remaining Gregorian
-  aggregation and are deliberately skipped in Shamsi mode (`BACKLOG.md` C-1h).
+  are display values. The home month recap tiles joined in the same round: `MonthlyStoryStatsService`
+  groups by `CalendarDisplay.monthKeyOf`, so nothing in the app aggregates by the Gregorian `month`
+  column any more (Aban is scored against its real 30 days, not against the 31-day Gregorian months
+  it straddles).

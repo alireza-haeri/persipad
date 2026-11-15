@@ -40,7 +40,7 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | C-1e | `✅` Settings tile (calendar system) | Settings → Region → Calendar System |
 | C-1f | `✅` Year filters in the display calendar | Archive/tag/year-picker tabs and the search filter chips show and filter by display years; `CalendarDisplay.yearsFilter` turns them into Gregorian years + exact day ranges (D-027) |
 | C-1g | `✅` Stats screen in the display calendar | `StatsRange` snaps to display months/years (start/end/years/labels), tabs and trend bars count display months, year picker lists display years, queries use exact day ranges (D-029) |
-| C-1h | `🔜` Month recap tiles in Shamsi | `MonthlyStoryStatsService` groups by the Gregorian `month` column, so the home list skips recap tiles in Shamsi mode rather than labelling them wrongly; needs the same display-month grouping |
+| C-1h | `✅` Month recap tiles in Shamsi | Groups by `CalendarDisplay.monthKeyOf`, counts active days by display day and scores against the display month's length, so the tiles are shown (and correct) in both calendars |
 
 ## 1. Product features (candidates)
 

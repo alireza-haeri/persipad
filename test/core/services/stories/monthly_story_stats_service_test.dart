@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/databases/models/story_content_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/story_page_db_model.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/stories/monthly_story_stats_service.dart';
+import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/path_type.dart';
 
 void main() {
@@ -37,6 +39,33 @@ void main() {
       );
 
       expect(stats[3]!.activeDays, 2);
+    });
+
+    test('in Shamsi mode it groups by display month, not by the stored month', () {
+      CalendarConfig.apply(system: CalendarSystemOption.persian);
+
+      try {
+        // 23 Oct 2026 is 1 Aban 1405 and 21 Nov is 30 Aban; 22 Nov is 1 Azar and
+        // 20 Oct is 28 Mehr — four different Gregorian months, two display months.
+        final stats = MonthlyStoryStatsService.getByMonth(
+          stories: [
+            _story(id: 1, year: 2026, month: 10, day: 23),
+            _story(id: 2, year: 2026, month: 11, day: 21),
+            _story(id: 3, year: 2026, month: 11, day: 22),
+            _story(id: 4, year: 2026, month: 10, day: 20),
+          ],
+          now: DateTime(2026, 10, 1),
+        );
+
+        expect(stats.keys.toSet(), {7, 8, 9});
+        expect(stats[8]!.storyCount, 2);
+        expect(stats[8]!.activeDays, 2);
+        // Aban has 30 days — the Gregorian months it straddles have 31.
+        expect(stats[8]!.totalDays, 30);
+        expect(stats[9]!.storyCount, 1);
+      } finally {
+        CalendarConfig.reset();
+      }
     });
 
     test('sums embedded photos and voices across the month', () {

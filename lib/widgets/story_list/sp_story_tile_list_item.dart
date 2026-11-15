@@ -73,12 +73,13 @@ class SpStoryTileListItem extends StatelessWidget {
     final previousMonthKey = previousStory == null ? null : CalendarDisplay.monthKeyOf(previousStory.displayPathDate);
 
     if (previousMonthKey != monthKey) {
-      // Recaps are aggregated per Gregorian month, so they are skipped in Shamsi
-      // mode instead of being attached to the wrong header.
+      // Keyed by display month (`monthKey` above): the recap tile belongs to the
+      // same month as the header it sits under.
+      //
       // Not a ternary: `cond ? map?[key] : null` is ambiguous to the parser (the
       // `?[` can read as a second `?`), so this is spelled out instead.
       MonthRecapStatsObject? monthStats;
-      if (!CalendarDisplay.isPersian) monthStats = monthlyStats?[story.month];
+      if (monthlyStats != null) monthStats = monthlyStats[monthKey.month];
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

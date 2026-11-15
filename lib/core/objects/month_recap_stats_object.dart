@@ -9,7 +9,7 @@ import 'package:storypad/core/helpers/date_format_helper.dart';
 /// pluralized strings so the UI just renders and joins them. Add a new stat by
 /// adding a count field here and one line to [labels] — the tile needs no change.
 class MonthRecapStatsObject {
-  /// Month of the year, 1 (January) – 12 (December).
+  /// Month of the year in the display calendar (1 = January / فروردین).
   final int month;
 
   /// Number of stories written this month.
@@ -53,7 +53,7 @@ class MonthRecapStatsObject {
 
   String titleLabel(Locale locale) => tr(
     'page.home.story_recap.title',
-    namedArgs: {'SP_MONTH': DateFormatHelper.gregorianMonthName(month, locale)},
+    namedArgs: {'SP_MONTH': DateFormatHelper.monthName(month, locale)},
   );
 
   /// Localized, pluralized stat strings to be joined by the UI (e.g. with " · ").
