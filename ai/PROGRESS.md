@@ -188,3 +188,17 @@ bin/dev --community-linux              # run the app
 Then check: Settings → Data & Backup (Drive should explain itself, Nextcloud/Dropbox
 should connect), any previously locked feature (fonts, backgrounds, templates, stats,
 markdown export) should now just open.
+
+### Run log — 2026-11-15 (third round: picker, re-anchor, year filters)
+- `e6eba30` Shamsi date picker + `resetToToday()` on calendar change + per-calendar day
+  numbers — CI `43744135219` green (Analyze 85s, Test (1) 212s, Test (2) 202s).
+- `53c0cf8` year filters in the display calendar (D-027) — CI `43744666417` green
+  (Analyze 76s, Test (1) 161s, Test (2) 199s).
+- `dd445d2`/`42f0b2b` locale digits for year labels + display-year reload check. The first
+  attempt at these broke four files: a sort helper replaced an import window with a list one
+  entry longer than the window, so each file lost its last import (12 analyzer errors, CI
+  `43745093530` red on Analyze).
+- `ff7652d` restores those imports and inserts the new one at its sorted position — CI
+  `43745523681` green (Analyze 81s, Test (1) 213s, Test (2) 212s).
+- Lesson for the next batch: never rewrite an import block by zipping it against a longer
+  list; insert the single new line and leave the existing order alone.
