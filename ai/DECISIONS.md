@@ -458,7 +458,9 @@ Template:
      preference is set, so ~40 call sites needed no change. Persian **month** names are the only
      calendar-specific words (weekday names are identical in both calendars and keep coming from
      `intl`); digits become Persian only when the app language is Persian, so an English UI reads
-     `1404/8/24` instead of mixing numerals.
+     `1404/8/24` instead of mixing numerals. The month *name* stays Persian in every language
+     (`آبان 24, 1405` in an English UI): a transliteration table would be a second thing to keep
+     correct for no real gain.
   4. **No more synthetic dates.** `DateTime(2000, month)` was used to obtain a month name; that
      silently breaks in another calendar (month 8 of 2000 ≠ month 8 of a Jalali year). Those call
      sites now use `DateFormatHelper.monthName(month, …)`, and surfaces that must stay Gregorian

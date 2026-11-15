@@ -101,8 +101,11 @@ void main() {
     });
 
     test('keeps Latin digits for non-Persian languages', () {
+      // The month *name* stays Persian: it is the Persian calendar, and there is
+      // no transliteration table to keep in sync. Only the numerals and the
+      // word order follow the UI language.
       expect(DateFormatHelper.yMd(november15, const Locale('en')), '1405/8/24');
-      expect(DateFormatHelper.yMMMd(november15, const Locale('en')), 'Aban 24, 1405');
+      expect(DateFormatHelper.yMMMd(november15, const Locale('en')), 'آبان 24, 1405');
     });
 
     test('weekday names come from the locale, not the calendar', () {
