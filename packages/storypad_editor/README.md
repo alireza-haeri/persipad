@@ -154,3 +154,9 @@ flutter test tool/fidelity_audit_test.dart                                      
 
 It fails unless nothing is dropped. The report also lists embed ops written back differently with the same value
 (e.g. the legacy `image` key becoming `media`), unknown embed keys, and conversion time per page.
+
+## Testing
+
+`flutter test` inside this directory runs the package's own suite (57 files).
+CI does this as its own job (`Editor package tests` in `.github/workflows/linux.yml`),
+triggered when `bin/changed_tests` sees a `packages/**` change.
