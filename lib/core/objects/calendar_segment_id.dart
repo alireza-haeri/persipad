@@ -13,7 +13,8 @@ enum CalendarSegmentId {
       case CalendarSegmentId.period:
         return tr('list_tile.period_calendar.title');
       case CalendarSegmentId.score:
-        return tr('general.score');
+        // The segment is the charts, not a second calendar (D-033).
+        return tr('general.trend');
     }
   }
 }

@@ -163,7 +163,8 @@ class _CalendarStoriesContent extends StatelessWidget {
       onMonthChanged: viewModel.onMonthChanged,
       controller: viewModel.calendarController,
       cellBuilder: (context, date, isDisplayMonth) {
-        // Feelings are keyed by *display* day — the grid pages display months.
+        // Feelings and scores are keyed by *display* day — the grid pages display
+        // months, so `date.month` is not the month being shown.
         final int displayDay = CalendarDisplay.dayOf(date);
         List<String>? feelings = isDisplayMonth ? viewModel.feelingsMapByDay[displayDay] : null;
 
@@ -177,12 +178,18 @@ class _CalendarStoriesContent extends StatelessWidget {
           selectedDay: viewModel.selectedDay,
           feelings: feelings,
           isDisplayMonth: isDisplayMonth,
+          // Only when the add-on is on, and only for a real day of the shown
+          // month: the borrowed days at the edges belong to another page's month.
+          score: isDisplayMonth ? viewModel.scoresByDay[displayDay] : null,
           onTap: isDisplayMonth
               ? () => viewModel.selectDay(
                   viewModel.year,
                   viewModel.month,
                   viewModel.selectedDay == displayDay ? null : displayDay,
                 )
+              : null,
+          onLongPress: isDisplayMonth && viewModel.enableScores
+              ? () => viewModel.openScoreSheet(context, date)
               : null,
         );
       },

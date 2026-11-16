@@ -304,3 +304,22 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   (`43798528975`): Scope 5s, Analyze 82s, Test (1) 162s, Test (2) 167s, Build 128s — Build only
   because that commit's *body* mentioned `[build]`, which is why markers are now read from the
   subject line alone.
+
+### Incident — 2026-11-15: two calendars, and a cell that hid its own date (fixed in this round)
+- User feedback: "I want my calendar to be one — emojis *and* the score in the main calendar. And
+  the day number disappearing behind an emoji is wrong: keep the emoji, put the number in a small
+  circle underneath, and pick the day's colour from its score."
+- Both complaints were mine: the score add-on had introduced a second grid, and the mood cell had
+  always replaced the day number with the feeling emoji, so a month of faces showed no dates at all.
+- Fix (D-033): `SpCalendarDateCell` is now the only calendar cell — emoji/check in the middle, the
+  day number in a small circle below it (ringed in the score's colour), and the whole cell tinted
+  by the score. The add-on's grid is gone; its segment is «روند» (`ScoreTrendView`: today's rating,
+  the month line, the monthly averages) and the app has one calendar again. Tap still selects a day
+  (stories), long press now rates it, with a one-line hint in the trend segment until the first
+  score exists.
+- Tests: `test/widgets/calendar/sp_calendar_date_cell_test.dart` (a feeling day keeps *both* the
+  emoji and the number, a check day keeps both, a plain day stays one `Text`, the tint appears only
+  when rated, tap and long press stay separate with counts). The deleted
+  `sp_score_calendar_date_cell_test.dart` went with its widget.
+- Keys: `general.score` → `general.trend` (the segment is charts now) and a new
+  `general.score_long_press_hint`; all 21 locale files kept in lockstep (621 keys).

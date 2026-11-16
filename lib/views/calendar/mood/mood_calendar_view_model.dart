@@ -10,9 +10,12 @@ import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/path_type.dart';
+import 'package:storypad/providers/daily_score_provider.dart';
+import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/views/home/home_view.dart';
 import 'package:storypad/views/stories/edit/edit_story_view.dart';
+import 'package:storypad/widgets/bottom_sheets/sp_daily_score_sheet.dart';
 import 'package:storypad/widgets/calendar/sp_calendar.dart';
 import 'mood_calendar_view.dart';
 
@@ -43,6 +46,13 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
       year: year,
       feelingEmojiById: context.read<TagsProvider>().feelingEmojiById,
     );
+
+    // The daily-score add-on tints this same grid (D-033): one calendar shows
+    // feelings, the check, the day number and the score, in that order.
+    enableScores = context.read<DevicePreferencesProvider>().enableDailyScore;
+    dailyScoreProvider = context.read<DailyScoreProvider>();
+    dailyScoreProvider.addListener(_reloadScores);
+    scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
 
     _tags = [...context.read<TagsProvider>().tags?.items ?? []];
     if (_tags?.isNotEmpty == true) _tags?.insert(0, TagDbModel.fromIDTitle(0, tr('general.all')));
@@ -89,6 +99,28 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
 
   Map<int, List<String>> feelingsMapByDay = {};
 
+  /// Whether the daily-score add-on is on for this visit. Read once, like the
+  /// period segment's gate: the calendar is opened as a sheet, so the preference
+  /// is already loaded when this view model is built.
+  late final bool enableScores;
+
+  late final DailyScoreProvider dailyScoreProvider;
+
+  /// Rated days of the shown month: display day → score. Empty when the add-on is
+  /// off, which is also what turns the score tint and the long-press gesture off.
+  Map<int, int> scoresByDay = {};
+
+  void _reloadScores() {
+    scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
+    notifyListeners();
+  }
+
+  /// Opens the rating sheet for a day. Long press on a cell calls this; a plain
+  /// tap still selects the day and shows its stories.
+  Future<void> openScoreSheet(BuildContext context, DateTime date) async {
+    await SpDailyScoreSheet(date: date).show(context: context);
+  }
+
   bool tagSelected(TagDbModel tag) => (selectedTagId == tag.id) || (tag.id == 0 && selectedTagId == null);
 
   SearchFilterObject get searchFilter => filterFor(day: selectedDay);
@@ -124,6 +156,7 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
       year: year,
       feelingEmojiById: tagsProvider.feelingEmojiById,
     );
+    scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
     notifyListeners();
   }
 
@@ -176,6 +209,11 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
     }
 
     this.selectedDay = year != this.year || month != this.month ? null : selectedDay;
+
+    if (year != this.year || month != this.month) {
+      scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
+    }
+
     this.year = year;
     this.month = month;
     this.selectedTagId = selectedTagId;
@@ -238,6 +276,7 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   void dispose() {
     params.monthYearNotifier.removeListener(_onParentMonthYearChanged);
     StoryDbModel.db.removeGlobalListener(_reloadFeeling);
+    dailyScoreProvider.removeListener(_reloadScores);
     pageController.dispose();
     oddPeriodicTimer.cancel();
     evenPeriodicTimer.cancel();

@@ -5,29 +5,25 @@ import 'package:storypad/core/objects/monthly_score_average.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/providers/daily_score_provider.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_daily_score_sheet.dart';
-import 'package:storypad/widgets/calendar/sp_calendar.dart';
-import 'score_calendar_view.dart';
+import 'score_trend_view.dart';
 
-class ScoreCalendarViewModel extends ChangeNotifier with DisposeAwareMixin {
-  ScoreCalendarViewModel({
+class ScoreTrendViewModel extends ChangeNotifier with DisposeAwareMixin {
+  ScoreTrendViewModel({
     required this.params,
     required BuildContext context,
   }) {
     scoreProvider = context.read<DailyScoreProvider>();
-    scoreProvider.addListener(_onScoresChanged);
+    scoreProvider.addListener(_reload);
     params.monthYearNotifier.addListener(_onParentMonthYearChanged);
     _reload();
   }
 
-  final ScoreCalendarView params;
+  final ScoreTrendView params;
 
   /// Source of truth for every number on this screen. Not watched through
-  /// `context.watch`: the calendar paints ~42 cells per frame, and rebuilding the
-  /// whole page on every slider move would repaint all of them — re-reading three
-  /// small aggregates here is cheaper and keeps the grid's own widgets stable.
+  /// `context.watch`: the charts read three small aggregates, and re-reading them
+  /// here keeps the paint of a chart independent of unrelated rebuilds.
   late final DailyScoreProvider scoreProvider;
-
-  final SpCalendarController calendarController = SpCalendarController();
 
   late int year = params.monthYearNotifier.value.year;
   late int month = params.monthYearNotifier.value.month;
@@ -45,6 +41,9 @@ class ScoreCalendarViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   int? get todayScore => scoreProvider.scoreOf(DateTime.now());
 
+  /// Whether anything was ever rated — drives the one-time long-press hint.
+  bool get hasAnyScore => scoreProvider.hasAnyScore;
+
   void _reload() {
     scoresByDay = scoreProvider.scoresOfDisplayMonth(year, month);
     monthAverage = scoreProvider.averageOfDisplayMonth(year, month);
@@ -52,27 +51,16 @@ class ScoreCalendarViewModel extends ChangeNotifier with DisposeAwareMixin {
     notifyListeners();
   }
 
-  void _onScoresChanged() => _reload();
-
+  /// The app bar's month picker is shared by all segments: it writes the notifier,
+  /// and this view model re-reads. There is no grid here to page through months,
+  /// so this is the only way the shown month can change.
   void _onParentMonthYearChanged() {
-    // Triggered by the shared month picker in the calendar's app bar; SpCalendar
-    // then reports the new month back through [onMonthChanged].
     final ({int year, int month}) value = params.monthYearNotifier.value;
     if (value.year != year || value.month != month) {
-      calendarController.goToMonth(value.year, value.month);
+      year = value.year;
+      month = value.month;
+      _reload();
     }
-  }
-
-  void onMonthChanged(int year, int month) {
-    this.year = year;
-    this.month = month;
-
-    final ({int year, int month}) value = params.monthYearNotifier.value;
-    if (value.year != year || value.month != month) {
-      params.monthYearNotifier.value = (year: year, month: month);
-    }
-
-    _reload();
   }
 
   /// Opens the rating sheet for a stored (Gregorian) date.
@@ -85,7 +73,7 @@ class ScoreCalendarViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   @override
   void dispose() {
-    scoreProvider.removeListener(_onScoresChanged);
+    scoreProvider.removeListener(_reload);
     params.monthYearNotifier.removeListener(_onParentMonthYearChanged);
     super.dispose();
   }

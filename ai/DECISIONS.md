@@ -685,6 +685,8 @@ Template:
   7. **The calendar segment keeps tapping as the edit gesture** (`onTap` → `SpDailyScoreSheet`
      for that date, which writes through the provider and pops), so the grid never needs a second
      selection state, and a `TodayScoreTile` above the grid rates today in one tap.
+     *(Superseded the same day by D-033: the score grid was folded into the main calendar, and that
+     segment became a chart-only «روند». The bar, the palette and the charts below are unchanged.)*
 - **Consequences:** adding a score is one drag and one tap from the calendar; the calendar doubles
   as a heat map; the charts never invent data points. `SpDailyScoreBar` owns its own geometry, so
   a future "score" surface reuses the palette rather than re-deriving red/orange/green.
@@ -711,3 +713,34 @@ Template:
   bug — and its reasoning is printed to the job log (`--explain`) so a surprising selection can be
   debugged from the annotations. Risk accepted: a mapping error can under-select, which is why the
   full suite still runs for anything unmapped and why `[test]` always wins.
+
+## D-033 — One calendar: feelings, the day number and the score in the same cell (2026-11-15)
+- **Status:** accepted (folds D-031 §1–2's score grid into the main calendar)
+- **Context:** "I want my calendar to be one: in the main calendar I want to see the emoji *and*
+  the score. And the thing that bothers me is that when a day has an emoji or a tick you stop
+  showing its number — the day should look the way it does now, but with the number in a small
+  neat circle underneath the emoji. Even better: pick the day's colour from its score, so I can see
+  how the month went."
+- **Decision:**
+  1. **One cell widget, everywhere.** `SpCalendarDateCell` gained `score` and `onLongPress`, and
+     the score add-on's own grid was deleted: its segment is now «روند» (`ScoreTrendView`) and
+     contains the two charts plus today's rating, no calendar. The app has exactly one grid.
+  2. **The day number is never sacrificed.** A day with a feeling (or the "has stories, no feeling"
+     check) keeps the emoji in the middle of the cell and gains a 19pt circle underneath it with
+     the day number — the circle's ring is the score's colour, and it is filled with the primary
+     colour when the day is selected. Before this, an emoji *replaced* the number and the grid lost
+     its reference points: half of a month of faces had no readable dates.
+  3. **The score is a background layer.** A rated day tints the whole cell with 16% of its score
+     colour (the same `DailyScoreScale` ramp the input bar teaches), so a month reads as a heat map
+     without any cell needing a second number. Unrated days are untinted: still no such thing as a
+     "zero day".
+  4. **Tap selects, long press rates.** Tapping a day already means "show that day's stories", so
+     rating moved to a long press on the cell (`SpTapEffect.onLongPressed` → the score sheet for
+     that date). Because a long press is not discoverable, the trend segment shows a one-line hint
+     until the first score exists.
+  5. **The segment key moved with the meaning:** `general.score` ("Score") was replaced by
+     `general.trend` ("Trend"/«روند»), since the second segment is a chart surface, not a calendar.
+- **Consequences:** the user's mental model — "one calendar, everything on it" — matches the code:
+  one grid, one cell, score as a layer rather than a parallel screen. The cost is that the exact
+  score number lives one gesture away (the sheet) and in the two charts; the tint answers "how was
+  this month" without it.

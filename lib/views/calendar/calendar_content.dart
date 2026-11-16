@@ -23,7 +23,7 @@ class _CalendarContent extends StatelessWidget {
       CalendarSegmentId.period => PeriodCalendarView(
         monthYearNotifier: viewModel.monthYearNotifier,
       ),
-      CalendarSegmentId.score => ScoreCalendarView(
+      CalendarSegmentId.score => ScoreTrendView(
         monthYearNotifier: viewModel.monthYearNotifier,
       ),
     };
