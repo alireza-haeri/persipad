@@ -139,7 +139,9 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// Set by the UI layer (the backup screen) before a sign-in starts, cleared when
   /// it ends. Called when the loopback redirect has not arrived after
   /// [manualPromptDelay]; it should return the address the user copied out of the
-  /// browser, or null if they choose to keep waiting.
+  /// browser, or null if they choose to keep waiting. Its `redirectArrived`
+  /// argument completes when the wait is over either way, so a dialog can close
+  /// itself instead of being left on screen.
   ///
   /// This exists because the loopback redirect is the one step of the flow that
   /// depends on the browser being able to reach an HTTP server *inside this app*.
@@ -348,7 +350,16 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         );
       }
 
-      final redirect = await _waitForRedirect(completer);
+      // Completes as soon as the wait is over, so a prompt that is still on screen
+      // can close itself even when the wait ended in a timeout.
+      final waitOver = Completer<void>();
+      final Uri redirect;
+      try {
+        redirect = await _waitForRedirect(completer, waitOver.future);
+      } finally {
+        if (!waitOver.isCompleted) waitOver.complete();
+      }
+
       final code = parseRedirectCode(redirect, expectedState: state);
 
       return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
@@ -390,7 +401,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// offered once [manualPromptDelay] has passed without one, so a normal sign-in
   /// never sees a dialog. A cancelled prompt does not abort the flow: it simply
   /// keeps waiting for the loopback until [redirectTimeout].
-  Future<Uri> _waitForRedirect(Completer<Uri> completer) {
+  Future<Uri> _waitForRedirect(Completer<Uri> completer, Future<void> waitOver) {
     final loopback = completer.future.timeout(
       redirectTimeout,
       onTimeout: () => throw const GoogleOAuthException(
@@ -405,7 +416,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // A prompt that shows a dialog uses [redirectArrived] to close itself when the
     // loopback wins the race late, so the user is never left with a modal asking
     // for an address that is no longer needed.
-    final redirectArrived = completer.future.then((_) {});
+    final redirectArrived = Future.any<void>([completer.future.then<void>((_) {}), waitOver]);
 
     final manual = Future<void>.delayed(manualPromptDelay).then<Uri>((_) async {
       if (completer.isCompleted) return Completer<Uri>().future;
