@@ -5,6 +5,7 @@
 #   bin/android_doctor --short    # only the verdict lines
 #   bin/android_doctor --fix      # install the missing SDK packages with sdkmanager
 #   bin/android_doctor --mirror   # write ~/.gradle/init.d/notely-google-mirror.gradle.kts
+#   bin/android_doctor --fix --sdk-mirror=<url>   # SDK packages from a mirror of Google's repo
 #
 # Prints one paste-able report: toolchain versions, SDK packages, AVDs and their ABIs,
 # the Gradle/AGP/NDK the repo *and the pinned Flutter SDK* ask for, and whether Google
@@ -22,6 +23,7 @@ for arg in "$@"; do
     --short)  SHORT=1 ;;
     --fix)    FIX=1 ;;
     --mirror) MIRROR=1 ;;
+    --sdk-mirror=*) SDK_MIRROR_URL="${arg#*=}" ;;
     -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "bin/android_doctor: unknown argument '$arg' (try --help)" >&2; exit 2 ;;
   esac
@@ -246,6 +248,7 @@ if have curl; then
   # If the maven path 404s but this one does not, the block is path-specific and
   # `--fix` still works; if both fail, Android Studio is the only way to get packages.
   sdkrepo=$(probe --noproxy '*' "https://dl.google.com/android/repository/repository2-3.xml")
+  SDKREPO_CODE="$sdkrepo"
   [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "sdk package list (dl.google.com/android/repository)" "$sdkrepo"
   if [ "$sdkrepo" != "200" ] && [ "$GOOGLE_DIRECT_OK" -eq 0 ]; then
     note "sdkmanager cannot download either — install packages through Android Studio, or from a network that reaches dl.google.com"
@@ -333,9 +336,22 @@ esac
 if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
   printf '\n  Missing SDK packages: %s\n' "${MISSING_PKGS[*]}"
   if [ "$FIX" = 1 ] && [ -n "$SDKMANAGER" ]; then
+    # sdkmanager reads its package list from dl.google.com/android/repository — the same
+    # host that is blocked for Maven above. SDK_TEST_BASE_URL points it at a mirror of
+    # that repository; the archive URLs inside the XML are relative, so the downloads
+    # follow the mirror too.
+    if [ "${SDKREPO_CODE:-000}" != "200" ]; then
+      SDK_MIRROR_URL="${SDK_MIRROR_URL:-https://mirrors.cloud.tencent.com/AndroidSDK/}"
+      printf '  dl.google.com/android/repository is blocked here — fetching package lists from %s\n' "$SDK_MIRROR_URL"
+      export SDK_TEST_BASE_URL="$SDK_MIRROR_URL"
+      printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_MIRROR_URL" "${MISSING_PKGS[*]}"
+    fi
     printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${MISSING_PKGS[*]}"
     yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
-    "$SDKMANAGER" --install "${MISSING_PKGS[@]}" || printf '\033[31m  sdkmanager failed — see its output above\033[0m\n'
+    if ! "$SDKMANAGER" --install "${MISSING_PKGS[@]}"; then
+      printf '\033[31m  sdkmanager failed — see its output above.\033[0m\n'
+      printf '  Fallbacks: another mirror with --sdk-mirror=<url>, or Android Studio set up with a proxy.\n'
+    fi
   else
     printf '  Install them with: sdkmanager --install %s   (or re-run with --fix)\n' "${MISSING_PKGS[*]}"
   fi
