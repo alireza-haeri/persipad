@@ -198,14 +198,16 @@ bin/apk_report                                     # newest APK under build/app/
 bin/apk_report --files 20 build/app/outputs/flutter-apk/app-community-release.apk
 ```
 
-It groups entries by `lib/<abi>`, `dex`, `res/`, `assets/`, `META-INF/`, lists the biggest
-files and counts the ABIs. Expect `lib/*/libflutter.so` and `lib/*/libapp.so` to be ~90% of a
+It groups entries by `lib/<abi>`, `dex`, `res/`, `assets/flutter_assets/` (Dart code and its
+snapshots — not pictures), `assets/` (the app's own files), `META-INF/`, lists the biggest
+files, adds a **debug-only total** (`kernel_blob.bin`, `isolate_snapshot_*`, `vm_snapshot_*`,
+`libVkLayer_khronos_validation.so`) and counts the ABIs. Expect `lib/*/libflutter.so` and `lib/*/libapp.so` to be ~90% of a
 debug build: the engine is copied once per ABI and debug Dart has no AOT code (it ships a
 kernel snapshot instead).
 
 | Step | Expected | Cost / caveat |
 |---|---|---|
-| debug, `--abi all` | ~238 MB (measured) | none — but four engines in one file |
+| debug, `--abi all` | 237.3 MB (measured: 142 MB kernel blob + 3 engines + 37 MB dex) | none — but three engines in one file |
 | debug, `--abi arm64` | ~120 MB (measured) | one phone needs one ABI |
 | release, `--abi arm64` + R8 | ~30–45 MB (**expectation, not measured here**) | needs a signature |
 | release with your own keystore | same, and it is the real product | create the keystore once and keep it |

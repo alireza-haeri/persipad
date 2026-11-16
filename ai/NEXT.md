@@ -59,6 +59,12 @@ today, with no keystore. What is left is one measurement on your machine:
 bin/build_apk --release --sign-debug --abi arm64 && bin/apk_report
 ```
 
+Where the 237 MB actually is (measured, `bin/apk_report`): **142.2 MB `kernel_blob.bin`** +
+11.1 MB `isolate_snapshot_data` (the Dart VM snapshot, debug-only), **3 engines** for 3 ABIs
+(one of them carrying a 15 MB Vulkan validation layer), **37.2 MB of unminified dex**, and
+**~2 MB of the app's own pictures and fonts** (0.2%). So the release build should land around
+**25–40 MB**, and nothing user-visible has to be removed to get there.
+
 Send me the two numbers and I will record them; if release fails in `minifyReleaseWithR8`, add
 `-PnotelyMinify=false` and tell me, so the keep rule gets written properly instead of the
 shrinker staying off.

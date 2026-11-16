@@ -714,14 +714,28 @@ afternoon.
 
 | Added | What it answers |
 |---|---|
-| `bin/apk_report [apk]` | where the megabytes are: grouped by `lib/<abi>` / `dex` / `res/` / `assets/` / `META-INF/`, plus the biggest files and the ABI count |
+| `bin/apk_report [apk]` | where the megabytes are: grouped by `lib/<abi>` / `dex` / `res/` / `assets/flutter_assets/` (Dart) / `assets/` (app files), plus the biggest files, a **debug-only total** (kernel snapshot + Vulkan validation layer) and the ABI count |
 | `bin/build_apk --release --sign-debug` | a real release build signed with the existing `~/.android/debug.keystore`, so the size question is answerable today without creating a keystore |
 | R8 + `isShrinkResources` for release | removes unused Java/Kotlin + resources that Dart's AOT tree-shaking cannot see (`-PnotelyMinify=false` is the documented escape hatch) |
 | `--split-debug-info=build/symbols` | keeps the Dart symbol table out of the APK (it is only needed by `flutter symbolize`) |
 | `--abi arm64/arm/armv7` | **bug fix:** the values `--help` advertises fell through to `unknown --abi` |
 
-Expected ladder — 238 MB (debug, 4 ABIs) → ~120 MB (debug, 1 ABI, already seen) → roughly
-30–45 MB (release, 1 ABI, R8). The first number is a *measurement*, the last is an
+**Measured on the user's Fedora box** (`bin/apk_report` on the real artifact, 2026-11-16):
+
+| Group | Unpacked | Share | Notes |
+|---|---|---|---|
+| `assets/flutter_assets/` | 158.7 MB | **48.9%** | of which `kernel_blob.bin` **142.2 MB** and `isolate_snapshot_data` 11.1 MB — the Dart VM's snapshot, debug-only |
+| `lib/arm64-v8a` | 53.8 MB | 16.6% | engine ×1 of 3, incl. `libVkLayer_khronos_validation.so` **15.0 MB** (debug-only) |
+| `lib/x86_64` | 39.7 MB | 12.2% | a second engine for a phone that has none |
+| `dex` | 37.2 MB | 11.5% | four `classesN.dex`, R8 has not touched them |
+| `lib/armeabi-v7a` | 32.8 MB | 10.1% | a third engine |
+| app assets (`assets/`) | ~2 MB | 0.2% | the pictures and fonts everyone blames: 0.2% |
+
+The APK was 237.3 MB on disk / 324.6 MB unpacked; 3 ABIs, not 4.
+
+Expected ladder — 237 MB (debug, 3 ABIs, measured) → ~120 MB (debug, 1 ABI, measured earlier)
+→ roughly 25–40 MB (release, 1 ABI, R8; **expectation**: `kernel_blob`, the snapshots and the
+Vulkan validation layer all disappear, three engines become one, and R8 shrinks 37 MB of dex). The first number is a *measurement*, the last is an
 *expectation* until someone runs it: no SDK here, so `--release` is unverified in the sandbox,
 which is exactly why `-PnotelyMinify=false` exists.
 

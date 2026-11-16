@@ -56,8 +56,12 @@ unzip -l "$APK" 2>/dev/null | awk -v files="/tmp/apk_report_files.$$" -v groups=
       group = "dex  (Java/Kotlin)"
     } else if (name ~ /^res\//) {
       group = "res/  (resources)"
+    } else if (name ~ /^assets\/flutter_assets\//) {
+      # Dart code and its snapshots, not the app pictures: in a debug build
+      # this is mostly kernel_blob.bin, which every phone pays for and nobody needs.
+      group = "assets/flutter_assets/  (Dart code + snapshots)"
     } else if (name ~ /^assets\//) {
-      group = "assets/"
+      group = "assets/  (images, fonts, translations)"
     } else if (name ~ /^META-INF\//) {
       group = "META-INF/  (signature, rules)"
     } else if (name ~ /^AndroidManifest\.xml$/) {
@@ -67,19 +71,25 @@ unzip -l "$APK" 2>/dev/null | awk -v files="/tmp/apk_report_files.$$" -v groups=
     }
     byGroup[group] += size
     unpacked += size
+    if (name ~ /(kernel_blob\.bin|isolate_snapshot_data|isolate_snapshot_instr|vm_snapshot_data|vm_snapshot_instr|libVkLayer_khronos_validation\.so)$/) {
+      debugOnly += size
+    }
     printf "%d\t%s\n", size, name > files
   }
   END {
     close(files)
     for (g in byGroup) printf "%d\t%s\n", byGroup[g], g > groups
     print unpacked "\t__UNPACKED__" > groups
+    print debugOnly "\t__DEBUGONLY__" > groups
     close(groups)
   }
 '
 
 UNPACKED=$(awk -F'\t' '$2 == "__UNPACKED__" {print $1}' /tmp/apk_report_groups.$$ 2>/dev/null | head -1)
 UNPACKED=${UNPACKED:-0}
-grep -v '__UNPACKED__' /tmp/apk_report_groups.$$ > /tmp/apk_report_groups.$$.2 2>/dev/null || true
+DEBUG_ONLY=$(awk -F'\t' '$2 == "__DEBUGONLY__" {print $1}' /tmp/apk_report_groups.$$ 2>/dev/null | head -1)
+DEBUG_ONLY=${DEBUG_ONLY:-0}
+grep -v -e '__UNPACKED__' -e '__DEBUGONLY__' /tmp/apk_report_groups.$$ > /tmp/apk_report_groups.$$.2 2>/dev/null || true
 mv /tmp/apk_report_groups.$$.2 /tmp/apk_report_groups.$$ 2>/dev/null || true
 printf '  unpack %s of entries; percentages are of that\n' "$(fmt "${UNPACKED:-0}")"
 
@@ -97,6 +107,12 @@ sort -rn /tmp/apk_report_files.$$ 2>/dev/null | head -"$FILES" | awk '
 
 ABIS=$(unzip -l "$APK" 2>/dev/null | awk '$4 ~ /^lib\// { split($4, p, "/"); print p[2] }' | sort -u)
 ABI_COUNT=$(printf '%s\n' "$ABIS" | sed '/^$/d' | wc -l | tr -d ' ')
+if [ "${DEBUG_ONLY:-0}" -gt 0 ]; then
+  echo
+  printf '  debug-only payload: %s (kernel_blob / Dart snapshots / Vulkan validation layer)\n' "$(fmt "$DEBUG_ONLY")"
+  echo "  none of that exists in a release build: it is AOT-compiled, so there is no kernel"
+  echo "  snapshot to ship and no validation layer to load."
+fi
 echo
 if [ "$ABI_COUNT" -gt 1 ]; then
   echo "  this APK carries $ABI_COUNT ABIs ($(printf '%s' "$ABIS" | tr '\n' ' '))— one phone needs one:"
