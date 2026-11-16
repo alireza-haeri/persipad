@@ -22,6 +22,8 @@ where we stand.
 | [`ENVIRONMENT.md`](ENVIRONMENT.md) | What the sandbox can and cannot do, plus local build/run commands |
 | [`BACKLOG.md`](BACKLOG.md) | Candidate features and tech debt, with status labels |
 | [`ANALYSIS.md`](ANALYSIS.md) | Measured findings: what could be better next, with evidence + a re-measure command (D-041) |
+| [`CHANGES.md`](CHANGES.md) | One session's diff told as a story: what changed, why, and the run id that proves it |
+| [`NEXT.md`](NEXT.md) | The ordered plan: what is blocked on you, what needs a decision, what I can do alone |
 | [`notes/`](notes/) | Raw, dated notes of what you asked for |
 
 ## Update ritual
@@ -32,6 +34,24 @@ At the end of every task:
 2. New decision taken → add a numbered entry to `DECISIONS.md`.
 3. New instruction/rule from you → record it in `notes/user-instructions.md`, then
    reflect it in `RULES.md` or `GOAL.md` if it is a general rule.
+4. A task with more than a handful of commits → a `CHANGES.md` section, because a
+   diff of that size is not readable from `git log`.
+5. `NEXT.md` — re-order it. An out-of-date plan is worse than none: it makes the next
+   session repeat finished work.
+
+## Which file answers which question
+
+| You are asking… | Read |
+|---|---|
+| "What are we building and for whom?" | `GOAL.md` |
+| "What did the last session actually change?" | `CHANGES.md` |
+| "What should happen next?" | `NEXT.md` |
+| "Why is it built this way?" | `DECISIONS.md` (search for `D-0xx`) |
+| "Where does X live in the code?" | `ARCHITECTURE.md` |
+| "What is still broken / missing?" | `BACKLOG.md` |
+| "Is it working right now?" | `PROGRESS.md` §Handoff Snapshot |
+| "What can this sandbox do?" | `ENVIRONMENT.md` |
+| "What rules did I set?" | `RULES.md` + `notes/user-instructions.md` |
 
 ## Changelog of this folder
 
@@ -42,3 +62,4 @@ At the end of every task:
 | 2026-11-15 | Linux-only dev scope, toolchain baseline, one-command dev loop (D-007 … D-010) |
 | 2026-11-16 | Refreshed docs through Session 10 (Shamsi/RTL, Daily Score, CI/local Android APK, agent handoff) |
 | 2026-11-16 | Session 11: branch/tip, translation key count (626) and JDK facts corrected; `ANALYSIS.md` added (D-041) |
+| 2026-11-16 | Session 11 round two: T-9…T-15 implemented; `CHANGES.md` and `NEXT.md` added, `RULES.md` §3b rewritten to match the new CI (D-042…D-046) |

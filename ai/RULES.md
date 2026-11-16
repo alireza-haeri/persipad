@@ -63,14 +63,27 @@
 
 - **CI is the compiler for the sandbox.** I cannot run Flutter here, so `.github/workflows/linux.yml`
   must be green before I call a code change done:
-  - `Scope` (`bin/changed_tests`) selects only the tests affected by the diff (or skips them
-    for `ai/`/`bin/`/`.github/`/`*.md`, or runs full 2-shard suite on unmapped/`pubspec`/
-    `android`/subject `[test]`/`[full]`).
+  - `Scope` (`bin/changed_tests`) selects only the tests affected by the diff, or skips
+    them for `ai/`/`bin/`/`.github/` (except `.github/workflows/**`)/`*.md`, or runs the
+    full 2-shard suite on unmapped/`pubspec`/`android`/subject `[test]`/`[full]`.
+    Its output keys are **`mode`, `build`, `packages`, `shards`, `paths`** (D-045) —
+    `packages=true` means the editor package's own suite must run as a separate job.
   - `Analyze` runs `flutter analyze --no-fatal-infos --no-fatal-warnings` (errors fail;
-    formatting check is advisory via annotations).
+    formatting check is advisory via annotations — T-7).
+  - `Test` runs the selected files in 1 shard (scoped) or 2 (full). **A green run must
+    produce no `::error::` annotation** (D-046); if one appears on a passing job, that is
+    a bug in the workflow, not in the tests.
+  - `Editor package tests` runs `packages/storypad_editor`'s 57 files / ~390 cases when
+    `packages=true`. **`[full]` sets it too** — the full marker means *everything*.
   - `Build Linux desktop` runs on `[build]` / `[full]` / PRs.
+  - `Coverage` is advisory on `[full]`/PRs: lcov artifact + a percentage notice
+    (`ANALYSIS.md` §6). No threshold yet; do not add one without a decision.
   - `.github/workflows/android.yml` builds the `community` arm64 APK on `[apk]` in commit
     subject (or `workflow_dispatch`) and publishes a pre-release.
+- **Markers are read from the commit SUBJECT only** (`[full]`, `[test]`, `[build]`,
+  `[apk]`, `[codegen]`). A body that merely mentions one must not spend the work.
+- **An empty commit triggers nothing.** `[full]` on an `--allow-empty` commit produces
+  zero runs; the marker needs a real file change to fire (`PROGRESS.md` verification log).
 - **Fast local verification:** the user can run `bin/dev -t` on Fedora before pushing, and
   `bin/build_apk --install` for Android.
 - Every behavioural change ships with tests in `test/` (pure logic is preferred over

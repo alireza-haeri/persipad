@@ -222,6 +222,22 @@ the editor package's suite actually executed. Two CI defects surfaced while runn
 were fixed rather than worked around: `[full]` skipped the packages (D-045) and every
 successful test job printed a failure annotation (D-046).
 
+### N-018 — Explain every change in `ai/`, and say what still needs doing
+> «کاملا تغیراتت رو توضیح بده توی ai و کار هایی که باید انجام بشه رو هم بگو»
+
+**Status:** ✅ done
+**Ref:** [`CHANGES.md`](../CHANGES.md), [`NEXT.md`](../NEXT.md)
+**What I understood:**
+1. *Explain the changes in `ai/`* — not a commit list, but **why** each change exists and
+   **what proves it**. A reader should be able to disagree with a decision without
+   reading 27 commits.
+2. *Say what has to be done* — an **ordered** plan, and explicitly which parts are
+   blocked on the user (a device, a keystore, a judgement call) versus what I can do
+   alone. Not a feature wish-list.
+**Note:** both files are new because `PROGRESS.md` was carrying three jobs at once (log,
+roadmap, metrics) and none of them well. `README.md` now says which file answers which
+question, so the next session does not have to guess.
+
 ---
 
 ## Template for a new note

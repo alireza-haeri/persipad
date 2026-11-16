@@ -1,10 +1,15 @@
 # Status
 
 **Last updated:** 2026-11-16
-**Current session:** session 11 — docs hygiene + project analysis, then the first four items of that analysis
+**Current session:** session 11 — docs hygiene, project analysis, then analysis items T-9…T-15
 **Branch:** `arena/c5b3ddac-notely` (branched from `a23869853bd7` of `arena/e3e3866a-notely`)
-**Code tip:** `a238698` (docs-only tip; the last code changes are the Session-10 Android fixes `d3d534e` and its ancestors)
-**Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; first local Fedora APK build still awaiting a verdict from the user
+**Code tip:** `e2498c5` — 27 commits on top of `a238698`, all pushed. **Linux CI green on the
+final code state** (`43841692813`), and on the full 7-job run `43837873918`.
+**Phase:** 🟢 CI container trustworthy again (editor suite runs, `[full]` means everything,
+green runs are silent); 🟡 first local Fedora APK build still awaiting a verdict from the user
+
+> **Read [`CHANGES.md`](CHANGES.md) first.** It is the Session-11 diff in one narrative file —
+> what changed, why, and the run id that proves each claim.
 
 ---
 
