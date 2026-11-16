@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "Tamanho do arquivo",
   "list_tile.first_day_of_week.title": "Primeiro dia da semana",
   "list_tile.calendar_system.title": "Sistema de calendário",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "Dias de fim de semana",
   "list_tile.weekend_days.subtitle": "Dias marcados como não úteis no calendário.",
   "list_tile.font_family.title": "Família de fontes",

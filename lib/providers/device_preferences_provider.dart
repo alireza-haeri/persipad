@@ -12,6 +12,7 @@ import 'package:storypad/core/objects/story_tile_preferences_object.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/services/notifications/local_notification_service.dart';
 import 'package:storypad/core/types/reminder_type.dart';
+import 'package:storypad/core/types/sidebar_item_id.dart';
 import 'package:storypad/core/services/app_quick_actions_service.dart';
 import 'package:storypad/core/types/asset_compression_option.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
@@ -39,6 +40,14 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
 
   /// Opt-in like every other add-on, but free: no purchase gate, no default-on.
   bool get enableDailyScore => preferences.enableDailyScore ?? false;
+
+  /// The map add-on. Unlike the others this one is on unless the user turns it
+  /// off: it shipped before it was optional, and defaulting it off would take a
+  /// feature away from everyone who never asked for that.
+  bool get enableMap => preferences.enableMap ?? true;
+
+  /// The desktop sidebar order, repaired against [SidebarItemId.defaults].
+  List<SidebarItemId> get sidebarOrder => SidebarItemId.parse(preferences.sidebarOrder);
 
   /// Effective time format — falls back to the device's 24-hour setting when
   /// the user hasn't customized [DevicePreferencesObject.timeFormat].

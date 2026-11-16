@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "फ़ाइल का साइज़",
   "list_tile.first_day_of_week.title": "सप्ताह का पहला दिन",
   "list_tile.calendar_system.title": "कैलेंडर प्रणाली",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "सप्ताहांत के दिन",
   "list_tile.weekend_days.subtitle": "कैलेंडर में जिन दिनों को अवकाश के रूप में दिखाया जाता है।",
   "list_tile.font_family.title": "फ़ॉन्ट परिवार",

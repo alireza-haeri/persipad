@@ -68,6 +68,16 @@ class DevicePreferencesObject {
   final bool? enablePeriodCalendar;
   final bool? enableDailyScore;
 
+  /// The map add-on. `null` means "never touched" and falls back to *on*, since
+  /// the map shipped before it was optional — turning it off is a choice, not a
+  /// default. See `DevicePreferencesProvider.enableMap`.
+  final bool? enableMap;
+
+  /// Order of the desktop sidebar entries, as [SidebarItemId] names. `null` means
+  /// "use the shipped order"; unknown or missing names are repaired on read by
+  /// `SidebarItemId.parse`, so this never has to be migrated.
+  final List<String>? sidebarOrder;
+
   /// Device-local reminder configurations. `null` means never configured.
   /// Reminders are intentionally not synced across devices (OS notifications
   /// are per-device).
@@ -85,6 +95,8 @@ class DevicePreferencesObject {
     this.enableRelaxSounds,
     this.enablePeriodCalendar,
     this.enableDailyScore,
+    this.enableMap,
+    this.sidebarOrder,
     this.reminders,
     ThemeMode? themeMode,
     this.timeFormat,

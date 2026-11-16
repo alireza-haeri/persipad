@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "文件大小",
   "list_tile.first_day_of_week.title": "一周的第一天",
   "list_tile.calendar_system.title": "日历系统",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "周末",
   "list_tile.weekend_days.subtitle": "在日历中标记为休息日的星期。",
   "list_tile.font_family.title": "字体",

@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "اندازه‌ی فایل",
   "list_tile.first_day_of_week.title": "اولین روز هفته",
   "list_tile.calendar_system.title": "تقویم",
+  "list_tile.map.subtitle": "مکان‌ها روی نقشه و این‌که هر خاطره کجا نوشته شده. اگر هیچ‌وقت از نقشه استفاده نمی‌کنی، خاموشش کن.",
   "list_tile.weekend_days.title": "روزهای تعطیل",
   "list_tile.weekend_days.subtitle": "روزهایی که در تقویم غیرکاری در نظر گرفته می‌شوند.",
   "list_tile.font_family.title": "خانواده‌ی قلم",

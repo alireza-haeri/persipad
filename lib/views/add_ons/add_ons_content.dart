@@ -12,6 +12,7 @@ bool _isAddOnEnabled(BuildContext context, AddOnType addOn) {
     AddOnType.relax_sounds => provider.enableRelaxSounds,
     AddOnType.period_calendar => provider.enablePeriodCalendar(context),
     AddOnType.daily_score => provider.enableDailyScore,
+    AddOnType.map => provider.enableMap,
   };
 }
 
@@ -52,6 +53,9 @@ class _AddOnTile extends StatelessWidget {
         return SpDemoImagesSheet.relaxSoundDemoImages;
       case .period_calendar:
         return SpDemoImagesSheet.periodCalendarDemoImages;
+      case .map:
+        // No screenshots for the map either; the tile toggles in place.
+        return const [];
       case .daily_score:
         // No screenshots exist for this add-on yet, and an empty demo list is
         // not harmless: SpDemoImages reserves 320px even with nothing in it. An

@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "Размер файла",
   "list_tile.first_day_of_week.title": "Первый день недели",
   "list_tile.calendar_system.title": "Система календаря",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "Выходные дни",
   "list_tile.weekend_days.subtitle": "Дни, отмеченные в календаре как нерабочие.",
   "list_tile.font_family.title": "Шрифт",

@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "ទំហំឯកសារ",
   "list_tile.first_day_of_week.title": "ថ្ងៃដំបូងនៃសប្តាហ៍",
   "list_tile.calendar_system.title": "ប្រព័ន្ធប្រតិទិន",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "ថ្ងៃចុងសប្តាហ៍",
   "list_tile.weekend_days.subtitle": "ថ្ងៃដែលសម្គាល់ថាមិនធ្វើការនៅក្នុងប្រតិទិន។",
   "list_tile.font_family.title": "ក្រុមពុម្ពអក្សរ",

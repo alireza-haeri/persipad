@@ -370,6 +370,7 @@
   "list_tile.file_size.title": "حجم الملف",
   "list_tile.first_day_of_week.title": "أول يوم من الأسبوع",
   "list_tile.calendar_system.title": "نظام التقويم",
+  "list_tile.map.subtitle": "Places on a map, and where each story was written. Turn it off if you never use it.",
   "list_tile.weekend_days.title": "أيام نهاية الأسبوع",
   "list_tile.weekend_days.subtitle": "الأيام التي تُعلَّم كأيام غير عمل في التقويم.",
   "list_tile.font_family.title": "عائلة الخطوط",
