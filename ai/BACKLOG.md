@@ -35,7 +35,8 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 | A-1 | `✅` CI APK workflow (`.github/workflows/android.yml`) | Builds arm64 `community` APK on `[apk]` commit subject + publishes pre-release (D-038, D-039) |
 | A-2 | `✅` Local Fedora APK loop (`bin/build_apk` + `bin/android_doctor`) | Handles offline `dl.google.com` via Tencent/Huawei Maven mirror, `android-36.1` minor SDK, `--no-ndk` `forceNdkDownload` bypass, and `--avd` (D-040) |
 | A-4 | `✅` AVD resolver (emulator DNS) | `bin/build_apk` reads the host's real upstream resolver when `/etc/resolv.conf` only has a loopback stub, diagnoses an already-running emulator, and `--no-dns-server` opts out (`D-053`, `D-055`) |
-| A-5 | `👤` Emulator Google sign-in, once | The flow is fixed and green in code review only; one real attempt is the last piece of evidence (`NEXT.md` §1) |
+| A-5 | `👤` Emulator Google sign-in | Attempted; the app side behaves (browser + account OK, no raw exception) but the AVD resolves Google to a fake IP (`198.18.0.60`), so the token exchange cannot reach Google — one proxy/DNS setting away (`D-056`, `NEXT.md` §1) |
+| A-6 | `✅` Fake-IP DNS is detected | `bin/build_apk` classifies the guest's answer (`ok`/`fake`/`unresolvable`) instead of trusting a ping that a fake-IP layer answers itself (`D-056`) |
 | A-3 | `✅` **Lightweight mobile (phone) build** | Trimmed Maps/Location, Relax Sounds, Period Calendar, Add-ons, Fonts picker, IAP/Paywall/Support Us, non-Drive backups (`Nextcloud`/`Dropbox`/`iCloud`), and 19 unused locales (`D-047`) |
 
 ## 0b. Calendar (the Persian-calendar track)

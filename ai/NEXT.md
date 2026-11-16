@@ -10,29 +10,41 @@
 
 ---
 
-## 1. 👤 One emulator sign-in attempt — the only open question in the sync path
+## 1. 👤 One DNS setting, then the sign-in attempt again
 
-**What I need:** one line of result. On Fedora:
+**Where it stands (session 15).** The old `Failed host lookup` is gone, the browser opened,
+the Google account was accepted — and then the app said "No internet connection!". That
+message is truthful: `adb shell ping -c1 oauth2.googleapis.com` from the guest returned
+**198.18.0.60 (ttl 255, 1 ms)**, a fake address from the `198.18.0.0/15` pool that
+Clash/mihomo-style proxies use for fake-IP DNS. The app's token exchange goes to that
+address and dies; Chrome still logged in because it resolves through its own secure DNS.
+
+So nothing in the Dart code is implicated: **the guest must resolve Google to a real
+address.** Chrome reaching Google from inside the same AVD also proves the emulator's
+TCP path is fine — only the name resolution is being hijacked.
+
+**Three fixes, cheapest first:**
+
+| # | Fix | Command / change | Cost |
+|---|---|---|---|
+| 1 | Let those names resolve for real in the proxy (best) | add to the proxy's config: `dns.fake-ip-filter: ["+.googleapis.com", "+.google.com", "accounts.google.com"]`, or switch `dns.enhanced-mode` to `redir-host`; restart the proxy | one config edit, fixes every app in the guest |
+| 2 | Encrypted resolver inside the guest, even while it keeps running | `adb shell settings put global private_dns_mode hostname` then `adb shell settings put global private_dns_specifier dns.google` | two commands, no reboot |
+|   | ...and to undo it | `adb shell settings put global private_dns_mode off` | |
+| 3 | A resolver the fake-IP layer does not answer for | reboot the AVD with `bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8` | a reboot; works only if that resolver is reachable from here |
+
+**The check that says you are done** — the address must change from `198.18.*` to something
+like `142.250.*`, `172.217.*`, `216.58.*` or `74.125.*`:
 
 ```bash
-bin/build_apk --install --avd=storypad_dev        # no DNS flag needed since D-055
-# then in the app: Settings → Backup → Google Drive → sign in
+adb shell ping -c1 oauth2.googleapis.com
 ```
 
-**Why it is still open:** sessions 12–14 fixed everything around that flow (offline
-handling, account retention, the AVD's resolver), and the last one was *diagnosed* but never
-*exercised*: no session has seen a successful sign-in on the emulator. Until one does, "sync
-works on Android" is a claim about code, not a fact.
+Then in the app: `Settings → Backup → Google Drive → sign in`. `bin/build_apk` now prints
+exactly this diagnosis itself (`D-056`), so it can tell you which of the three cases you are
+in before you open the app.
 
-**If it works:** say so and I record it in `PROGRESS.md`; next item is 2.1.
-**If it fails:** paste the message. The two known shapes are no DNS (`Failed host lookup`,
-now automatic — see `ENVIRONMENT.md` §2.2c) and no OAuth client configured for the
-`community` build (`bin/setup_sync`).
-
-> Related fact worth knowing: the app uses the **desktop loopback** OAuth flow on both
-> platforms (`D-047`), not `google_sign_in`. On the emulator that means Chrome opens inside
-> the guest and the redirect comes back to `127.0.0.1:<port>` *inside* the guest. It is
-> designed to work there; it has not been seen working there.
+**Why this is still 👤:** it is one setting on your proxy or your AVD. If you prefer, tell me
+which proxy you run and I will write the exact config block for it.
 
 ---
 

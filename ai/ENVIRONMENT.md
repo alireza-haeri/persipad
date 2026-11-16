@@ -132,6 +132,30 @@ Since D-053 the app also reports an unreachable Google as a network problem
 ("No internet connection!") rather than printing the raw `ClientException` — and it keeps
 the stored account instead of signing you out while offline.
 
+### 2.2d A fake-IP proxy makes "No internet connection!" look like the app's fault
+
+If a proxy on the host runs a fake-IP DNS (Clash/mihomo-style TUN; default pool
+`198.18.0.1/16`), the guest resolves Google to a **bogus** address and everything else looks
+healthy:
+
+```
+$ adb shell ping -c1 oauth2.googleapis.com
+PING oauth2.googleapis.com (198.18.0.60) 56(84) bytes of data.
+64 bytes from 198.18.0.60: icmp_seq=1 ttl=255 time=1.05 ms     ← ttl 255 + 1 ms = answered locally
+```
+
+The ping succeeding is the trap: the fake-IP layer answers ICMP itself. Chrome (inside the
+same AVD) still signs in because it uses its own secure DNS, so the browser works and the app
+says "No internet connection!" — the token exchange went to `198.18.0.60`. `bin/build_apk`
+now classifies the answer (`ok` / `fake` / `unresolvable`, `D-056`) and prints the remedy.
+
+Fixes, cheapest first: add `fake-ip-filter` entries for `+.googleapis.com`, `+.google.com`
+and `accounts.google.com` in the proxy (or `dns.enhanced-mode: redir-host`); or set the
+guest's Private DNS (`settings put global private_dns_mode hostname` +
+`private_dns_specifier dns.google`); or boot the AVD with `--dns-server`. The proof is the
+address itself: it must read `142.250.*`, `172.217.*`, `216.58.*` or `74.125.*`, not
+`198.18.*`.
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):

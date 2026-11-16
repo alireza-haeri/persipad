@@ -1,11 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 14)
+**Last updated:** 2026-11-16 (session 15)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 14 — finishing session 13 (the emulator "sign-in failed" that was DNS), plus making the AVD fix itself (`D-053`..`D-055`)
+**Current session:** session 15 — the first real emulator sign-in: DNS now works, but the guest resolves Google to a **fake IP** (`D-056`)
 **Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
-**Phase:** ✅ Session 13 is committed and green in CI; session 14 closes the last gap (a running AVD is diagnosed, a booted one gets a real resolver automatically). Waiting on one thing from you: one emulator sign-in attempt.
+**Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
 
 ---
 
@@ -663,3 +663,36 @@ resolver tool at all (empty output, no `set -e` abort), then the whole script ag
 
 No Dart/Flutter in the sandbox, so nothing app-side was rebuildable here; the test suite you
 run is the proof.
+
+### Session 15 — The first real sign-in attempt: the AVD resolves Google to a fake IP (2026-11-16)
+
+The user ran `bin/build_apk --install --avd=storypad_dev` on the branch, installed on
+`emulator-5554`, and tried to sign in. Result, in order:
+
+1. **The old failure is gone.** No `Failed host lookup`, no raw `ClientException`.
+2. The browser opened and the Google account was accepted.
+3. The app then said **"No internet connection!"** — the translated
+   `snack_bar.no_internet`, i.e. `BackupErrorType.network` (D-053) working as designed.
+4. `adb shell ping -c1 oauth2.googleapis.com` → **`198.18.0.60`, ttl 255, 1.05 ms**, and
+   Chrome is installed (`com.android.chrome`).
+
+**Diagnosis.** `198.18.0.0/15` is the benchmarking range that Clash/mihomo-style proxies use
+as their default fake-IP pool, and `ttl 255 / 1 ms` says the answer came from the local
+fake-IP layer, not from Google. So: the redirect and the loopback callback worked (that is
+why the app got as far as the token exchange), and the **token exchange** is the call that
+died — the system resolver handed `dart:io` a fake address. Chrome succeeded because it
+resolves through its own secure DNS, bypassing the host's fake-IP answers.
+
+The AVD could not be repaired automatically because it was **already running** when the build
+started (D-055's limit), and D-055's health check did not notice anyway: it only asked
+whether `ping` exited 0, and a fake-IP layer answers ICMP itself.
+
+**Fixed here (tooling only — the app needed nothing):** `emulator_dns_verdict` classifies the
+resolved address (`ok` / `fake` / `unresolvable`) and `explain_dns_verdict` prints the
+remedy for each case: proxy `fake-ip-filter`/`redir-host`, the guest's Private DNS setting
+(no reboot), or an explicit `--dns-server` (**D-056**). Verified against a stubbed `adb` in
+all three cases.
+
+**Open, and it is on the network side, not in Dart:** the guest must resolve Google to a real
+address before a successful sign-in is possible. `NEXT.md` §1 lists the three ways, cheapest
+first.

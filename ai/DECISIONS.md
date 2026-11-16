@@ -1372,3 +1372,26 @@ Template:
   condition reliably, so making a human repeat it is just a second failure mode.
   Upstream resolvers are preferred over public ones so a network that blocks `8.8.8.8`
   (or a split-horizon DNS) keeps working.
+
+## D-056 — A "healthy" ping is not healthy DNS: classify the AVD's answer (2026-11-16)
+- **Status:** accepted
+- **Context:** After D-055, the user's first real sign-in attempt on the AVD got *past* DNS:
+  the browser opened, the Google account was accepted, and the app then reported
+  "No internet connection!" — i.e. the redirect arrived and the **token exchange** to
+  `oauth2.googleapis.com` was the call that failed. `adb shell ping -c1 oauth2.googleapis.com`
+  resolved it to **198.18.0.60 with ttl 255 in 1 ms**: a benchmark-range address answered
+  locally, not Google. That is a fake-IP DNS (Clash/mihomo-style TUN, default pool
+  `198.18.0.1/16`) sitting in front of the host's resolver. Chrome could still log in
+  because it runs its own secure DNS; the app uses the system resolver, got the fake
+  address, and its HTTPS went nowhere.
+  **The D-055 check said nothing, because it only asked "does ping exit 0".**
+- **Decision:** replace that check with `emulator_dns_verdict`, which classifies the
+  *address* the guest resolved — `ok <ip>`, `fake <ip>` (RFC1918, `100.64/10`, `169.254/16`,
+  `127/8`, and the `198.18/15` benchmarking pool), or `unresolvable` — and print a
+  case-specific remedy: proxy `fake-ip-filter`/`redir-host` (best), the guest's Private DNS
+  setting (no reboot), or an explicit `--dns-server`.
+- **Consequences:** the tool can no longer report a fake-IP guest as healthy, which is
+  exactly the false negative that cost this session. It also names the *real* remaining
+  suspect in one line instead of leaving "no internet" to guesswork. Covered by the stubbed
+  `adb` scenarios (fake / real / no answer → three different messages). Nothing here claims
+  sign-in works: the app still cannot reach Google while the guest resolves a fake address.
