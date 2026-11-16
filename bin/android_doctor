@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# android_doctor — what this machine has, what the Android build needs, and what is missing.
+#
+#   bin/android_doctor            # full report
+#   bin/android_doctor --short    # only the verdict lines
+#
+# Prints one paste-able report: toolchain versions, SDK packages, AVDs and their ABIs,
+# the Gradle/AGP/NDK the repo asks for, and whether Google Maven is reachable for the two
+# artifacts the Flutter Gradle plugin needs (a 403/404 there explains
+# "Could not find apksig-x.y.z.jar" far better than the Gradle error does).
+# Read-only: it installs nothing and changes nothing.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+SHORT=0
+[ "${1:-}" = "--short" ] && SHORT=1
+
+hdr() { [ "$SHORT" = 1 ] || printf '\n\033[1m== %s\033[0m\n' "$*"; }
+row() { printf '  %-26s %s\n' "$1" "$2"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+verdict_ok=(); verdict_bad=(); verdict_note=()
+ok()   { verdict_ok+=("$*");   [ "$SHORT" = 1 ] || printf '  \033[32mok\033[0m      %s\n' "$*"; }
+bad()  { verdict_bad+=("$*");  [ "$SHORT" = 1 ] || printf '  \033[31mMISSING\033[0m %s\n' "$*"; }
+note() { verdict_note+=("$*"); [ "$SHORT" = 1 ] || printf '  \033[33mnote\033[0m    %s\n' "$*"; }
+
+[ "$SHORT" = 1 ] || printf '\033[1mAndroid doctor\033[0m — %s on %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" "$(uname -srm)"
+
+# ---------------------------------------------------------------- machine
+hdr "machine"
+row distro "$(sed -n 's/^PRETTY_NAME="\(.*\)"/\1/p' /etc/os-release 2>/dev/null | head -1)"
+row kernel "$(uname -r)"
+row cpus "$(nproc 2>/dev/null)"
+row memory "$(free -h 2>/dev/null | awk 'NR==2{print $2}')"
+row disk_here "$(df -h . | awk 'NR==2{print $4" free of "$2" on "$6}')"
+
+# ---------------------------------------------------------------- repo
+hdr "repo"
+row branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+row commit "$(git log --oneline -1 2>/dev/null)"
+row dirty "$(git status --porcelain 2>/dev/null | wc -l) file(s)"
+row gradle_wrapper "$(sed -n 's/.*gradle-\(.*\)-\(all\|bin\)\.zip/\1/p' android/gradle/wrapper/gradle-wrapper.properties 2>/dev/null)"
+row agp "$(sed -n 's/.*com\.android\.application") version "\([^"]*\)".*/\1/p' android/settings.gradle.kts 2>/dev/null)"
+row kotlin "$(sed -n 's/.*org\.jetbrains\.kotlin\.android") version "\([^"]*\)".*/\1/p' android/settings.gradle.kts 2>/dev/null)"
+row compile_sdk "$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' android/app/build.gradle.kts 2>/dev/null | head -1)"
+row min_sdk "$(sed -n 's/.*minSdk = \([0-9]*\).*/\1/p' android/app/build.gradle.kts 2>/dev/null | head -1)"
+COMPILE_SDK=$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' android/app/build.gradle.kts 2>/dev/null | head -1)
+
+# ---------------------------------------------------------------- toolchain
+hdr "toolchain"
+if have flutter; then
+  FLUTTER_BIN=$(command -v flutter)
+  FLUTTER_VERSION=$(flutter --version 2>/dev/null | head -1)
+  row flutter "$(echo "$FLUTTER_VERSION" | cut -c1-60)"
+  row flutter_path "$FLUTTER_BIN"
+  FLUTTER_ROOT=$(cd "$(dirname "$(readlink -f "$FLUTTER_BIN")")/.." && pwd)
+  case "$FLUTTER_VERSION" in
+    *3.50.*) ok "flutter $(echo "$FLUTTER_VERSION" | awk '{print $2}')" ;;
+    *) note "flutter is $(echo "$FLUTTER_VERSION" | awk '{print $2}'); CI pins 3.50.0" ;;
+  esac
+else
+  bad "flutter not on PATH (install 3.50.0)"
+  FLUTTER_ROOT=""
+fi
+
+if have java; then
+  JAVA_LINE=$(java -version 2>&1 | head -1)
+  JAVA_MAJOR=$(printf '%s\n' "$JAVA_LINE" | sed -n 's/.*version "\([0-9]*\).*/\1/p')
+  row java "$JAVA_LINE"
+  row JAVA_HOME "${JAVA_HOME:-<unset>}"
+  if [ "${JAVA_MAJOR:-0}" -ge 17 ] 2>/dev/null; then ok "JDK ${JAVA_MAJOR}"; else bad "JDK ${JAVA_MAJOR:-?} (need 17+)"; fi
+else
+  bad "no java on PATH (need JDK 17+)"
+fi
+
+# ---------------------------------------------------------------- android sdk
+hdr "android sdk"
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+[ -z "$SDK" ] && for guess in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" /usr/lib/android-sdk /opt/android-sdk; do
+  [ -d "$guess" ] && { SDK="$guess"; break; }
+done
+if [ -n "$SDK" ] && [ -d "$SDK" ]; then
+  ok "ANDROID_HOME=$SDK"
+  row sdk_path "$SDK"
+  row disk_sdk "$(df -h "$SDK" | awk 'NR==2{print $4" free"}')"
+  # sdkmanager lives in cmdline-tools/*/bin or tools/bin
+  for c in "$SDK"/cmdline-tools/*/bin/sdkmanager "$SDK"/cmdline-tools/latest/bin/sdkmanager "$SDK"/tools/bin/sdkmanager; do
+    [ -x "$c" ] && { SDKMANAGER="$c"; break; }
+  done
+  if [ -n "${SDKMANAGER:-}" ]; then
+    row sdkmanager "$SDKMANAGER"
+    INSTALLED=$(timeout 120 "$SDKMANAGER" --list_installed 2>/dev/null | sed -n '/Installed packages:/,$p' | sed '1d' | awk '{print $1}' | sed '/^$/d')
+    [ -z "$INSTALLED" ] && INSTALLED=$(ls "$SDK/platforms" 2>/dev/null; ls "$SDK/build-tools" 2>/dev/null)
+    row platforms "$(printf '%s\n' "$INSTALLED" | grep '^platforms;android-' | sed 's/platforms;android-//' | sort -n | tr '\n' ' ')"
+    row build_tools "$(printf '%s\n' "$INSTALLED" | grep '^build-tools;' | sed 's/build-tools;//' | sort -V | tr '\n' ' ')"
+    row ndk "$(printf '%s\n' "$INSTALLED" | grep '^ndk;' | sed 's/ndk;//' | sort -V | tr '\n' ' ')"
+    row cmake "$(printf '%s\n' "$INSTALLED" | grep '^cmake;' | sed 's/cmake;//' | sort -V | tr '\n' ' ')"
+    row platform_tools "$(printf '%s\n' "$INSTALLED" | grep -q '^platform-tools' && echo installed || echo missing)"
+    row emulator "$(printf '%s\n' "$INSTALLED" | grep -q '^emulator' && echo installed || echo missing)"
+
+    [ -n "$COMPILE_SDK" ] && {
+      if printf '%s\n' "$INSTALLED" | grep -q "^platforms;android-$COMPILE_SDK$"; then
+        ok "platform android-$COMPILE_SDK"
+      else
+        bad "platform android-$COMPILE_SDK  (sdkmanager \"platforms;android-$COMPILE_SDK\")"
+      fi
+    }
+    printf '%s\n' "$INSTALLED" | grep -q '^build-tools;' || bad "build-tools (sdkmanager \"build-tools;36.0.0\")"
+    printf '%s\n' "$INSTALLED" | grep -q '^platform-tools' || bad "platform-tools (for adb)"
+    printf '%s\n' "$INSTALLED" | grep -q '^emulator' || note "emulator package not installed (needed only for AVDs)"
+  else
+    note "sdkmanager not found under $SDK (cmdline-tools missing) — package checks skipped"
+  fi
+else
+  bad "no Android SDK (set ANDROID_HOME; Android Studio ships it)"
+  SDK=""
+fi
+
+# NDK the Flutter plugin pins
+if [ -n "${FLUTTER_ROOT:-}" ] && [ -f "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" ]; then
+  FLUTTER_NDK=$(sed -n 's/.*const String ndkVersion = "\([^"]*\)".*/\1/p' \
+    "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" | head -1)
+  [ -n "$FLUTTER_NDK" ] && row flutter_ndk "$FLUTTER_NDK"
+  FLUTTER_AGP=$(sed -n 's/.*const String templateAndroidGradlePluginVersion = "\([^"]*\)".*/\1/p' \
+    "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" | head -1)
+  [ -n "$FLUTTER_AGP" ] && row flutter_agp "$FLUTTER_AGP"
+fi
+
+# ---------------------------------------------------------------- devices & avds
+hdr "devices and AVDs"
+if have adb; then
+  row adb "$(adb version 2>/dev/null | head -1)"
+  DEVICES=$(adb devices -l 2>/dev/null | sed -n '2,$p' | sed '/^$/d')
+  if [ -n "$DEVICES" ]; then
+    printf '%s\n' "$DEVICES" | while IFS= read -r line; do row device "$line"; done
+    ABI_DEV=$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')
+    [ -n "$ABI_DEV" ] && ok "attached device ABI $ABI_DEV (bin/build_apk --abi auto picks this)"
+  else
+    note "no device/emulator attached ('adb devices' is empty)"
+  fi
+else
+  bad "adb not on PATH (install platform-tools)"
+fi
+
+EMULATOR=""
+have emulator && EMULATOR=$(command -v emulator)
+[ -z "$EMULATOR" ] && [ -n "$SDK" ] && [ -x "$SDK/emulator/emulator" ] && EMULATOR="$SDK/emulator/emulator"
+if [ -n "$EMULATOR" ]; then
+  AVDS=$(timeout 20 "$EMULATOR" -list-avds 2>/dev/null | sed '/^$/d')
+  if [ -n "$AVDS" ]; then
+    printf '%s\n' "$AVDS" | while IFS= read -r avd; do
+      CFG="$HOME/.android/avd/$avd.avd/config.ini"
+      ABI=$(sed -n 's/^abi\.type=//p' "$CFG" 2>/dev/null | head -1)
+      row "avd $avd" "${ABI:-abi unknown}"
+    done
+    ok "AVDs present (start one, then bin/build_apk --install)"
+  else
+    note "emulator installed but no AVDs (avdmanager create avd -n pixel -k \"system-images;android-36;google_apis;x86_64\")"
+  fi
+else
+  note "emulator binary not found — AVD checks skipped"
+fi
+
+# ---------------------------------------------------------------- network / repositories
+hdr "google maven reachability"
+if have curl; then
+  URLS=(
+    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.pom"
+    "com/android/tools/build/apksig/9.1.1/apksig-9.1.1.jar"
+    "com/android/tools/build/apkzlib/9.1.1/apkzlib-9.1.1.jar"
+    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.jar"
+  )
+  for path in "${URLS[@]}"; do
+    code=$(curl -s -o /dev/null -m 25 -w '%{http_code}' "https://dl.google.com/dl/android/maven2/$path" 2>/dev/null)
+    printf '  %-58s %s\n' "$path" "$code"
+    case "$code" in
+      200) : ;;
+      403|451) bad "dl.google.com returns $code for $(basename "$path") — region/proxy block, not a build bug" ;;
+      404) bad "dl.google.com returns 404 for $(basename "$path") — stale Gradle metadata cache, try --refresh-dependencies" ;;
+      000|"") note "could not reach dl.google.com at all ($(basename "$path"))" ;;
+    esac
+  done
+  code=$(curl -s -o /dev/null -m 25 -w '%{http_code}' "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/2.4.10/kotlin-gradle-plugin-2.4.10.pom" 2>/dev/null)
+  printf '  %-58s %s\n' "maven central (kotlin-gradle-plugin 2.4.10)" "$code"
+else
+  note "curl not found — reachability checks skipped"
+fi
+
+[ -d "$HOME/.gradle/init.d" ] && ls "$HOME/.gradle/init.d" >/dev/null 2>&1 && {
+  hdr "gradle init scripts / mirrors"
+  for f in "$HOME/.gradle/init.d"/*; do [ -f "$f" ] && row "$(basename "$f")" "$(grep -c . "$f") lines"; done
+  note "an init script with a mirror can hide/replace dl.google.com — check it if the checks above are odd"
+}
+[ -f "$HOME/.gradle/gradle.properties" ] && {
+  hdr "user gradle.properties"
+  sed -n 'p' "$HOME/.gradle/gradle.properties" | sed 's/^/  /'
+}
+[ -f gradle.properties ] && row repo_gradle_props "$(wc -l < gradle.properties) lines"
+[ -f android/gradle.properties ] && row android_gradle_props "$(tr '\n' ' ' < android/gradle.properties | cut -c1-120)"
+
+# ---------------------------------------------------------------- verdict
+printf '\n\033[1m== verdict\033[0m\n'
+for v in "${verdict_ok[@]}"; do printf '  \033[32mok\033[0m      %s\n' "$v"; done
+for v in "${verdict_note[@]}"; do printf '  \033[33mnote\033[0m    %s\n' "$v"; done
+for v in "${verdict_bad[@]}"; do printf '  \033[31mMISSING\033[0m %s\n' "$v"; done
+if [ "${#verdict_bad[@]}" -eq 0 ]; then
+  printf '\n  Nothing missing: run \033[1mbin/build_apk --install\033[0m (adds --abi x86_64 for an x86_64 AVD).\n'
+else
+  printf '\n  %d item(s) to fix. Install SDK packages with: sdkmanager --install "<package>"\n' "${#verdict_bad[@]}"
+fi
