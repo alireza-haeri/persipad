@@ -1,4 +1,7 @@
-import 'package:easy_localization/easy_localization.dart';
+// `show` matters: easy_localization re-exports `package:intl/intl.dart`, which
+// has its own `TextDirection` (no `.ltr`/`.rtl`) and would shadow the one from
+// `dart:ui` that Material needs.
+import 'package:easy_localization/easy_localization.dart' show AssetLoader, EasyLocalization;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
@@ -10,17 +13,13 @@ import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/widgets/story_list/local_widgets/story_month_header.dart';
 
 /// Translations from memory: the test only needs `context.locale` to resolve,
-/// and reading `translations/*.json` through the asset bundle is not something
-/// the other tests rely on either (see `flutter_test_config.dart`).
+/// and the other tests don't rely on reading `translations/*.json` through the
+/// asset bundle either (see `flutter_test_config.dart`).
 class _MemoryAssetLoader extends AssetLoader {
-  const _MemoryAssetLoader()
-    : super(
-        linkedFileResolver: const JsonLinkedFileResolver(fileLoader: RootBundleFileLoader()),
-        fileLoader: const RootBundleFileLoader(),
-      );
+  const _MemoryAssetLoader();
 
   @override
-  Future<Map<String, dynamic>> load(String fullPath, Locale locale) async => const <String, dynamic>{};
+  Future<Map<String, dynamic>?> load(String path, Locale locale) async => const <String, dynamic>{};
 }
 
 /// The month header is the first thing every story list draws — on the home
@@ -74,6 +73,7 @@ void main() {
       EasyLocalization(
         path: 'translations',
         assetLoader: const _MemoryAssetLoader(),
+        saveLocale: false,
         supportedLocales: const [Locale('fa')],
         fallbackLocale: const Locale('fa'),
         child: MaterialApp(
@@ -94,7 +94,8 @@ void main() {
         ),
       ),
     );
-    // The locale loads in a microtask, then the tree builds once more.
+
+    // The locale resolves in a microtask, then the tree builds once more.
     await tester.pump();
     await tester.pump();
   }
