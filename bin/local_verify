@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+# local_verify — run the full post-merge verification suite on the local dev box.
+#
+# Usage:
+#   bin/local_verify                # Linux full check (format check + analyze + app tests + editor tests + Linux build)
+#   bin/local_verify --format       # also format Dart files in-place if needed
+#   bin/local_verify --android      # also run android_doctor + build_apk (auto ABI)
+#   bin/local_verify --android-fix  # run android_doctor --fix first, then build_apk
+#   bin/local_verify --install      # install the built APK on attached phone / AVD
+#   bin/local_verify --avd=NAME     # boot AVD (default: storypad_dev if --avd with no value)
+#
+# Prints one clean summary report at the end (and writes full logs under bin/.tmp/verify/)
+# ready to be pasted back into the chat.
+
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+DO_FORMAT=0
+DO_ANDROID=0
+DO_ANDROID_FIX=0
+DO_INSTALL=0
+AVD_ARG=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --format)       DO_FORMAT=1 ;;
+    --android)      DO_ANDROID=1 ;;
+    --android-fix)  DO_ANDROID=1; DO_ANDROID_FIX=1 ;;
+    --install)      DO_ANDROID=1; DO_INSTALL=1 ;;
+    --avd)          DO_ANDROID=1; DO_INSTALL=1; AVD_ARG="--avd=storypad_dev" ;;
+    --avd=*)        DO_ANDROID=1; DO_INSTALL=1; AVD_ARG="$arg" ;;
+    -h|--help)
+      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      echo "bin/local_verify: unknown option '$arg' (try --help)" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -n "${FLUTTER_BIN:-}" ] && [ -x "$FLUTTER_BIN" ]; then
+  FLUTTER="$FLUTTER_BIN"
+elif command -v flutter >/dev/null 2>&1; then
+  FLUTTER="$(command -v flutter)"
+elif [ -x "$HOME/development/flutter_stable/bin/flutter" ]; then
+  FLUTTER="$HOME/development/flutter_stable/bin/flutter"
+else
+  echo "X Flutter SDK not found on PATH or at ~/development/flutter_stable/bin/flutter." >&2
+  exit 1
+fi
+
+FLUTTER_DIR="$(dirname "$FLUTTER")"
+export PATH="$FLUTTER_DIR:$PATH"
+DART="$FLUTTER_DIR/dart"
+[ -x "$DART" ] || DART="$(command -v dart)"
+
+LOG_DIR="bin/.tmp/verify"
+mkdir -p "$LOG_DIR"
+REPORT="$LOG_DIR/full_report.txt"
+
+_fmt_secs() {
+  local s=$1
+  if [ "$s" -ge 60 ]; then printf '%dm%02ds' "$((s / 60))" "$((s % 60))"; else printf '%ds' "$s"; fi
+}
+_word() { if [ "$1" -eq 0 ]; then echo "PASS"; else echo "FAIL"; fi; }
+
+total_start=$(date +%s)
+
+echo "==> Preparing private_keys fallback & dependencies..."
+source "$(dirname "$0")/helpers"
+sync_private_keys
+
+"$FLUTTER" pub get > "$LOG_DIR/pub-get.log" 2>&1
+pub_status=$?
+if [ "$pub_status" -ne 0 ]; then
+  echo "X flutter pub get failed — see $LOG_DIR/pub-get.log"
+  tail -25 "$LOG_DIR/pub-get.log"
+  exit 1
+fi
+
+# 1. Format check (or apply)
+echo "==> [1/5] Dart format..."
+t0=$(date +%s)
+DART_FILES=()
+while IFS= read -r -d '' f; do
+  DART_FILES+=("$f")
+done < <(find lib test -name "*.dart" -not -name "*.g.dart" -not -name "*.gen.dart" -not -name "*.mocks.dart" -not -path "*/firebase_options/*" -print0)
+
+if [ "$DO_FORMAT" = "1" ]; then
+  "$DART" format --line-length=120 "${DART_FILES[@]}" > "$LOG_DIR/format.log" 2>&1
+  fmt_status=$?
+  fmt_note="formatted in-place"
+else
+  "$DART" format --output=none --set-exit-if-changed --line-length=120 "${DART_FILES[@]}" > "$LOG_DIR/format.log" 2>&1
+  fmt_status=$?
+  if [ "$fmt_status" -eq 0 ]; then
+    fmt_note="clean"
+  else
+    unfmt_count=$(grep -c '^Changed ' "$LOG_DIR/format.log" || true)
+    fmt_note="${unfmt_count} file(s) unformatted (advisory; run with --format)"
+  fi
+fi
+fmt_secs=$(($(date +%s) - t0))
+
+# 2. Flutter analyze
+echo "==> [2/5] Flutter analyze..."
+t0=$(date +%s)
+"$FLUTTER" analyze --no-fatal-infos --no-fatal-warnings > "$LOG_DIR/analyze.log" 2>&1
+analyze_status=$?
+analyze_secs=$(($(date +%s) - t0))
+
+# 3. Root test suite
+echo "==> [3/5] Root tests (test/)..."
+t0=$(date +%s)
+"$FLUTTER" test --reporter compact > "$LOG_DIR/root-test.log" 2>&1
+root_test_status=$?
+root_test_secs=$(($(date +%s) - t0))
+root_test_count=$(grep -oE '\+[0-9]+' "$LOG_DIR/root-test.log" | tail -1 || echo "+?")
+
+# 4. Editor package test suite
+echo "==> [4/5] Editor package tests (packages/storypad_editor/test/)..."
+t0=$(date +%s)
+(
+  cd packages/storypad_editor &&
+  "$FLUTTER" pub get > "../../$LOG_DIR/editor-pub-get.log" 2>&1 &&
+  "$FLUTTER" test --reporter compact > "../../$LOG_DIR/editor-test.log" 2>&1
+)
+editor_test_status=$?
+editor_test_secs=$(($(date +%s) - t0))
+editor_test_count=$(grep -oE '\+[0-9]+' "$LOG_DIR/editor-test.log" | tail -1 || echo "+?")
+
+# 5. Linux desktop debug build
+echo "==> [5/5] Linux desktop build (community debug)..."
+t0=$(date +%s)
+"$FLUTTER" build linux --debug --target=lib/main_community.dart \
+  --dart-define-from-file=bin/.tmp/private_keys/dart_defines/community.json > "$LOG_DIR/linux-build.log" 2>&1
+linux_build_status=$?
+linux_build_secs=$(($(date +%s) - t0))
+
+# 6. Optional Android check & build
+android_doctor_status=0
+android_build_status=0
+android_secs=0
+if [ "$DO_ANDROID" = "1" ]; then
+  t0=$(date +%s)
+  if [ "$DO_ANDROID_FIX" = "1" ]; then
+    echo "==> [Android] Running bin/android_doctor --fix..."
+    bin/android_doctor --fix | tee "$LOG_DIR/android-doctor.log"
+    android_doctor_status=${PIPESTATUS[0]}
+  else
+    echo "==> [Android] Running bin/android_doctor --short..."
+    bin/android_doctor --short | tee "$LOG_DIR/android-doctor.log"
+    android_doctor_status=${PIPESTATUS[0]}
+  fi
+
+  APK_ARGS=()
+  [ "$DO_INSTALL" = "1" ] && APK_ARGS+=("--install")
+  [ -n "$AVD_ARG" ] && APK_ARGS+=("$AVD_ARG")
+
+  echo "==> [Android] Running bin/build_apk ${APK_ARGS[*]}..."
+  bin/build_apk "${APK_ARGS[@]}" -v > "$LOG_DIR/android-build.log" 2>&1
+  android_build_status=$?
+  android_secs=$(($(date +%s) - t0))
+fi
+
+total_secs=$(($(date +%s) - total_start))
+
+overall=0
+[ "$analyze_status" -ne 0 ] && overall=1
+[ "$root_test_status" -ne 0 ] && overall=1
+[ "$editor_test_status" -ne 0 ] && overall=1
+[ "$linux_build_status" -ne 0 ] && overall=1
+if [ "$DO_ANDROID" = "1" ] && [ "$android_build_status" -ne 0 ]; then
+  overall=1
+fi
+
+{
+  echo ""
+  echo "================ local_verify report ================"
+  echo "branch:  $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+  echo "commit:  $(git log --oneline -1 2>/dev/null)"
+  echo "flutter: $("$FLUTTER" --version 2>/dev/null | head -1)"
+  echo "-----------------------------------------------------"
+  printf '%-16s %-6s %-8s %s\n' "format"       "$([ "$fmt_status" -eq 0 ] && echo PASS || echo WARN)" "$(_fmt_secs "$fmt_secs")" "$fmt_note"
+  printf '%-16s %-6s %-8s\n'    "analyze"      "$(_word "$analyze_status")"      "$(_fmt_secs "$analyze_secs")"
+  printf '%-16s %-6s %-8s %s\n' "root tests"   "$(_word "$root_test_status")"    "$(_fmt_secs "$root_test_secs")" "$root_test_count"
+  printf '%-16s %-6s %-8s %s\n' "editor tests" "$(_word "$editor_test_status")"  "$(_fmt_secs "$editor_test_secs")" "$editor_test_count"
+  printf '%-16s %-6s %-8s\n'    "linux build"  "$(_word "$linux_build_status")"  "$(_fmt_secs "$linux_build_secs")"
+  if [ "$DO_ANDROID" = "1" ]; then
+    printf '%-16s %-6s %-8s\n'  "android apk"  "$(_word "$android_build_status")" "$(_fmt_secs "$android_secs")"
+  fi
+  echo "-----------------------------------------------------"
+  echo "RESULT: $(_word "$overall")  (total $(_fmt_secs "$total_secs"))"
+
+  if [ "$fmt_status" -ne 0 ] && [ "$DO_FORMAT" = "0" ]; then
+    echo ""
+    echo "--- unformatted files ---"
+    grep '^Changed ' "$LOG_DIR/format.log" | head -15 || true
+  fi
+  if [ "$analyze_status" -ne 0 ]; then
+    echo ""
+    echo "--- analyzer errors ---"
+    grep -E '^ *error • ' "$LOG_DIR/analyze.log" | head -25 || true
+  fi
+  if [ "$root_test_status" -ne 0 ]; then
+    echo ""
+    echo "--- root test failures ---"
+    grep -E '\[E\]|Error:|Expected:|Actual:' "$LOG_DIR/root-test.log" | head -35 || true
+  fi
+  if [ "$editor_test_status" -ne 0 ]; then
+    echo ""
+    echo "--- editor test failures ---"
+    grep -E '\[E\]|Error:|Expected:|Actual:' "$LOG_DIR/editor-test.log" | head -35 || true
+  fi
+  if [ "$linux_build_status" -ne 0 ]; then
+    echo ""
+    echo "--- linux build errors ---"
+    tail -30 "$LOG_DIR/linux-build.log" || true
+  fi
+  if [ "$DO_ANDROID" = "1" ] && [ "$android_build_status" -ne 0 ]; then
+    echo ""
+    echo "--- android build errors ---"
+    tail -40 "$LOG_DIR/android-build.log" || true
+  fi
+  echo "====================================================="
+} | tee "$REPORT"
+
+exit "$overall"
