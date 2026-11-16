@@ -49,8 +49,24 @@ while [ $# -gt 0 ]; do
     --flavor=*) FLAVOR="${1#*=}" ;;
     --abi)     ABI="${2:?--abi needs a value}"; shift ;;
     --abi=*)   ABI="${1#*=}" ;;
-    --compile-sdk)   export ORG_GRADLE_PROJECT_notelyCompileSdk="${2:?--compile-sdk needs a value}"; shift ;;
-    --compile-sdk=*) export ORG_GRADLE_PROJECT_notelyCompileSdk="${1#*=}" ;;
+    --compile-sdk)
+      CSDK="${2:?--compile-sdk needs a value}"; shift
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="${CSDK%%.*}"
+      if [ "$CSDK" != "${CSDK%%.*}" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="${CSDK#*.}"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+      fi
+      ;;
+    --compile-sdk=*)
+      CSDK="${1#*=}"
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="${CSDK%%.*}"
+      if [ "$CSDK" != "${CSDK%%.*}" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="${CSDK#*.}"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+      fi
+      ;;
     --ndk)     export ORG_GRADLE_PROJECT_notelyNdkVersion="${2:?--ndk needs a value}"; shift ;;
     --ndk=*)   export ORG_GRADLE_PROJECT_notelyNdkVersion="${1#*=}" ;;
     --no-ndk)  export ORG_GRADLE_PROJECT_notelyNdkVersion=none ;;
@@ -222,11 +238,22 @@ esac
 # does have is far more useful than a download error. Explicit flags win over this.
 if [ -z "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && [ -d "$SDK/platforms" ]; then
   if [ ! -d "$SDK/platforms/android-37" ]; then
-    BEST=$(ls "$SDK/platforms" 2>/dev/null | sed -n 's/^android-\([0-9][0-9]*\)$/\1/p' | sort -n | tail -1 || true)
-    if [ -n "$BEST" ]; then
-      export ORG_GRADLE_PROJECT_notelyCompileSdk="$BEST"
-      warn "android-37 is not installed → building against android-$BEST (CI uses 37; pass --compile-sdk=37 when you have it)."
-      if [ "$BEST" -lt 36 ] 2>/dev/null; then
+    BEST_PAIR=$(ls -1 "$SDK/platforms" 2>/dev/null |
+      sed -n 's/^android-\([0-9][0-9]*\)\.\([0-9][0-9]*\)$/\1 \2/p; s/^android-\([0-9][0-9]*\)$/\1 -1/p' |
+      sort -t' ' -k1,1n -k2,2n | tail -1 || true)
+    if [ -n "$BEST_PAIR" ]; then
+      BEST_MAJOR=${BEST_PAIR%% *}
+      BEST_MINOR=${BEST_PAIR#* }
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="$BEST_MAJOR"
+      if [ "$BEST_MINOR" != "-1" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="$BEST_MINOR"
+        BEST_LABEL="$BEST_MAJOR.$BEST_MINOR"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+        BEST_LABEL="$BEST_MAJOR"
+      fi
+      warn "android-37 is not installed → building against android-$BEST_LABEL (CI uses 37; pass --compile-sdk=37 when you have it)."
+      if [ "$BEST_MAJOR" -lt 36 ] 2>/dev/null; then
         warn "note: plugin subprojects in android/build.gradle.kts require Android 36+ — if Gradle fails on platform 36, run: bin/android_doctor --fix"
       fi
     else
@@ -269,7 +296,13 @@ EOF
 fi
 
 # ---------------------------------------------------------------- build
-[ -n "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk"
+if [ -n "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ]; then
+  if [ -n "${ORG_GRADLE_PROJECT_notelyCompileSdkMinor:-}" ]; then
+    say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk.$ORG_GRADLE_PROJECT_notelyCompileSdkMinor"
+  else
+    say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk"
+  fi
+fi
 [ -n "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ] && say "ndkVersion override: $ORG_GRADLE_PROJECT_notelyNdkVersion"
 
 say "Building $FLAVOR ($MODE, $CHOSEN)…"

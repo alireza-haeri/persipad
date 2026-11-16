@@ -478,7 +478,23 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   - `bin/android_doctor --fix` resolves missing `platforms`/`build-tools` against `sdkmanager --list`
     (so missing `android-37` on a mirror falls back to `android-36`), skips the optional 1 GB NDK,
     and `bin/build_apk` warns when the local platform is below 36 (required by plugin subprojects).
-- Verified against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager` in the sandbox (`bash -n`,
-  `--help`, 0-device `--abi auto`, missing `PATH` tools, `--avd --install` boot + install, old
-  `.gradle.kts` guard, `--mirror --fix` replacement & catalogue fallback). Real device/AVD build on
-  Fedora is pending your run.
+- Fixed two Fedora build failures hit once Maven plugin resolution succeeded (`assembleCommunityDebug`
+  hanging 5m34s at `android/build.gradle.kts:31` on `sdkmanager` exit 1):
+  - **Flutter 3.50 `forceNdkDownload` NDK provisioning hang:** Flutter's Gradle plugin ignores
+    omitted `ndkVersion` (AGP defaults to `28.2.13676358`) and invokes `sdkmanager --install
+    ndk;28.2.13676358` unless `flutter.installedNdkVersions` contains that version. When
+    `notelyNdkVersion=none`, `android/build.gradle.kts` now sets `flutter.installedNdkVersions` on
+    `:app` (`extraProperties`) and `android/app/build.gradle.kts` sets the matching placeholder
+    `ndkVersion` so `forceNdkDownload` returns immediately without running `sdkmanager` or
+    injecting synthetic CMake.
+  - **Minor SDK platform (`android-36.1`) selection:** `bin/build_apk` now detects `android-<N>.<M>`
+    platforms alongside `android-<N>` (preferring `36.1` over `34`), passes `notelyCompileSdk` +
+    `notelyCompileSdkMinor`, and `android/app/build.gradle.kts` + `android/build.gradle.kts` apply
+    `compileSdkMinor` (via `com.android.build.api.dsl.LibraryExtension` on matching plugin
+    subprojects) so AGP compiles against `platforms/android-36.1` instead of invoking `sdkmanager`
+    for missing `android-36`.
+- Verified against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager`/`curl` in the sandbox
+  (`bash -n`, `--help`, 0-device `--abi auto`, missing `PATH` tools, `--avd --install`, mirror
+  502/200 selection, `android-34` + `android-36.1` platform selection + `--compile-sdk=36.1`,
+  `notelyNdkVersion=none` + `notelyCompileSdkMinor` env forwarding). Real device/AVD build on Fedora
+  is pending your run.

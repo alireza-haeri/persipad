@@ -40,15 +40,21 @@ android {
     //
     // 37 is what upstream and CI build against. A machine that cannot reach
     // dl.google.com to install android-37 can build against the platform it does have:
-    //   ORG_GRADLE_PROJECT_notelyCompileSdk=36 bin/build_apk      (bin/build_apk --compile-sdk=36)
+    //   ORG_GRADLE_PROJECT_notelyCompileSdk=36 ORG_GRADLE_PROJECT_notelyCompileSdkMinor=1 bin/build_apk
     compileSdk = (project.findProperty("notelyCompileSdk") as String?)?.toIntOrNull() ?: 37
+    (project.findProperty("notelyCompileSdkMinor") as String?)?.toIntOrNull()?.let { minor ->
+        compileSdkMinor = minor
+    }
 
     // The NDK is only needed when something actually compiles C/C++; nothing in this
     // app does, and the debug build does not touch it. `notelyNdkVersion=none` (or
-    // bin/build_apk --no-ndk) drops the requirement entirely.
+    // bin/build_apk --no-ndk) skips sdkmanager provisioning (paired with the matching
+    // entry in android/build.gradle.kts).
     val notelyNdkVersion = project.findProperty("notelyNdkVersion") as String?
-    if (notelyNdkVersion != "none") {
-        ndkVersion = notelyNdkVersion ?: flutter.ndkVersion
+    ndkVersion = if (notelyNdkVersion != "none") {
+        notelyNdkVersion ?: flutter.ndkVersion
+    } else {
+        "28.2.13676358"
     }
 
     compileOptions {
