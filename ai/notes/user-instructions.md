@@ -204,7 +204,8 @@ thing it recommends doing *first* is enabling the editor package's 390 existing 
 seam), T-11 cheap half (`search_filter_object_test.dart`), search open-speed fix (D-044:
 one `count()` probe + no first-paint wait; the probe is a column scan, not an
 index lookup), T-12 (bundled default font, D-043), T-14
-(coverage job), T-15 first surface (calendar-cell semantics + tests). T-13 turned out to be
+(coverage job), T-15 (calendar-cell semantics + tests; the score bar turned out to be
+already complete and the "story rail" did not exist). T-13 turned out to be
 already true and was closed as a non-finding.
 **Honestly not done, with reasons:**
 - `allowRuntimeFetching = false` — cannot verify how `google_fonts` behaves for the picker's

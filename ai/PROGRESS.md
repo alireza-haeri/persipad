@@ -192,6 +192,11 @@
   - **T-15 (first surface) — the calendar cell speaks.** One `Semantics` label per cell
     (formatted date, feeling, score) with the inner fragments excluded, plus tests asserting
     through the semantics tree.
+- [x] **T-15 closed honestly.** The score bar was already fully labelled (`slider: true` with
+      value/increasedValue/decreasedValue and increase/decrease actions) and the "story-list
+      rail" in the original finding does not exist — it was a misreading of the timeline rail.
+      Recorded as a correction in `ANALYSIS.md` §5 and `BACKLOG.md` T-15 instead of inventing
+      work to fill the gap.
 - [x] **Verified the whole thing on CI, and fixed what verifying it exposed**
       (run `43837873918`: all seven jobs green — Analyze, Scope, Test 1/2, Build Linux
       desktop, Editor package tests, Coverage).

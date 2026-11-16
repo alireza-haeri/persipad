@@ -194,10 +194,12 @@ The user's next planned track is a leaner phone APK. Measured reality:
   app on a big year reads *all* stories and preloads every asset aspect ratio. On a phone with
   thousands of entries that is real start-up work for data the user cannot see yet. Worth
   measuring on a large DB before changing anything — this is a "measure first" item, not a fix.
-- **One `Semantics` and 4 `Tooltip`s in the whole app** (`grep -rn 'Semantics(' lib` → 1,
-  `Tooltip(` → 4). Flutter's default semantics cover most things, but the calendar cell, the
-  score bar and the story-list rail — our own custom widgets — are exactly where a screen
-  reader gets nothing. Cheap to add where it matters and invisible where it doesn't.
+- **Two `Semantics` and 4 `Tooltip`s in the whole app** (`grep -rn 'Semantics(' lib/widgets` → 2,
+  `Tooltip(` → 4), both now deliberate: the calendar cell and the score bar. Flutter's default
+  semantics cover most things. **Correction to an earlier draft:** the score bar was already
+  fully labelled (slider role + value + increase/decrease actions) and the "story-list rail"
+  named there does not exist. The remaining gap is real but unmeasured — see `BACKLOG.md` T-15
+  for why the next step is listening to a real screen, not adding widgets.
 - **Zero unguarded `print()` calls.** Three bare `print`s exist and all three sit behind
   `kDebugMode` (`app_logger.dart:31`, `base_storage_adapter.dart:27`,
   `base_story_view_model.dart:368`). **Correction to an earlier draft of this file:** the

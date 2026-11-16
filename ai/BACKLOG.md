@@ -88,7 +88,7 @@ Generic journaling-app ideas; your preferences set the priority.
 | T-12 | `✅` The default family ships with the app | `assets/fonts/Quicksand-Variable.ttf` (OFL, variable) declared in `pubspec.yaml` (D-043). The picker's catalogue stays online on purpose; `allowRuntimeFetching` was **not** disabled, with the reason recorded |
 | T-13 | `✅` ~~Android workflow has no `paths-ignore`~~ — **wrong, it always had one** (`android.yml` ignores `ai/**`, `**/*.md`, `LICENSE`) | Checked while implementing T-9; the cancel-in-progress fix from D-039 was the real issue and is already in |
 | T-14 | `✅` Coverage is reported | Advisory `Coverage` job on `[full]`/PRs: lcov artifact + a percentage notice. First measurement **13.9%** (4 527/32 634 lines). A threshold is now a real question, but it needs a decision about *which* gap to close first, not a number picked today |
-| T-15 | `🚧` Accessibility on our own widgets | The calendar cell now has one semantic sentence (date + feeling + score) with the fragments excluded. The score bar and the story-list rail still need the same treatment |
+| T-15 | `✅` Accessibility on our own widgets | Calendar cell: one semantic sentence (date + feeling + score), fragments excluded. **Score bar was already complete** — `slider: true` with `value`/`increasedValue`/`decreasedValue` and `onIncrease`/`onDecrease` (checked while finishing this item; the earlier note claiming otherwise was wrong). The "story-list rail" in the original finding **does not exist** — it was a misreading of the timeline rail, which is decoration inside an already-labelled row. Remaining candidates are a separate, measured list (see ANALYSIS §5), not part of T-15 |
 
 ## 3. Open questions
 
