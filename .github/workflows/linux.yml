@@ -220,9 +220,16 @@ jobs:
 
           flutter test --reporter json "${selected[@]}" > /tmp/test.json 2>&1
           status=$?
-          python3 - <<'PY' || true
+          # `status` is passed in so a green run can never produce a failure
+          # annotation. This used to print "flutter test failed but the JSON
+          # reporter reported no failing test" on *every successful run*, which
+          # teaches everyone to ignore annotations - exactly the signal a real
+          # failure has to stand out against.
+          TEST_STATUS=$status python3 - <<'PY' || true
           import json
+          import os
 
+          status = int(os.environ.get('TEST_STATUS', '0'))
           names = {}
           failed = []
           for line in open('/tmp/test.json', errors='replace'):
@@ -244,10 +251,13 @@ jobs:
               elif kind == 'testDone' and event.get('result') != 'success' and not event.get('hidden'):
                   failed.append(names.get(event.get('testID'), '?'))
 
-          if not failed:
-              print("::error::flutter test failed but the JSON reporter reported no failing test")
           for name in failed:
               print(f"::error::failing test: {name}")
+          if status != 0 and not failed:
+              # The run failed without a reported test failure: a compile error,
+              # a missing dependency, a timeout. The tail of the log is the only
+              # useful thing here, and it is what the annotation should carry.
+              print("::error::flutter test exited non-zero with no failing test reported - see the step log")
           PY
           exit $status
 
