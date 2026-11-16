@@ -281,6 +281,7 @@
 | 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
 | 2026-11-16 | Analysis items: editor tests, backup merge, search contract, font, coverage, a11y | GitHub Actions | ✅ scoped run `43833412429` green (Scope 6s, Analyze 90s, Test 65s); full-suite run below |
 | 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | ✅ `43837873918` — all 7 jobs green; editor suite (390 cases) ran for the first time; coverage 13.9% |
+| 2026-11-16 | Final state of the branch | GitHub Actions | ✅ `43841692813` on `7fe4c7a` — green |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box
@@ -604,3 +605,33 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   Android plugins) while downloading Maven/Kotlin artifacts cleanly. Waiting for the build +
   `storypad_dev` AVD install to finish; next goal after verification is a lightweight phone build
   (`BACKLOG.md` A-3 / `N-015`).
+
+### Session 11 — verification log (what was actually proven, and by which run)
+
+Two runs matter; everything else was either superseded by a later push
+(`cancel-in-progress`) or belonged to another branch.
+
+| Run | Commit | Result |
+|---|---|---|
+| `43837873918` | `13e656b` | **7/7 green** — Analyze, Scope, Test (1)+(2), Build Linux desktop, Editor package tests, **Coverage**. The first run in this repo's history where the editor package's 390 cases executed alongside the app shards. |
+| `43841692813` | `7fe4c7a` | **green** — the final code state (Analyze, Scope, Test (1) scoped to `backup_repository_test.dart`). |
+
+**A trap worth writing down.** While checking `43841886680` I read a real
+`ReminderNavigationService.copyFor` failure and started to fix code this session
+never touched. That run belongs to `arena/e3e3866a-notely` (commit `b210885`), the
+parallel session's branch. `gh api .../actions/runs?per_page=N` is repo-wide, not
+branch-scoped: filter on `head_branch` **before** reading an annotation. The
+reminder failure is real for that branch and is not caused by anything here.
+
+**A `part of` file shares its library's imports — 180 files do this here.**
+Removing two imports from `stories_box.dart` as "unused" broke
+`helpers/stories_box_transformer.dart` (`part of '../stories_box.dart';`), which uses
+both of them; Analyze failed with two `Undefined class` errors and the commit was
+reverted. Grepping a single file for a symbol is **not** enough in this code base:
+`grep -rl "part of '.*<file>.dart'" lib/` before deleting an import.
+
+**An empty commit runs nothing.** `72eb3d2` (`chore(ci): ... [full]`) is a valid
+empty commit and sits at the branch tip, but GitHub reports no run for it because
+a push with no file changes matches `paths-ignore` and never starts a workflow.
+`[full]` still needs a real file change to take effect — worth remembering before
+writing "verified on CI" next to a marker that never fired.
