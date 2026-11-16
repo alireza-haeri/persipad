@@ -20,6 +20,8 @@
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
 #   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
 #   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
+#   bin/build_apk -PnotelyMinify=false
+#                                    # any Gradle project property, as `gradle -P` spells it
 #
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
 # mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
@@ -101,6 +103,27 @@ while [ $# -gt 0 ]; do
     --ndk)     export ORG_GRADLE_PROJECT_notelyNdkVersion="${2:?--ndk needs a value}"; shift ;;
     --ndk=*)   export ORG_GRADLE_PROJECT_notelyNdkVersion="${1#*=}" ;;
     --no-ndk)  export ORG_GRADLE_PROJECT_notelyNdkVersion=none ;;
+    # Gradle project properties, the same spelling `gradle -P` uses. Gradle reads
+    # ORG_GRADLE_PROJECT_<name> from the environment, so `-PnotelyMinify=false`
+    # becomes ORG_GRADLE_PROJECT_notelyMinify=false for the build.
+    -P|-P*)
+      GPAIR=""
+      if [ "$1" = "-P" ]; then
+        GPAIR="${2:-}"; shift
+      else
+        GPAIR="${1#-P}"
+      fi
+      if [ -z "$GPAIR" ] || [ "${GPAIR#*=}" = "$GPAIR" ]; then
+        echo "bin/build_apk: -P needs name=value (e.g. -PnotelyMinify=false)" >&2; exit 2
+      fi
+      NAME="${GPAIR%%=*}"; VALUE="${GPAIR#*=}"
+      case "$NAME" in
+        ""|*[!A-Za-z0-9_]*)
+          echo "bin/build_apk: -P$NAME: only letters, digits and '_' are supported here — export ORG_GRADLE_PROJECT_... yourself" >&2
+          exit 2 ;;
+      esac
+      export "ORG_GRADLE_PROJECT_$NAME=$VALUE"
+      ;;
     -h|--help) awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "$0"; exit 0 ;;
     *) echo "bin/build_apk: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac

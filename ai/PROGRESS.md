@@ -729,4 +729,5 @@ which is exactly why `-PnotelyMinify=false` exists.
 four ABIs, `dex`, `assets/` and empty directory entries; `bin/build_apk` against stubbed
 `flutter`/`java`/`adb`/`emulator` for the ABI aliases (7 values + one invalid), the
 release-without-keystore message, `--sign-debug` (debug key exported, warning printed),
-`--split-debug-info` reaching Flutter, and `--target-platform=android-arm64` for `--abi arm64`.
+`--split-debug-info` reaching Flutter, and `--target-platform=android-arm64` for `--abi arm64`, and `-Pname=value` in both spellings
+(`-Pfoo=1` / `-P foo=1`) with two rejection cases.
