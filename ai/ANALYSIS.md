@@ -1,6 +1,8 @@
 # Project analysis — what could be better next
 
 **Measured:** 2026-11-16 (session 11) on `a238698`, i.e. the Session-10 code base plus docs.
+**Note:** a parallel session continues on `arena/e3e3866a-notely` (latest seen `929719c`,
+Android `:jni`/NDK work). Facts it changes are called out where they touch a finding.
 **Rule (D-041):** every finding here carries *evidence* and a *way to re-measure it*. Nothing
 here is a commitment — scheduling happens by moving an item into `BACKLOG.md`/`PROGRESS.md`.
 Findings that stop being true are deleted, not left to rot.
@@ -50,6 +52,9 @@ The gaps below are mostly *coverage* and *product surface*, not structural rot.
   suite; it is 390 cases and should be well under a minute).
 - **Risk if done carelessly:** none to the app; the package tests do not need the app's
   ObjectBox DB. Run them as their own job so a failure is unambiguous.
+- **Note on parallel work:** `bin/changed_tests` and `linux.yml` are files the other session
+  also edits (Android tooling lives in `bin/`). Coordinate before touching them, or make the
+  change additive.
 - **Backlog id:** new — see `BACKLOG.md` T-9.
 
 ## 2. Backup/sync merge correctness is the least-tested thing that can lose data
@@ -123,6 +128,17 @@ The user's next planned track is a leaner phone APK. Measured reality:
   is essentially Flutter's debug runtime + ObjectBox + the plugin
   `classes.dex`/`libflutter.so` payload. A **release** build (AOT, tree-shaken icons) is the
   single biggest size lever, and it needs the keystore secrets that D-038 already documents.
+- **Concurrent-session correction (2026-11-16, commit `929719c` on `arena/e3e3866a-notely`):**
+  a parallel session discovered that `jni 1.0.3` (transitive via `path_provider_android 2.3.1`)
+  **does** compile C (`dartjni.c` → `libdartjni.so`) with CMake, so D-040's "nothing in
+  `pubspec.lock` compiles C/C++" is no longer true and `--no-ndk` now only applies when `:jni`
+  is absent. Read `ai/DECISIONS.md` on that branch for the current text — this is exactly the
+  kind of fact this file must not freeze. Two consequences for the lightweight-build track:
+  1. "No NDK needed" is **not** a property of this project any more (unless `jni` is removed),
+     so a trimmed build would have to keep provisioning NDK+CMake or drop the dependency that
+     pulls `jni` in.
+  2. It is further evidence for order-of-operations: measure a release build first, because the
+     same rebuild may change which plugins are even present.
 - **Recommendation (a real scope proposal, not a code change):**
   1. **First lever: ship a release-signed APK** (4 GitHub secrets, ~30 min of setup) — do this
      before deleting any feature. Deleting code is irreversible; shrinking a build is not.
