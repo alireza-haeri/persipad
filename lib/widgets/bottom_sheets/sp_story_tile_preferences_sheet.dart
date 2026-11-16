@@ -342,13 +342,16 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
                       value: storyTilePreferences.showPageCount,
                       onChanged: (value) => _apply(storyTilePreferences.copyWith(showPageCount: value)),
                     ),
-                    SwitchListTile.adaptive(
-                      secondary: const SpSettingIconBadge(weekday: 6, icon: SpIcons.map),
-                      contentPadding: const EdgeInsets.only(left: 16.0, right: 14.0),
-                      title: Text(tr("list_tile.show_location.title")),
-                      value: storyTilePreferences.showLocation,
-                      onChanged: (value) => _apply(storyTilePreferences.copyWith(showLocation: value)),
-                    ),
+                    // A switch for something the map add-on has removed would be a
+                    // dead control; the stored preference is kept for when it returns.
+                    if (context.read<DevicePreferencesProvider>().enableMap)
+                      SwitchListTile.adaptive(
+                        secondary: const SpSettingIconBadge(weekday: 6, icon: SpIcons.map),
+                        contentPadding: const EdgeInsets.only(left: 16.0, right: 14.0),
+                        title: Text(tr("list_tile.show_location.title")),
+                        value: storyTilePreferences.showLocation,
+                        onChanged: (value) => _apply(storyTilePreferences.copyWith(showLocation: value)),
+                      ),
                     _CharacterCountSlider(
                       preferences: storyTilePreferences,
                       onChanged: (value) => _apply(storyTilePreferences.copyWith(displayCharacterCount: value)),
