@@ -189,6 +189,7 @@ jobs:
         run: |
           set -e
           TAG="apk-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+          ASSET_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/$APK_NAME"
 
           {
             echo "Community APK built from \`${GITHUB_SHA::7}\` ($(date -u +%Y-%m-%dT%H:%MZ))."
@@ -201,6 +202,8 @@ jobs:
             echo "sha256    $APK_SHA"
             echo '```'
             echo
+            echo "Download: <$ASSET_URL>"
+            echo
             echo "Install with \`adb install -r $APK_NAME\`, or open the file on the device."
             if [ "$MODE" != "release" ]; then
               echo
@@ -211,7 +214,11 @@ jobs:
             fi
           } > "$RUNNER_TEMP/notes.md"
 
-          gh release create "$TAG" "$APK_PATH#$APK_NAME" \
+          # The asset must carry the name the notes mention: gh keeps the file's own
+          # name, so upload a copy under the display name instead of a `#label`.
+          cp "$APK_PATH" "$RUNNER_TEMP/$APK_NAME"
+
+          gh release create "$TAG" "$RUNNER_TEMP/$APK_NAME" \
             --title "APK $VERSION ($MODE)" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --prerelease \
@@ -219,7 +226,7 @@ jobs:
             || {
               # A release for this tag already exists (re-runs of the same commit).
               echo "::warning::release $TAG already exists; uploading the asset to it instead"
-              gh release upload "$TAG" "$APK_PATH#$APK_NAME" --clobber
+              gh release upload "$TAG" "$RUNNER_TEMP/$APK_NAME" --clobber
             }
 
           echo "::notice::Published $TAG with $APK_NAME"
