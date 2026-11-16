@@ -207,12 +207,12 @@ fi
   if [ "$root_test_status" -ne 0 ]; then
     echo ""
     echo "--- root test failures ---"
-    grep -E '\[E\]|Error:|Expected:|Actual:' "$LOG_DIR/root-test.log" | head -35 || true
+    tr '\r' '\n' < "$LOG_DIR/root-test.log" | grep -A 5 -E '\[E\]' | head -40 || true
   fi
   if [ "$editor_test_status" -ne 0 ]; then
     echo ""
     echo "--- editor test failures ---"
-    grep -E '\[E\]|Error:|Expected:|Actual:' "$LOG_DIR/editor-test.log" | head -35 || true
+    tr '\r' '\n' < "$LOG_DIR/editor-test.log" | grep -A 5 -E '\[E\]' | head -40 || true
   fi
   if [ "$linux_build_status" -ne 0 ]; then
     echo ""

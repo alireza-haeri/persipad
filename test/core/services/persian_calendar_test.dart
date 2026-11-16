@@ -29,7 +29,9 @@ void main() {
     test('round-trips every day from 1990 to 2035', () {
       // One bad day anywhere in the range would silently shift every later date,
       // which is exactly the kind of bug that is invisible until a user notices a
-      // wrong weekday.
+      // wrong weekday. Step via `DateTime(y, m, d + 1)` rather than
+      // `Duration(days: 1)` so local DST transitions (e.g. Iran 1991-05-03 ->
+      // 1991-05-04 01:00) do not shift local midnight by an hour.
       var date = DateTime(1990, 1, 1);
       final end = DateTime(2036, 1, 1);
 
@@ -37,7 +39,7 @@ void main() {
         final persian = PersianCalendar.of(date);
         final back = PersianCalendar.toGregorian(persian.year, persian.month, persian.day);
         expect(back, date, reason: 'round trip failed for $date (got $persian -> $back)');
-        date = date.add(const Duration(days: 1));
+        date = DateTime(date.year, date.month, date.day + 1);
       }
     });
   });
@@ -64,7 +66,11 @@ void main() {
       for (var year = 1390; year <= 1420; year++) {
         final start = PersianCalendar.toGregorian(year, 1, 1);
         final next = PersianCalendar.toGregorian(year + 1, 1, 1);
-        final total = next.difference(start).inDays;
+        final total = DateTime.utc(
+          next.year,
+          next.month,
+          next.day,
+        ).difference(DateTime.utc(start.year, start.month, start.day)).inDays;
 
         var monthTotal = 0;
         for (var month = 1; month <= 12; month++) {

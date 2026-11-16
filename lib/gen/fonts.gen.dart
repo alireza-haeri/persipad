@@ -9,6 +9,9 @@
 // ignore_for_file: deprecated_member_use,directives_ordering,implicit_dynamic_list_literal,unnecessary_import
 
 abstract final class FontFamily {
+  /// Font family: Quicksand
+  static const String quicksand = 'Quicksand';
+
   /// Font family: Vazirmatn
   static const String vazirmatn = 'Vazirmatn';
 }

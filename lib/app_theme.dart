@@ -45,8 +45,16 @@ class AppTheme extends StatelessWidget {
     }
   }
 
-  static String? fontFamilyForLocale(BuildContext context) {
-    return context.locale.languageCode == 'fa' ? 'Vazirmatn' : null;
+  static String fontFamilyForLocale(BuildContext context) {
+    return fontFamilyForLanguageCode(context.locale.languageCode);
+  }
+
+  /// Resolves the bundled offline font family for [languageCode]:
+  /// Persian (`fa`) uses `Vazirmatn`, English (and any non-Persian locale)
+  /// uses `Quicksand` (`kDefaultFontFamily`). Both families are bundled in
+  /// `assets/fonts/` and work 100% offline with zero network calls.
+  static String fontFamilyForLanguageCode(String languageCode) {
+    return languageCode == 'fa' ? 'Vazirmatn' : kDefaultFontFamily;
   }
 
   @override

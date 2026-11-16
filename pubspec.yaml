@@ -117,11 +117,10 @@ flutter:
         - asset: assets/fonts/Vazirmatn-Bold.ttf
           weight: 700
 
-    # The app's default text family (kDefaultFontFamily). Bundled because
-    # `google_fonts` otherwise downloads it over the network on first use, which
-    # makes the app's own typography depend on connectivity — see D-043 and
-    # ai/ANALYSIS.md §5. One variable font covers 300..700, so it costs ~122 KB
-    # instead of four static faces. OFL licence ships next to it.
+    # The app's default English text family (kDefaultFontFamily). Bundled offline
+    # alongside Vazirmatn so both Persian and English typography render identically
+    # across Linux and Android with zero network calls (D-043 / D-048).
+    # One variable font covers 300..700 (~122 KB). OFL licence ships next to it.
     - family: Quicksand
       fonts:
         - asset: assets/fonts/Quicksand-Variable.ttf

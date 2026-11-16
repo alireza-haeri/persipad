@@ -10,11 +10,16 @@ does not collide with c5's D-041.
 
 ## Review findings and integration decisions
 
-- The e3e lightweight change removes maps/location, sounds, period calendar,
-  font picker, IAP/paywall and non-Drive backup providers, plus 19 locales. It
-  applies to the shared app, not just the phone. These are deliberate deletions
-  from that branch, but whether all are acceptable for the combined product
-  needs explicit user review. Their original code remains in Git history.
+- The e3e lightweight change (`D-047`) removes maps/location, sounds, period calendar,
+  font picker, IAP/paywall and non-Drive backup providers, plus 19 locales. **Confirmed
+  by the user (`N-020`):** these features were intentionally removed to eliminate bloat.
+- **Offline dual-font typography (`D-048`):** per `N-020`, Persian uses bundled `Vazirmatn`
+  and English uses bundled `Quicksand` (`Quicksand-Variable.ttf`), both shipped in
+  `assets/fonts/` with zero network dependency (`google_fonts` remains removed).
+- **DST-safe civil date arithmetic (`D-049`):** local Fedora verification (`Asia/Tehran`)
+  caught a DST transition bug (`1991-05-03` spring-forward) hidden on UTC CI runners;
+  fixed across `PersianCalendar`, `OnThisDayPredictionService`, `StatsRange`, and
+  `StoryStatsService`.
 - The e3e Drive change replaces the prior native Android sign-in with desktop
   OAuth/PKCE and loopback, to share an appDataFolder with Linux. Neither real
   cross-platform sign-in nor migration of existing provider data has been proven

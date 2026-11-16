@@ -63,7 +63,13 @@ class StatsRange {
   bool contains(DateTime date) => !date.isBefore(start) && !date.isAfter(end);
 
   /// Total whole days in the window (28–31 or 365/366).
-  int get totalDays => end.difference(start).inDays + 1;
+  /// Uses UTC dates so local DST spring-forward transitions cannot subtract an
+  /// hour and truncate `Duration.inDays` by one.
+  int get totalDays {
+    final s = start;
+    final e = end;
+    return DateTime.utc(e.year, e.month, e.day).difference(DateTime.utc(s.year, s.month, s.day)).inDays + 1;
+  }
 
   /// Display month number for a month range, null for a year range.
   int? get month => type == StatsRangeType.month ? displayMonth : null;

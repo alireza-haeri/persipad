@@ -130,8 +130,8 @@ class StoryStatsService {
   /// elapsed so far for the current one.
   static int _elapsedDays(StatsRange range, DateTime now) {
     if (!range.isCurrent(now)) return range.totalDays;
-    final DateTime today = DateTime(now.year, now.month, now.day);
-    return today.difference(range.start).inDays + 1;
+    final DateTime s = range.start;
+    return DateTime.utc(now.year, now.month, now.day).difference(DateTime.utc(s.year, s.month, s.day)).inDays + 1;
   }
 
   static List<EmojiStatItem> _topEmojis(Map<int, int> counts, Map<int, TagDbModel> tagById) {

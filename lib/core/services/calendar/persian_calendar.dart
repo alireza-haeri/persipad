@@ -161,11 +161,15 @@ class PersianCalendar {
 
   /// A Jalali year has 366 days when the year after it starts a day later than
   /// the naive 365-day arithmetic suggests. Derived from the conversion above so
-  /// the leap rule can never disagree with it.
+  /// the leap rule can never disagree with it. Uses `DateTime.utc` so a local
+  /// DST spring-forward around Nowruz never shrinks a 24h calendar day to 23h
+  /// (`Duration.inDays` truncates hours / 24).
   static bool isLeapYear(int year) {
     final start = toGregorian(year, 1, 1);
     final next = toGregorian(year + 1, 1, 1);
-    return next.difference(start).inDays == 366;
+    final utcStart = DateTime.utc(start.year, start.month, start.day);
+    final utcNext = DateTime.utc(next.year, next.month, next.day);
+    return utcNext.difference(utcStart).inDays == 366;
   }
 
   static int daysInMonth(int year, int month) {

@@ -22,7 +22,7 @@ class OnThisDayPredictionService {
     final matches = <DateTime>[];
 
     for (int offset = 0; offset <= horizonDays && matches.length < maxResults; offset++) {
-      final date = start.add(Duration(days: offset));
+      final date = DateTime(start.year, start.month, start.day + offset);
       if (hasMemoriesOn(date.month, date.day)) matches.add(date);
     }
 
