@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/services/analytics/adaptors/firebase_analytics_user_property_adaptor.dart';
 import 'package:storypad/core/services/analytics/adaptors/none_analytics_user_property_adaptor.dart';
-import 'package:storypad/core/types/add_on_type.dart';
 import 'package:storypad/core/types/app_logo.dart';
 import 'package:storypad/core/types/first_day_of_week_option.dart';
 import 'package:storypad/core/types/media_sync_option.dart';
@@ -40,10 +39,6 @@ abstract class BaseAnalyticsUserPropertyAdaptor {
     return setUserProperty('font_weight', newFontWeight.value.toString());
   }
 
-  Future<void> logSetFontFamily({required String newFontFamily}) {
-    return setUserProperty('font_family', newFontFamily);
-  }
-
   Future<void> logSetFontSize({required FontSizeOption? newFontSize}) {
     return setUserProperty('font_size', newFontSize?.name ?? 'system');
   }
@@ -60,8 +55,8 @@ abstract class BaseAnalyticsUserPropertyAdaptor {
     return setUserProperty('media_sync', mediaSync.name);
   }
 
-  Future<void> logToggleAddOn({required AddOnType addOn, required bool enabled}) {
-    return setUserProperty('add_on_${addOn.name}', enabled.toString());
+  Future<void> logToggleDailyScore({required bool enabled}) {
+    return setUserProperty('add_on_daily_score', enabled.toString());
   }
 
   Future<void> logSetStoryTilePreferences({

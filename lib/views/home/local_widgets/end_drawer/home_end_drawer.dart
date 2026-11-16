@@ -3,18 +3,13 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/app_theme.dart';
-import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/extensions/matrix_4_extension.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/views/home/home_view_model.dart' show HomeViewModel;
 import 'package:storypad/views/home/local_widgets/end_drawer/home_end_drawer_state.dart';
 import 'package:storypad/views/home/years/home_years_view.dart' show HomeYearsRoute, HomeYearsView;
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/widgets/side_items/side_items.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
-import 'package:storypad/widgets/sp_pro_badge.dart';
-import 'package:storypad/widgets/sp_tap_effect.dart';
 import 'package:storypad/widgets/sp_theme_mode_icon.dart';
 
 class HomeEndDrawer extends StatelessWidget {
@@ -25,7 +20,6 @@ class HomeEndDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<HomeViewModel>(context);
-    final iapProvider = Provider.of<InAppPurchaseProvider>(context);
 
     if (viewModel.endDrawerState == HomeEndDrawerState.showYearsView) {
       if (viewModel.showFadeInYearEndDrawer) {
@@ -38,10 +32,6 @@ class HomeEndDrawer extends StatelessWidget {
                   animation: animation,
                   child: child,
                   builder: (context, child) {
-                    // Slides in from the drawer's own edge: the end drawer is
-                    // on the right in LTR and on the left in RTL, so the offset
-                    // mirrors with it instead of pushing the years list the
-                    // same way in both directions.
                     final double from = AppTheme.rtl(context) ? -24.0 : 24.0;
 
                     return Transform(
@@ -72,16 +62,6 @@ class HomeEndDrawer extends StatelessWidget {
         forceMaterialTransparency: true,
         automaticallyImplyLeading: false,
         actions: [
-          // A "Pro" badge is an upsell surface: pointless once everything is
-          // unlocked, and unusable on a platform without a store.
-          if (kShowProUpsell && iapProvider.isProUser)
-            SpTapEffect(
-              onTap: () => const PaywallRoute().push(context),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: SpProBadge(),
-              ),
-            ),
           IconButton(
             tooltip: AppTheme.isDarkMode(context) ? tr("general.theme_mode.light") : tr("general.theme_mode.dark"),
             icon: SpThemeModeIcon(parentContext: context),

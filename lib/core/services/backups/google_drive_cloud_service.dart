@@ -53,13 +53,13 @@ class GoogleDriveCloudService extends BackupCloudService {
     return drive.DriveApi(client);
   }
 
-  /// Where this build's tokens come from: `google_sign_in` on Android/iOS/macOS,
-  /// the loopback OAuth2 flow on Linux. Everything in this class below is
-  /// platform-independent Drive REST, which is why Linux no longer needs a stub
-  /// and duplicate copy of it (ai/DECISIONS.md D-019).
+  /// Where this build's tokens come from (loopback OAuth2 via
+  /// [GoogleDesktopAuthStrategy] on Android and Linux).
   final GoogleDriveAuthStrategy auth;
 
-  GoogleDriveCloudService({GoogleDriveAuthStrategy? auth}) : auth = auth ?? GoogleSignInAuthStrategy();
+  GoogleDriveCloudService({GoogleDriveAuthStrategy? auth}) : auth = auth ?? GoogleDesktopAuthStrategy();
+
+  bool get isConfigured => auth.isConfigured;
 
   // load data locally
   @override

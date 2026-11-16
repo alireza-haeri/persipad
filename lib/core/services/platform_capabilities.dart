@@ -5,17 +5,6 @@ import 'package:storypad/core/services/backups/backup_service_type.dart';
 
 /// Which StoryPad features can actually work on the current platform.
 ///
-/// Linux is our primary target and also the weakest platform: several plugins
-/// have no Linux implementation (`google_sign_in`, `local_auth`, IAP). Letting
-/// those code paths fail silently is bad UX — a "Connect" button that can never
-/// sign in. The UI asks this class instead, and shows an explanation rather than
-/// a dead button.
-///
-/// Google Drive is *not* on that list any more: Linux authenticates through the
-/// loopback OAuth2 flow (D-019), so the only platform-specific requirement is a
-/// client id in the build, which the UI surfaces separately
-/// (`GoogleDriveLinuxCloudService.isConfigured`).
-///
 /// The pure functions take explicit platform flags so the whole matrix can be
 /// unit-tested without pretending to be another OS.
 class PlatformCapabilities {
@@ -26,16 +15,11 @@ class PlatformCapabilities {
   static bool get isIOS => !kIsWeb && Platform.isIOS;
   static bool get isMacOS => !kIsWeb && Platform.isMacOS;
 
-  /// Whether [type] can actually sign in and move files on a platform.
+  /// Whether [type] can sign in and move files on a platform.
   ///
-  /// - `google_drive`: works everywhere. Mobile uses `google_sign_in`; Linux
-  ///   uses the loopback OAuth2 flow, so the capability no longer depends on the
-  ///   platform (only on whether the build carries a client id).
-  /// - `icloud`: iCloud/CloudKit only exists on Apple platforms (and the Linux
-  ///   build doesn't even register the service).
-  /// - `dropbox`: works through `flutter_web_auth_2`, which uses a loopback
-  ///   redirect on Linux — a system browser, no embedded webview.
-  /// - `nextcloud`: plain WebDAV over HTTPS, no platform code at all.
+  /// Google Drive authenticates through loopback OAuth2 across supported
+  /// platforms (only depending on whether the build carries a client id,
+  /// surfaced via `GoogleDriveCloudService.isConfigured`).
   static bool cloudSync({
     required BackupServiceType type,
     required bool isLinux,
@@ -44,11 +28,6 @@ class PlatformCapabilities {
   }) {
     switch (type) {
       case BackupServiceType.google_drive:
-        return true;
-      case BackupServiceType.icloud:
-        return isIOS || isMacOS;
-      case BackupServiceType.dropbox:
-      case BackupServiceType.nextcloud:
         return true;
     }
   }

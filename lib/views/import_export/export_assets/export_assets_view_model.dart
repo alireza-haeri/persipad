@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -184,16 +185,25 @@ class ExportAssetsViewModel extends ChangeNotifier with DisposeAwareMixin {
     if (tarFile == null) return;
 
     try {
-      // Share/save the tar.gz file by path (no in-memory copy of the archive).
-      // On Android the share sheet still offers "Save to Files/Drive".
-      RenderBox? box = context.findRenderObject() as RenderBox?;
-      await SharePlus.instance.share(
-        ShareParams(
-          title: basename(tarFile.path),
-          sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
-          files: [XFile(tarFile.path)],
-        ),
-      );
+      if (Platform.isLinux) {
+        await FilePicker.saveFile(
+          fileName: basename(tarFile.path),
+          type: FileType.custom,
+          allowedExtensions: ['gz'],
+          bytes: await tarFile.readAsBytes(),
+        );
+      } else {
+        // Share/save the tar.gz file by path (no in-memory copy of the archive).
+        // On Android the share sheet still offers "Save to Files/Drive".
+        RenderBox? box = context.findRenderObject() as RenderBox?;
+        await SharePlus.instance.share(
+          ShareParams(
+            title: basename(tarFile.path),
+            sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
+            files: [XFile(tarFile.path)],
+          ),
+        );
+      }
     } finally {
       // Always clean up, even if sharing throws.
       if (await tarFile.exists()) await tarFile.delete();

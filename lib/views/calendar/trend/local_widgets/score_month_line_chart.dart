@@ -192,7 +192,10 @@ class _ScoreLinePainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [accent.withValues(alpha: 0.26 * progress), accent.withValues(alpha: 0.0)],
+          colors: [
+            accent.withValues(alpha: 0.26 * progress),
+            accent.withValues(alpha: 0.0),
+          ],
         ).createShader(plot),
     );
 

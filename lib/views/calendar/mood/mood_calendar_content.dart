@@ -250,9 +250,7 @@ class _CalendarStoriesContent extends StatelessWidget {
                   viewModel.selectedDay == displayDay ? null : displayDay,
                 )
               : null,
-          onLongPress: isDisplayMonth && viewModel.enableScores
-              ? () => viewModel.openScoreSheet(context, date)
-              : null,
+          onLongPress: isDisplayMonth && viewModel.enableScores ? () => viewModel.openScoreSheet(context, date) : null,
         );
       },
     );

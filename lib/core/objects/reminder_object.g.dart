@@ -216,6 +216,5 @@ Map<String, dynamic> _$ReminderObjectToJson(ReminderObject instance) =>
 const _$ReminderTypeEnumMap = {
   ReminderType.daily: 'daily',
   ReminderType.onThisDay: 'onThisDay',
-  ReminderType.period: 'period',
   ReminderType.custom: 'custom',
 };

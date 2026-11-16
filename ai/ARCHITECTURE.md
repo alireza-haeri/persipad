@@ -1,8 +1,8 @@
 # Architecture map
 
 Canonical source: the project's own `README.md` and `CONTRIBUTING.md`. This file is
-the practical cheat sheet for day-to-day work. Numbers refreshed on 2026-11-16
-(version `2.34.0+834`, Session 10).
+the practical cheat sheet for day-to-day work. Refreshed on 2026-11-16
+(version `2.34.0+834`, Session 11 — lightweight fork trim, D-047).
 
 ## Basics
 
@@ -10,12 +10,10 @@ the practical cheat sheet for day-to-day work. Numbers refreshed on 2026-11-16
 |---|---|
 | Framework | Flutter **3.50.0** / Dart **3.14.0** (`.tool-versions`; `pubspec.yaml` declares `^3.11.0`) |
 | App version | `2.34.0+834` |
-| Dart files | ~1013 across `lib/` and `packages/` (excluding `build/`) |
-| Tests | 110 files in `test/` + 57 in `packages/storypad_editor/test/` |
 | Database | ObjectBox (`6.0.0-preview.6`; legacy SQLite adapter still present) |
 | State | Provider + ChangeNotifier, three levels: Global / View / Widget |
 | Pattern | MVVM across 3–4 files: `Model` / `View` / `ViewContent` / `ViewModel` |
-| i18n | `easy_localization`, **21** files in `translations/` (626 keys each, `fa.json` added) |
+| i18n | `easy_localization`, **2** files in `translations/` (`en.json`, `fa.json`, `485` keys each) |
 | Codegen | `build_runner` → `json_serializable`, `copy_with_extension`, `objectbox_generator`, `flutter_gen` |
 
 ## Entry points and boot
@@ -42,8 +40,7 @@ Then `runApp(ProviderScope(child: App()))`.
 
 `RootProvider` (navigation + sidebar), `BackupProvider`, `TagsProvider`,
 `AppLockProvider`, `DevicePreferencesProvider`, `InAppUpdateProvider`,
-`InAppPurchaseProvider`, `NicknameProvider`, `RelaxSoundsProvider` (lazy),
-`DailyScoreProvider` (eager `lazy: false` — preloaded for the calendar).
+`NicknameProvider`, `DailyScoreProvider` (eager `lazy: false` — preloaded for the calendar).
 
 > A new global provider is registered here. A screen-scoped provider is a
 > `ChangeNotifierProvider` inside that screen's `XView`, not here.
@@ -83,21 +80,16 @@ assets, `pinned`, `starred`), `StoryContentDbModel` + `StoryPageDbModel`
 
 The ones that matter most for us:
 
-- `backups/` — `backup_cloud_service.dart` (interface) plus implementations:
-  `google_drive_cloud_service`, `google_drive_linux_cloud_service` (Linux takes a
-  separate path!), `dropbox_cloud_service`, `icloud_cloud_service`,
-  `nextcloud_cloud_service` (WebDAV), and `sync_steps/`.
+- `backups/` — `backup_cloud_service.dart` (interface) plus `google_drive_cloud_service.dart`,
+  `google_drive_auth_strategy.dart`, `google_desktop_oauth_service.dart` (unified PKCE loopback
+  OAuth2 across Android and Linux), and `sync_steps/`.
 - `cloud_storage/adaptors/` — ObjectBox/file adaptors for assets.
-- `notifications/`, `audio_player_service`, `voice_recorder_service` → audio and reminders.
+- `notifications/`, `voice_recorder_service` → voice recording and reminders.
 - `quill/`, `export/`, `markdown_*`, `story_plain_text_exporter` → editor and export.
 - `analytics/`, `error_reporting/`, `remote_config/` → all built via
   `Base*Adaptor.create()` and resolve to no-op adaptors on Linux.
 - `platform_capabilities.dart` → **our addition.** Pure matrix of what can work where
-  (cloud sync per service, per platform). Unit-tested; UI asks it before offering a
-  feature. Add a new platform-dependent capability here, not with scattered `if (Platform...)`.
-- `pro_entitlement_service.dart` → **our addition.** The single Pro/upsell policy
-  (`unlockAll`, `showUpsell`). `InAppPurchaseProvider.isProUser` delegates to it, which is
-  why ~30 feature gates all open together.
+  (cloud sync, Firebase). Unit-tested.
 
 ## Widgets
 
@@ -130,23 +122,22 @@ The ones that matter most for us:
 
 Quick map of everything we added or rewired on top of StoryPad `v2.34.0`:
 
-- **Linux desktop & entitlements:**
-  - `lib/core/services/pro_entitlement_service.dart` (`unlockAll` switch opening ~30 Pro gates; `showUpsell`).
-  - `lib/core/services/platform_capabilities.dart` (capability matrix for Firebase, sync backends, etc.).
-  - `lib/core/services/backups/google_drive_auth_strategy.dart` + `google_desktop_oauth_service.dart` + `google_drive_linux_cloud_service.dart` (loopback PKCE OAuth2 on Linux; `bin/setup_sync`).
-  - Desktop media picking in `AppFilePickerService` via `file_picker`.
+- **Linux desktop & unified Google Drive sync:**
+  - `lib/core/services/platform_capabilities.dart` (capability matrix for Firebase and Google Drive).
+  - `lib/core/services/backups/google_drive_auth_strategy.dart` + `google_desktop_oauth_service.dart` (unified loopback PKCE OAuth2 for both Linux and Android; `bin/setup_sync`).
+  - Desktop media picking and Linux direct file-save exports in `AppFilePickerService` / `ImportExportViewModel` via `file_picker`.
 - **Persian (fa), bundled font & RTL:**
-  - `translations/fa.json` + all 21 locales kept in exact 626-key parity (`unused_translations_test.dart`). The key count moves whenever a feature adds/removes strings — it is a fact to re-count (`python3 -c "import json;print(len(json.load(open('translations/en.json'))))"`), not a constant.
-  - `assets/fonts/Vazirmatn-*.ttf` + `OFL.txt` + `kScriptFontFamilyFallback` in `lib/core/constants/app_constants.dart`.
+  - `translations/en.json` + `translations/fa.json` kept in exact `485`-key parity (`unused_translations_test.dart`).
+  - `assets/fonts/Vazirmatn-*.ttf` + `OFL.txt` + `AppTheme.fontFamilyForLocale` (`Vazirmatn` for `'fa'`, system default for `'en'`) + `kScriptFontFamilyFallback`.
   - RTL helpers: `SpIcons.previous(context)` / `SpIcons.next(context)`, `AppTheme.rtl(context)`, `RootPagesMediaQuery`, full Persian month names (never abbreviated).
 - **Shamsi (Solar Hijri) display calendar (`D-024`…`D-029`):**
   - Storage & ObjectBox columns stay **Gregorian**. Conversion happens only at display/query boundaries.
   - `lib/core/services/calendar/` (`persian_calendar.dart`, `calendar_display.dart`, `calendar_config.dart`, `weekday_name_service.dart`), `DateFormatHelper`, `SpDatePickerDialog`, `DateRangeFilterObject`, `SearchFilterObject.encode`, and `date_range`/`date_ranges` filters on `StoriesBox` & `EventsBox`.
   - User-defined `firstDayOfWeek`, `weekendDays`, and `calendarSystem` (`DevicePreferencesObject`).
-- **Daily Score add-on, unified calendar & add-on controls (`D-031`…`D-037`):**
-  - `lib/core/services/scores/daily_score_scale.dart` (HSV red→orange→green scale, explicit `gradient(rtl:)`), `DailyScoreProvider` (`yyyy-MM-dd` Gregorian `MapStorage`), `lib/widgets/scores/` (`SpDailyScoreBar`, `SpDailyScoreSheet`, `SpScoreCallout`), `lib/views/calendar/trend/` (`ScoreTrendView` + animated hand-painted charts).
+- **Daily Score, unified calendar & configurable sidebar (`D-031`…`D-047`):**
+  - `lib/core/services/scores/daily_score_scale.dart` (HSV red→orange→green scale, explicit `gradient(rtl:)`), `DailyScoreProvider` (`yyyy-MM-dd` Gregorian `MapStorage`), `lib/widgets/scores/` (`SpDailyScoreBar`, `SpDailyScoreSheet`, `SpScoreCallout`), `lib/views/calendar/trend/` (`ScoreTrendView` + animated hand-painted charts), toggled in Settings → Stories.
   - Unified `SpCalendarDateCell`: mood emoji/check + circled day number + score background tint + long-press rating (`D-033`), animated row entrance & selection (`D-037`).
-  - `AddOnType` (`relax_sounds`, `map`, `period_calendar`, `daily_score`) and configurable `SidebarItemId` / `sidebarOrder` (`lib/core/types/`).
+  - Configurable `SidebarItemId` / `sidebarOrder` (`lib/core/types/`).
 - **Android toolchain & local/CI APK (`D-038`…`D-040`):**
   - `android/gradle/wrapper/gradle-wrapper.properties` (Gradle `9.3.1`), `android/settings.gradle.kts` (AGP `9.1.1`, Kotlin `2.2.20`, FlutterFire plugins).
   - `android/build.gradle.kts` (`notelyNdkVersion=none` → `flutter.installedNdkVersions` bypass for `forceNdkDownload`; `LibraryExtension.compileSdk >= 36` floor; `notelyCompileSdkMinor` propagation) and `android/app/build.gradle.kts` (`compileSdk`/`compileSdkMinor`, `ndkVersion`, `manifestPlaceholders`, `compilerOptions.jvmTarget`).

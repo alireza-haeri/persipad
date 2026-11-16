@@ -1,9 +1,6 @@
 part of '../stats_view.dart';
 
-/// Branding footer pinned to the bottom of each stats tab. Its purpose is to
-/// advertise the app when a user shares a screenshot of their stats: app logo on
-/// the left, app name (with "Pro" when the user is a Pro subscriber), and the
-/// untranslated tagline beneath it.
+/// Branding footer pinned to the bottom of each stats tab.
 class _StatsShareFooter extends StatelessWidget {
   const _StatsShareFooter();
 
@@ -11,7 +8,6 @@ class _StatsShareFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = ColorScheme.of(context);
     final TextTheme textTheme = TextTheme.of(context);
-    final bool isProUser = context.watch<InAppPurchaseProvider>().isProUser;
 
     return Column(
       children: [
@@ -40,19 +36,10 @@ class _StatsShareFooter extends StatelessWidget {
                   mainAxisSize: .min,
                   crossAxisAlignment: .start,
                   children: [
-                    Text.rich(
+                    Text(
+                      'StoryPad',
                       strutStyle: const StrutStyle(forceStrutHeight: true),
-                      TextSpan(
-                        style: textTheme.titleMedium,
-                        children: [
-                          const TextSpan(text: 'StoryPad'),
-                          if (isProUser)
-                            TextSpan(
-                              text: ' Pro',
-                              style: TextStyle(color: colorScheme.primary),
-                            ),
-                        ],
-                      ),
+                      style: textTheme.titleMedium,
                     ),
                     Text(
                       'My Diary Journal',

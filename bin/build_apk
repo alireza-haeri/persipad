@@ -10,7 +10,7 @@
 #   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
-#   bin/build_apk --no-ndk           # nothing here compiles C/C++; skip the NDK requirement
+#   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
 #   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
 #
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
@@ -23,6 +23,7 @@
 # artifacts you want to keep, this is for the loop you are in now (D-038).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source "$(dirname "$0")/helpers"
 
 FLAVOR=community
 MODE=debug
@@ -263,17 +264,72 @@ if [ -z "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && [ -d "$SDK/platforms" ];
   fi
 fi
 
+valid_ndks() {
+  [ -d "$SDK/ndk" ] || return 0
+  for d in "$SDK"/ndk/*; do
+    if [ -f "$d/source.properties" ]; then
+      basename "$d"
+    fi
+  done | sort -V
+}
+
+valid_cmakes() {
+  [ -d "$SDK/cmake" ] || return 0
+  for d in "$SDK"/cmake/*; do
+    if [ -x "$d/bin/cmake" ]; then
+      basename "$d"
+    fi
+  done | sort -V
+}
+
+NEEDS_NDK=0
+if [ -f pubspec.lock ] && grep -qE '^  jni(_flutter)?:$' pubspec.lock 2>/dev/null; then
+  NEEDS_NDK=1
+fi
+
+FLUTTER_ROOT=$(cd "$(dirname "$(readlink -f "$FLUTTER")")/.." && pwd)
+PINNED_NDK="28.2.13676358"
+if [ -f "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" ]; then
+  _pinned=$(sed -n "s/.*const ndkVersion = '\([^']*\)';.*/\1/p" "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" | head -1 || true)
+  [ -n "$_pinned" ] && PINNED_NDK="$_pinned"
+fi
+
+INSTALLED_NDKS=$(valid_ndks)
+INSTALLED_CMAKES=$(valid_cmakes)
+
 if [ -z "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ]; then
-  if [ -z "$(ls -A "$SDK/ndk" 2>/dev/null)" ]; then
-    export ORG_GRADLE_PROJECT_notelyNdkVersion=none
-    warn "no NDK installed → building without one (nothing in this app compiles C/C++; undo with --ndk=<version>)."
+  if [ -z "$INSTALLED_NDKS" ]; then
+    if [ "$NEEDS_NDK" = 1 ]; then
+      die "no NDK installed under $SDK/ndk — transitive plugin :jni (from path_provider_android) compiles C code with CMake + NDK.
+
+Install NDK + CMake from the SDK mirror with:
+  bin/android_doctor --fix
+(or via Android Studio → SDK Manager → SDK Tools → NDK (Side by side) & CMake)."
+    else
+      export ORG_GRADLE_PROJECT_notelyNdkVersion=none
+      warn "no NDK installed → building without one (pass --ndk=<version> to force one)."
+    fi
+  else
+    if ! printf '%s\n' "$INSTALLED_NDKS" | grep -qx "$PINNED_NDK"; then
+      BEST_NDK=$(printf '%s\n' "$INSTALLED_NDKS" | tail -1)
+      export ORG_GRADLE_PROJECT_notelyNdkVersion="$BEST_NDK"
+      warn "ndk $PINNED_NDK is not installed → building with ndk $BEST_NDK (CI uses $PINNED_NDK)."
+    fi
+    if [ "$NEEDS_NDK" = 1 ] && [ -z "$INSTALLED_CMAKES" ]; then
+      die "no CMake installed under $SDK/cmake — transitive plugin :jni builds C code with CMake.
+
+Install CMake from the SDK mirror with:
+  bin/android_doctor --fix
+(or via Android Studio → SDK Manager → SDK Tools → CMake)."
+    fi
   fi
+elif [ "$ORG_GRADLE_PROJECT_notelyNdkVersion" = "none" ] && [ "$NEEDS_NDK" = 1 ]; then
+  warn "--no-ndk requested, but transitive plugin :jni in pubspec.lock compiles CMake/NDK code — Gradle will fail on :jni unless NDK + CMake are installed or :jni is removed."
 fi
 
 # ---------------------------------------------------------------- dart-defines
+sync_private_keys
 DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
-mkdir -p "$(dirname "$DEFINES")"
-[ -f "$DEFINES" ] || echo '{}' > "$DEFINES"
 
 # ---------------------------------------------------------------- signing
 if [ "$MODE" = "release" ] && [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then

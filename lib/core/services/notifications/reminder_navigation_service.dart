@@ -7,13 +7,10 @@ import 'package:storypad/core/databases/models/story_page_db_model.dart';
 import 'package:storypad/core/databases/models/template_db_model.dart';
 import 'package:storypad/core/objects/gallery_template_object.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
-import 'package:storypad/core/objects/calendar_segment_id.dart';
-import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/gallery_template_service.dart';
 import 'package:storypad/core/services/notifications/reminder_notification_copy_service.dart';
 import 'package:storypad/core/types/reminder_type.dart';
 import 'package:storypad/providers/root_provider.dart';
-import 'package:storypad/views/calendar/calendar_view.dart';
 import 'package:storypad/views/home/home_view.dart';
 import 'package:storypad/views/stories/edit/edit_story_view.dart';
 import 'package:storypad/views/throwback/throwback_view.dart';
@@ -34,12 +31,7 @@ class ReminderNavigationService {
         return ReminderNotificationCopyService.dailyCopy();
       case ReminderType.onThisDay:
         return ReminderNotificationCopyService.onThisDayCopy();
-      case ReminderType.period:
-        return ReminderNotificationCopyService.periodCopy();
       case ReminderType.custom:
-        // The message *is* the title (matches how it's shown in the reminders
-        // list) — EditCustomReminderViewModel requires a non-empty message
-        // before a custom reminder can be saved at all.
         return (reminder.message!.trim(), tr('reminder.custom.notification_body'));
     }
   }
@@ -62,15 +54,6 @@ class ReminderNavigationService {
           final now = DateTime.now();
           await ThrowbackRoute(month: now.month, day: now.day).push(context);
           break;
-        case ReminderType.period:
-          final now = DateTime.now();
-          await CalendarRoute(
-            // The calendar pages the display calendar (Shamsi when selected).
-            initialYear: CalendarDisplay.yearOf(now),
-            initialMonth: CalendarDisplay.monthOf(now),
-            initialSegment: CalendarSegmentId.period,
-          ).push(context);
-          break;
         case ReminderType.custom:
           await _openCustom(reminder, context);
           break;
@@ -92,7 +75,6 @@ class ReminderNavigationService {
     final hasPrefill =
         reminder.templateId != null || reminder.galleryTemplateId != null || (reminder.tagIds?.isNotEmpty ?? false);
 
-    // No prefill configured -> just bring the app to the foreground on Home.
     if (!hasPrefill) {
       context.read<RootProvider>().navigate(const HomeRoute());
       return;
@@ -139,8 +121,6 @@ class ReminderNavigationService {
   }
 
   Future<BuildContext?> _waitForNavigatorContext(GlobalKey<NavigatorState>? navigatorKey) async {
-    // Longer window than quick actions: a notification can cold-start the app, so
-    // we may need to wait for RootProvider to build and register the navigator key.
     for (int attempt = 0; attempt < 60; attempt++) {
       final context = navigatorKey?.currentContext;
       if (context?.mounted == true) return context;

@@ -1,6 +1,6 @@
 part of '../home_view.dart';
 
-class _HomeTimelineSideBar extends StatefulWidget {
+class _HomeTimelineSideBar extends StatelessWidget {
   const _HomeTimelineSideBar({
     required this.screenPadding,
     required this.backgroundColor,
@@ -10,31 +10,6 @@ class _HomeTimelineSideBar extends StatefulWidget {
   final EdgeInsets screenPadding;
   final Color backgroundColor;
   final HomeViewModel viewModel;
-
-  @override
-  State<_HomeTimelineSideBar> createState() => _HomeTimelineSideBarState();
-}
-
-class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
-  ValueNotifier<bool> showProBadgeNotifier = ValueNotifier<bool>(true);
-  late final DevicePreferencesProvider devicePreferencesProvider = context.read<DevicePreferencesProvider>();
-
-  @override
-  void initState() {
-    super.initState();
-    devicePreferencesProvider.addListenerForAddOnChanges(_addOnListeners);
-  }
-
-  void _addOnListeners() {
-    setState(() {});
-  }
-
-  @override
-  void dispose() {
-    showProBadgeNotifier.dispose();
-    devicePreferencesProvider.removeListenerForAddOnChanges(_addOnListeners);
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,34 +25,20 @@ class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
 
   Widget buildButtons(BuildContext context) {
     final double baseSideMargin = (Platform.isMacOS ? 12.0 : 8.0);
+    final items = SideItems.getTimelineSideBarItems(homeViewModel: viewModel);
 
-    return Consumer<InAppPurchaseProvider>(
-      builder: (context, provider, child) {
-        final items = SideItems.getTimelineSideBarItems(
-          homeViewModel: widget.viewModel,
-          iapProvider: provider,
-          showBadgeNotifer: showProBadgeNotifier,
-          enableRelaxSounds: context.read<DevicePreferencesProvider>().enableRelaxSounds,
-          // The mobile timeline is the same feature list as the sidebar, so the map
-          // add-on has to hide it here too — otherwise "turn the map off" would only
-          // mean "on a wide window".
-          enableMap: context.read<DevicePreferencesProvider>().enableMap,
-        );
-
-        return Container(
-          margin: EdgeInsets.only(
-            top: 8.0,
-            left: AppTheme.getDirectionValue(context, 0.0, widget.screenPadding.left + baseSideMargin)!,
-            right: AppTheme.getDirectionValue(context, widget.screenPadding.right + baseSideMargin, 0.0)!,
-            bottom: widget.screenPadding.bottom + 16.0,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            spacing: Platform.isMacOS ? 8.0 : 0.0,
-            children: items.map((item) => _buildTimelineButton(context, item)).toList(),
-          ),
-        );
-      },
+    return Container(
+      margin: EdgeInsets.only(
+        top: 8.0,
+        left: AppTheme.getDirectionValue(context, 0.0, screenPadding.left + baseSideMargin)!,
+        right: AppTheme.getDirectionValue(context, screenPadding.right + baseSideMargin, 0.0)!,
+        bottom: screenPadding.bottom + 16.0,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        spacing: Platform.isMacOS ? 8.0 : 0.0,
+        children: items.map((item) => _buildTimelineButton(context, item)).toList(),
+      ),
     );
   }
 
@@ -127,8 +88,8 @@ class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
 
   Widget buildBackgrounds(BuildContext context) {
     return Positioned(
-      left: AppTheme.getDirectionValue(context, 4.0, widget.screenPadding.left + 12.0)!,
-      right: AppTheme.getDirectionValue(context, widget.screenPadding.right + 12.0, 4.0)!,
+      left: AppTheme.getDirectionValue(context, 4.0, screenPadding.left + 12.0)!,
+      right: AppTheme.getDirectionValue(context, screenPadding.right + 12.0, 4.0)!,
       bottom: 0,
       top: 0,
       child: Stack(
@@ -144,9 +105,9 @@ class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    widget.backgroundColor.withValues(alpha: 0.0),
-                    widget.backgroundColor.withValues(alpha: 0.8),
-                    widget.backgroundColor,
+                    backgroundColor.withValues(alpha: 0.0),
+                    backgroundColor.withValues(alpha: 0.8),
+                    backgroundColor,
                   ],
                 ),
               ),
@@ -155,7 +116,7 @@ class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
           Positioned.fill(
             top: 32,
             child: Container(
-              color: widget.backgroundColor,
+              color: backgroundColor,
             ),
           ),
         ],

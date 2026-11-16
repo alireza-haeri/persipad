@@ -61,6 +61,7 @@ env:
   # (SIGTERM, exit 143) even after the image was cleaned.
   GRADLE_USER_HOME: /mnt/gradle-home
   PUB_CACHE: /mnt/pub-cache
+  TMPDIR: /mnt/tmp
 
 jobs:
   apk:
@@ -86,8 +87,8 @@ jobs:
                       /opt/hostedtoolcache/CodeQL /usr/lib/mono || true
           sudo apt-get clean
           docker image prune -af || true
-          # /mnt holds ~70 GB; the caches are pointed there by `env:` above.
-          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE"
+          # /mnt holds ~70 GB; the caches and temp files live there.
+          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE" "$TMPDIR"
           sudo chown -R "$(id -u):$(id -g)" /mnt || true
           echo '--- after ---'
           df -h /
@@ -122,11 +123,13 @@ jobs:
       - name: Cap the Gradle heap
         # android/gradle.properties asks for -Xmx8G -XX:MaxMetaspaceSize=4G. That is a
         # desktop setting; on a 16 GB runner it leaves nothing for the Kotlin daemon, the
-        # Dart compiler and the agent itself. `$GRADLE_USER_HOME/gradle.properties` wins
-        # over the project's, so the project file stays as it is for local builds.
+        # Dart compiler and the runner agent itself. `$GRADLE_USER_HOME/gradle.properties`
+        # wins over the project's, so the project file stays as it is for local builds.
         run: |
           cat > "$GRADLE_USER_HOME/gradle.properties" <<'EOF'
-          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m
+          kotlin.daemon.jvmargs=-Xmx1536m
+          org.gradle.workers.max=2
           org.gradle.parallel=true
           org.gradle.caching=true
           EOF
@@ -136,14 +139,33 @@ jobs:
         run: flutter pub get
 
       - name: Prepare dart-defines
-        # android/app/build.gradle.kts reads APP_NAME and the Maps key out of
-        # --dart-define-from-file with defaults, so an empty file is enough for the
-        # community build. bin/dev creates the same file locally.
+        # android/app/build.gradle.kts reads APP_NAME out of
+        # --dart-define-from-file with defaults, and GoogleDriveCloudService reads
+        # GOOGLE_DESKTOP_CLIENT_ID / GOOGLE_DESKTOP_CLIENT_SECRET when configured.
+        env:
+          GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
           mkdir -p bin/.tmp/private_keys/dart_defines
-          if [ ! -f bin/.tmp/private_keys/dart_defines/$FLAVOR.json ]; then
-            echo '{}' > bin/.tmp/private_keys/dart_defines/$FLAVOR.json
-          fi
+          python3 - <<'PY'
+          import json, os
+
+          path = f"bin/.tmp/private_keys/dart_defines/{os.environ['FLAVOR']}.json"
+          try:
+              with open(path) as handle:
+                  data = json.load(handle)
+          except (FileNotFoundError, json.JSONDecodeError):
+              data = {}
+
+          for key in ("GOOGLE_DESKTOP_CLIENT_ID", "GOOGLE_DESKTOP_CLIENT_SECRET"):
+              value = os.environ.get(key, "").strip()
+              if value:
+                  data[key] = value
+
+          with open(path, "w") as handle:
+              json.dump(data, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
 
       - name: Decide the signing mode
         id: signing
@@ -238,28 +260,41 @@ jobs:
         # The only way to prove the artifact without downloading it: read the badge and
         # the signer on the runner, publish them as annotations (which survive even when
         # the log is not readable) and put them in the release notes. A wrong package
-        # id or a missing libapp.so fails here instead of on the phone.
+        # id or a missing runtime/app binary fails here instead of on the phone.
         id: verify
+        env:
+          MODE: ${{ steps.signing.outputs.mode }}
         run: |
           set -uo pipefail
           APK="${{ steps.apk.outputs.path }}"
-          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$BUILD_TOOLS" ] || [ ! -d "$BUILD_TOOLS" ]; then
+            echo "::error::Android build-tools not found under '$SDK/build-tools'"
+            exit 1
+          fi
           AAPT2="$BUILD_TOOLS/aapt2"
           [ -x "$AAPT2" ] || AAPT2="$BUILD_TOOLS/aapt"
           BADGING=$("$AAPT2" dump badging "$APK" 2>/dev/null || true)
 
-          field() { printf '%s\n' "$BADGING" | sed -n "$1" | head -1; }
-          PKG=$(field "s/^package: name='\([^']*\)'.*/\1/p")
-          VNAME=$(field "s/^package: .*versionName='\([^']*\)'.*/\1/p")
-          VCODE=$(field "s/^package: .*versionCode='\([^']*\)'.*/\1/p")
-          MIN=$(field "s/^sdkVersion:'\([^']*\)'.*/\1/p")
-          TGT=$(field "s/^targetSdkVersion:'\([^']*\)'.*/\1/p")
+          field() { printf '%s\n' "$BADGING" | sed -nE "$1" | head -1; }
+          PKG=$(field "s/^package: name='([^']*)'.*/\1/p")
+          VNAME=$(field "s/^package: .*versionName='([^']*)'.*/\1/p")
+          VCODE=$(field "s/^package: .*versionCode='([^']*)'.*/\1/p")
+          MIN=$(field "s/^(minSdkVersion|sdkVersion):'([^']*)'.*/\2/p")
+          TGT=$(field "s/^targetSdkVersion:'([^']*)'.*/\1/p")
           ABI=$(field "s/^native-code: //p")
-          SIGNER=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>/dev/null |
-                   sed -n 's/^Signer #1 certificate DN: //p' | head -1)
 
-          LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so')
-          DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex')
+          APKSIGNER_OUT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1 || true)
+          SIGNER=$(printf '%s\n' "$APKSIGNER_OUT" | sed -nE 's/^.*certificate DN: //p' | head -1)
+          if [ -z "$SIGNER" ]; then
+            SIGNER=$(keytool -printcert -jarfile "$APK" 2>/dev/null | sed -n 's/^Owner: //p' | head -1 || true)
+          fi
+
+          LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so' || true)
+          LIBFLUTTER=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libflutter\.so' || true)
+          KERNEL_BLOB=$(unzip -l "$APK" | grep -c 'assets/flutter_assets/kernel_blob\.bin' || true)
+          DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex' || true)
 
           echo "package=$PKG" >> "$GITHUB_OUTPUT"
           echo "min=$MIN"   >> "$GITHUB_OUTPUT"
@@ -267,11 +302,16 @@ jobs:
           echo "abi=$ABI"   >> "$GITHUB_OUTPUT"
           echo "signer=$SIGNER" >> "$GITHUB_OUTPUT"
 
-          echo "::notice::APK $PKG $VNAME ($VCODE) minSdk=$MIN targetSdk=$TGT abi=[$ABI] signer=[$SIGNER] libapp.so=$LIBAPP dex=$DEX"
+          echo "::notice::APK $PKG $VNAME ($VCODE) mode=$MODE minSdk=$MIN targetSdk=$TGT abi=[$ABI] signer=[$SIGNER] libapp.so=$LIBAPP libflutter.so=$LIBFLUTTER kernel_blob=$KERNEL_BLOB dex=$DEX"
 
           [ "$PKG" = "com.tc.writestory.community" ] || { echo "::error::unexpected package id '$PKG'"; exit 1; }
-          [ "$LIBAPP" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libapp.so in the APK"; exit 1; }
-          [ -n "$SIGNER" ]    || { echo "::error::the APK has no signer"; exit 1; }
+          if [ "$MODE" = "release" ]; then
+            [ "$LIBAPP" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libapp.so in release APK"; exit 1; }
+          else
+            [ "$LIBFLUTTER" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libflutter.so in debug APK"; exit 1; }
+            [ "$KERNEL_BLOB" -ge 1 ] || { echo "::error::no assets/flutter_assets/kernel_blob.bin in debug APK"; exit 1; }
+          fi
+          [ -n "$SIGNER" ] || { echo "::error::the APK has no signer (apksigner: $APKSIGNER_OUT)"; exit 1; }
 
       - name: Publish the pre-release
         env:
@@ -286,6 +326,7 @@ jobs:
           PKG: ${{ steps.verify.outputs.package }}
           MIN: ${{ steps.verify.outputs.min }}
           TGT: ${{ steps.verify.outputs.target }}
+          ABI: ${{ steps.verify.outputs.abi }}
           SIGNER: ${{ steps.verify.outputs.signer }}
         run: |
           set -e

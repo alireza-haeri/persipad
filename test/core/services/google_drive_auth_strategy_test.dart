@@ -4,10 +4,8 @@ import 'package:storypad/core/objects/google_user_object.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
 import 'package:storypad/core/services/backups/google_drive_auth_strategy.dart';
-import 'package:storypad/core/services/backups/google_drive_linux_cloud_service.dart';
+import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 
-/// In-memory stand-ins for secure storage: the interesting part of the desktop
-/// strategy is *when* it refreshes and what it forgets, not libsecret.
 class _FakeTokenStore implements GoogleDesktopTokenStore {
   GoogleDesktopToken? token;
   int writes = 0;
@@ -48,9 +46,7 @@ class _FakeOAuth implements GoogleOAuthClient {
   @override
   final bool isConfigured;
 
-  /// What [refresh] returns. null = Google says the grant is dead.
   GoogleDesktopToken? renewal;
-
   GoogleDesktopToken? signedInToken;
   GoogleOAuthException? signInError;
 
@@ -127,8 +123,6 @@ void main() {
     });
 
     test('forgets everything when Google rejects the refresh token', () async {
-      // A dead refresh token must not leave a half-connected account behind —
-      // that state shows an email in the UI while every call fails with 401.
       final tokens = _FakeTokenStore(_token(expired: true));
       final users = _FakeUserStore(_user());
       final oauth = _FakeOAuth(renewal: null);
@@ -267,19 +261,17 @@ void main() {
     });
   });
 
-  group('GoogleDriveLinuxCloudService', () {
+  group('GoogleDriveCloudService', () {
     test('reports not configured when the build has no client id', () {
-      final service = GoogleDriveLinuxCloudService(
+      final service = GoogleDriveCloudService(
         auth: GoogleDesktopAuthStrategy(oauth: _FakeOAuth(isConfigured: false)),
       );
 
       expect(service.isConfigured, isFalse);
     });
 
-    test('is a real Drive service, not a stub', () {
-      // The previous stub overrode every Drive operation to return null/[]; the
-      // whole point of D-019 is that Linux now shares the working implementation.
-      final service = GoogleDriveLinuxCloudService(auth: GoogleDesktopAuthStrategy(oauth: _FakeOAuth()));
+    test('reports configured when OAuth client id is present', () {
+      final service = GoogleDriveCloudService(auth: GoogleDesktopAuthStrategy(oauth: _FakeOAuth()));
 
       expect(service.isConfigured, isTrue);
       expect(service.serviceType, BackupServiceType.google_drive);

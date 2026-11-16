@@ -37,14 +37,12 @@ class _AvailableActions extends StatelessWidget {
                 ? _ActionTile(
                     icon: SpIcons.file,
                     title: tr('button.choose_template'),
-                    locked: !context.read<InAppPurchaseProvider>().isProUser,
                     enabled: !viewModel.limitReached,
                     onTap: onChooseTemplate,
                   )
                 : _ActionTile(
                     icon: SpIcons.tag,
                     title: tr('button.choose_tag'),
-                    locked: !context.read<InAppPurchaseProvider>().isProUser,
                     enabled: !viewModel.limitReached,
                     onTap: onChooseTag,
                   );
@@ -79,14 +77,12 @@ class _ActionTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.onTap,
-    this.locked = false,
     this.enabled = true,
   });
 
   final IconData icon;
   final String title;
   final VoidCallback onTap;
-  final bool locked;
   final bool enabled;
 
   @override
@@ -97,7 +93,7 @@ class _ActionTile extends StatelessWidget {
       title: Text(title),
       trailing: IconButton(
         tooltip: title,
-        icon: Icon(locked ? SpIcons.lock : SpIcons.add),
+        icon: const Icon(SpIcons.add),
         onPressed: enabled ? onTap : null,
       ),
       onTap: enabled ? onTap : null,

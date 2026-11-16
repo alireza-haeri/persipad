@@ -1,35 +1,33 @@
 # Status
 
 **Last updated:** 2026-11-16
-**Current session:** session 11 — docs hygiene, project analysis, then analysis items T-9…T-15
-**Branch:** `arena/c5b3ddac-notely` (branched from `a23869853bd7` of `arena/e3e3866a-notely`)
-**Code tip:** `e2498c5` — 27 commits on top of `a238698`, all pushed. **Linux CI green on the
-final code state** (`43841692813`), and on the full 7-job run `43837873918`.
-**Phase:** 🟢 CI container trustworthy again (editor suite runs, `[full]` means everything,
-green runs are silent); 🟡 first local Fedora APK build still awaiting a verdict from the user
+> Integration note: the parallel c5 and e3e branches are combined on `arena/41be3147-notely`. This document describes the e3e branch before integration; see `MERGE_REVIEW.md` for the integrated state and `merge-history/` for exact branch snapshots.
 
-> **Read [`CHANGES.md`](CHANGES.md) first.** It is the Session-11 diff in one narrative file —
-> what changed, why, and the run id that proves each claim.
+**Current session:** session 11 — lightweight fork trim (`D-047`) + unified Google Drive OAuth2
+**Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
+**Phase:** 🚧 Lightweight feature/dependency trim implemented; verifying via `[codegen]`, Linux CI, and Android `[apk]` CI
 
 ---
 
 ## 🤝 Handoff Snapshot (start here if you are a new agent/session)
 
-1. **What exists right now (code base as of `a238698`, built on `d3d534e`):**
-   - **Desktop (Linux):** Fully working app (`bin/setup_linux`, `bin/dev --community-linux`, `bin/dev -t`) with all Pro features unlocked (`ProEntitlementService.unlockAll`), `PlatformCapabilities` gating, loopback OAuth2 Google Drive (`bin/setup_sync`, E2E credentials pending), `file_picker` media picking, Persian (`fa`) locale across all 21 `translations/*.json` files (626 keys), bundled `Vazirmatn` font, full Shamsi display calendar (storage/queries remain Gregorian), RTL layout/icon fixes, Daily Score add-on + animated charts integrated into one calendar (`SpCalendarDateCell`), toggleable Map add-on, and configurable sidebar ordering.
-   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without an NDK or `android-37` (D-040).
-2. **Last known state of the user's Fedora machine (Session 10, unchanged since):**
-   - User pulled `d3d534e`, ran `bin/android_doctor --mirror` (selected 4/4 healthy Tencent mirror `mirrors.cloud.tencent.com/nexus/repository/maven-public`), and ran `bin/build_apk --install --avd=storypad_dev -v`.
-   - **Verified fixed:** the 5m 34s `:app` `sdkmanager` NDK hang is gone (`notelyNdkVersion=none` + `flutter.installedNdkVersions` bypass worked) and Gradle is downloading artifacts cleanly from Tencent.
-   - **Unknown / needs a verdict:** the build was left in cold first-time Gradle plugin configuration (~50% through the ~31 Android plugins in `pubspec.lock`, last seen at `:google_sign_in_android`). Nobody has reported whether it finished, so treat "the local APK loop works end-to-end" as **unverified** until the user says otherwise.
+1. **What exists right now:**
+   - **Streamlined cross-platform core (`D-047`):** Removed Maps/Location/Geocoding, Relax Sounds (`audio_service`), Period Calendar, Add-ons screen, Fonts picker (`google_fonts`), In-App Purchases/Paywall/Support Us (`purchases_flutter`), non-Drive cloud providers (`Nextcloud`/`Dropbox`/`iCloud`/`webdav_client`/`dio`/`flutter_web_auth_2`), and 19 non-EN/FA translation locales. Removed 14 dependencies from `pubspec.yaml`.
+   - **Unified Google Drive sync (Linux + Android):** Both platforms now authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
+   - **Two locales & bundled fonts:** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using system default fonts for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale`).
+   - **Daily Score in Settings:** Daily Score toggle moved into Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
+   - **Android (`community` flavor):** `MainActivity` extends `FlutterFragmentActivity` directly, `AndroidManifest.xml` drops unused location/foreground-service/ad-service declarations and adds an `https` `BROWSABLE` `<queries>` intent, and `.github/workflows/android.yml` injects OAuth secrets and fixes `Verify the APK` (`$ANDROID_HOME`, `grep -c`, `ABI`). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) remain intact (`D-040`).
+2. **Latest Fedora APK build diagnosis & fix:**
+   - On `d3d534e`, `bin/build_apk --install --avd=storypad_dev -v` cached all Maven/Kotlin dependencies from Tencent (`33m 15s` cold; Retry #1 reached `:jni` in `8.9s`), passed `:app` and 25 plugins cleanly, and failed at `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`) because transitive `jni` (`1.0.3`, pulled by `path_provider_android` `2.3.1`) genuinely compiles `libdartjni.so` via CMake + NDK, while Fedora lacked `ndk` and `cmake`.
+   - Updated `bin/android_doctor` (`MISSING` + catalogue fallback for `ndk;*` and `cmake;*` from the SDK mirror when `jni` is in `pubspec.lock`), `bin/build_apk` (fail fast if NDK/CMake missing; otherwise export installed NDK via `notelyNdkVersion`), and `android/build.gradle.kts` (propagate `notelyNdkVersion` to `:app` and `LibraryExtension` plugins such as `:jni`, and clamp `compileSdk` to `notelyCompileSdk`).
 3. **What is planned next (do not step on these):**
-   - **Wait for Fedora build verdict** (either success + manual AVD check, or any final Gradle/runtime log the user brings back to the original session).
+   - **User installs NDK + CMake (`bin/android_doctor --fix`) and re-runs `bin/build_apk --install --avd=storypad_dev`** (reusing cached `~/.gradle/caches/`).
    - **Lightweight mobile build (`BACKLOG.md` A-3 / `N-015`):** after the first APK runs, the user plans to return to trim heavy/unneeded features/dependencies into a lighter phone build.
 4. **Hard rules & invariants for any agent touching this repo:**
    - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` (`Scope` + `Analyze` + sharded `Test`) or user's `bin/dev -t`.
    - **Never leave `HEAD` depending on un-generated `*.g.dart`:** changing `@CopyWith` or ObjectBox models requires `.github/workflows/codegen.yml` (`[codegen]`) first (`D-016`).
    - **Keep Gregorian storage / Shamsi display boundary intact** (`CalendarDisplay`, `DateRangeFilterObject`, `SearchFilterObject.encode`, `D-025`..`D-029`).
-   - **Keep all 21 `translations/*.json` key sets identical** (626 keys, enforced by `unused_translations_test.dart`).
+   - **Keep all 21 `translations/*.json` key sets identical** (628 keys, enforced by `unused_translations_test.dart`).
    - **Preserve RTL invariants** (`SpIcons.previous/next`, `AppTheme.rtl`, never abbreviate Persian month names, never wrap row widgets in `OverflowBox`, `DailyScoreScale.gradient(rtl:)`, `D-030`/`D-035`).
    - **Preserve Fedora Android build hooks** in `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, and `bin/android_doctor` (`notelyCompileSdkMinor`, `flutter.installedNdkVersions`, `LibraryExtension.compileSdk >= 36`, Groovy mirror init script — `D-040`).
 
@@ -159,74 +157,14 @@ green runs are silent); 🟡 first local Fedora APK build still awaiting a verdi
 - [x] VS Code: a **Community (Linux)** launch config, so F5 runs the app with no terminal
       command and no `--flavor` mistake.
 
-### Session 11 — docs hygiene + project analysis (2026-11-16)
-- [x] Corrected three stale facts found while reading every file in `ai/` (this was the whole
-      point of the pass — see D-041):
-  - **Branch/tip:** `RULES.md` §1 and `PROGRESS.md` still named `arena/e3e3866a-notely` /
-      `d3d534e`; the session runs on `arena/c5b3ddac-notely` from `a23869853bd7`. `RULES.md` now
-      describes the current branch without pinning a tip that will rot, and `PROGRESS.md`
-      separates "branch", "docs tip" and "last code change".
-  - **Translation keys:** 628 was quoted in `ARCHITECTURE.md` + `PROGRESS.md`; all 21 files
-      actually hold **626** (`len(json.load(open('translations/en.json')))`). `ARCHITECTURE.md`
-      now also says how to re-count instead of expecting the constant to survive a feature.
-  - **JDK:** `ENVIRONMENT.md` stated JDK 17.0.19 as *the* environment while `.tool-versions`
-      pins `java openjdk-21`; the real requirement is 17+ because Gradle targets JVM 17 and CI
-      uses temurin 17. The file now explains the requirement and the two observed versions.
-- [x] New `ai/ANALYSIS.md`: a measured review of the code base (see D-041) — 8 sections, each
-      finding with evidence and a re-measure command.
-- [x] `BACKLOG.md` grew T-9…T-15 from that review; open question 5 (lightweight phone build) now
-      points at the measured input.
-- [x] **Then the analysis's own top items were implemented** (T-9, T-10, T-11 cheap half,
-      T-12, T-14, T-15 first surface):
-  - **T-9 — editor package tests run.** `linux.yml` gained an `Editor package tests` job
-    (~57 files / ~390 cases) and `bin/changed_tests` maps `packages/**` to a new `packages`
-    output instead of treating it as unmapped. Verified on CI `43833412429` (scoped) and the
-    full-suite run; the job appears in the run graph.
-  - **T-10 — backup merge is tested.** `BackupRepository.databases` is now seeded lazily and
-    `overrideDatabases()` gives tests a seam (D-042); `restore_backup_service_test.dart`
-    covers device-newer/backup-newer/equal/missing/missing-timestamps, listener batching and
-    `forceRestore`.
-  - **T-11 (cheap half) — search contract pinned.** `test/core/objects/search_filter_object_test.dart`
-    covers field→query-key mapping, query widening, the Shamsi display-year conversion,
-    `encode`'s DateTime safety and `DateRangeFilterObject`.
-  - **T-12 — default font bundled.** `assets/fonts/Quicksand-Variable.ttf` (OFL, variable
-    300..700, ~122 KB) declared in `pubspec.yaml`; `allowRuntimeFetching` deliberately left
-    alone (D-043).
-  - **T-14 — coverage reported.** Advisory `Coverage` job on `[full]`/PRs: lcov artifact plus a
-    one-line percentage notice, no threshold.
-  - **T-15 (first surface) — the calendar cell speaks.** One `Semantics` label per cell
-    (formatted date, feeling, score) with the inner fragments excluded, plus tests asserting
-    through the semantics tree.
-- [x] **T-15 closed honestly.** The score bar was already fully labelled (`slider: true` with
-      value/increasedValue/decreasedValue and increase/decrease actions) and the "story-list
-      rail" in the original finding does not exist — it was a misreading of the timeline rail.
-      Recorded as a correction in `ANALYSIS.md` §5 and `BACKLOG.md` T-15 instead of inventing
-      work to fill the gap.
-- [x] **Verified the whole thing on CI, and fixed what verifying it exposed**
-      (run `43837873918`: all seven jobs green — Analyze, Scope, Test 1/2, Build Linux
-      desktop, Editor package tests, Coverage).
-  - **My own test bug, caught by CI** (`43832635160`, Test 2): a `DateRangeFilterObject`
-    case asserted a Shamsi conversion while running in Gregorian mode. The test was wrong,
-    not the code — corrected, and the Shamsi path now has an explicit case so the inherited
-    conversion cannot be silently bypassed later.
-  - **`[full]` did not cover the packages** (D-045). The marker that exists to prove a green
-    tree ran both app shards and skipped the editor suite. Also: `.github/workflows/**` was
-    ignored as "cannot affect behaviour", so editing the gate did not run the gate.
-  - **The test job printed a failure annotation on every success** (D-046) — it never got
-    flutter's exit status. Now a green run is silent, a real failure still names the test,
-    and a non-zero exit with no reported test says where to look.
-  - **First measured coverage: 13.9%** (4 527 / 32 634 lines). Recorded in `ANALYSIS.md` §6;
-    no threshold was set, on purpose.
-
 ## 🔄 In progress
 
 - [ ] **First local Fedora APK build (`d3d534e`):** `bin/build_apk --install --avd=storypad_dev -v`
-      was running on the user's Fedora machine via the Tencent mirror (the NDK
-      `forceNdkDownload` hang was confirmed resolved). **No verdict has been recorded** — it is
-      unknown whether the build finished, so "the local APK loop works" stays unverified.
+      actively running on user's Fedora machine via Tencent mirror (NDK `forceNdkDownload` hang
+      confirmed resolved; Gradle downloading/configuring plugin subprojects). Awaiting final
+      build + `storypad_dev` AVD install outcome.
 - [ ] **Next planned track (`A-3` / `N-015`):** once the local APK build is verified on device/AVD,
-      scope and build a **lightweight phone version** of the app with the user. Measured input,
-      including why "shrink the APK" is mostly a release-build problem: `ANALYSIS.md` §4.
+      scope and build a **lightweight phone version** of the app with the user.
 
 ## ⏳ Remaining (roadmap)
 
@@ -264,13 +202,10 @@ green runs are silent); 🟡 first local Fedora APK build still awaiting a verdi
 | Metric | Value |
 |---|---|
 | Dart files (`lib/` + `packages/`) | 1013 |
-| Locale files (`translations/`) | 21 (626 keys each, `fa.json` added) |
-| Bundled fonts | 2 families — Vazirmatn (Persian fallback) + Quicksand (default text, variable) |
+| Locale files (`translations/`) | 21 (628 keys each, `fa.json` added) |
 | Active platform targets | **2** (Linux desktop + Android `community` APK) |
 | CI on a plain push | `Scope` (~6s) + `Analyze` (~85s) + scoped `Test` (~1–3 min); `[build]`/`[apk]`/`[codegen]` opt-in |
 | Test files | 110 in `test/` + 57 in `packages/storypad_editor/test/` |
-| Tests that run in CI | **167 files** — 110 root + 57 in `packages/storypad_editor` (T-9, fixed this session) |
-| Jobs in `linux.yml` | 6 — Scope, Analyze, Test (×shards), Editor package tests, Coverage, Build Linux desktop |
 | Pro feature gates opened by one switch | ~30 call sites (`ProEntitlementService.unlockAll`) |
 
 ## 🧾 Test log
@@ -289,9 +224,6 @@ green runs are silent); 🟡 first local Fedora APK build still awaiting a verdi
 | 2026-11-16 | Android `community` arm64 debug APK (138 MB, `f258929`) | GitHub Actions | ✅ build + `aapt2`/`apksigner` verify green (`43812916947`) |
 | 2026-11-16 | Local Android APK scripts + `forceNdkDownload`/`36.1` fixes (`d3d534e`) | GitHub Actions + Sandbox | ✅ Linux CI Scope + Analyze + Test ×2 full suite green (`43823502245`); sandbox `bash -n` + stubbed `flutter`/`curl`/`adb`/`emulator` tests pass |
 | 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
-| 2026-11-16 | Analysis items: editor tests, backup merge, search contract, font, coverage, a11y | GitHub Actions | ✅ scoped run `43833412429` green (Scope 6s, Analyze 90s, Test 65s); full-suite run below |
-| 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | ✅ `43837873918` — all 7 jobs green; editor suite (390 cases) ran for the first time; coverage 13.9% |
-| 2026-11-16 | Final state of the branch | GitHub Actions | ✅ `43841692813` on `7fe4c7a` — green |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box
@@ -610,38 +542,18 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   `d3d534e`. `Linux` CI (`43823502245`) passed full suite (`Scope` + `Analyze` + `Test (1)` +
   `Test (2)`).
 - Live Fedora check (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e` with Tencent
-  mirror): confirmed the 5m34s `:app` `sdkmanager` NDK hang is gone; Gradle passed `:geolocator_android`
-  / `:google_maps_flutter_android` and was configuring `:google_sign_in_android` (~50% through ~31
-  Android plugins) while downloading Maven/Kotlin artifacts cleanly. Waiting for the build +
-  `storypad_dev` AVD install to finish; next goal after verification is a lightweight phone build
-  (`BACKLOG.md` A-3 / `N-015`).
-
-### Session 11 — verification log (what was actually proven, and by which run)
-
-Two runs matter; everything else was either superseded by a later push
-(`cancel-in-progress`) or belonged to another branch.
-
-| Run | Commit | Result |
-|---|---|---|
-| `43837873918` | `13e656b` | **7/7 green** — Analyze, Scope, Test (1)+(2), Build Linux desktop, Editor package tests, **Coverage**. The first run in this repo's history where the editor package's 390 cases executed alongside the app shards. |
-| `43841692813` | `7fe4c7a` | **green** — the final code state (Analyze, Scope, Test (1) scoped to `backup_repository_test.dart`). |
-
-**A trap worth writing down.** While checking `43841886680` I read a real
-`ReminderNavigationService.copyFor` failure and started to fix code this session
-never touched. That run belongs to `arena/e3e3866a-notely` (commit `b210885`), the
-parallel session's branch. `gh api .../actions/runs?per_page=N` is repo-wide, not
-branch-scoped: filter on `head_branch` **before** reading an annotation. The
-reminder failure is real for that branch and is not caused by anything here.
-
-**A `part of` file shares its library's imports — 180 files do this here.**
-Removing two imports from `stories_box.dart` as "unused" broke
-`helpers/stories_box_transformer.dart` (`part of '../stories_box.dart';`), which uses
-both of them; Analyze failed with two `Undefined class` errors and the commit was
-reverted. Grepping a single file for a symbol is **not** enough in this code base:
-`grep -rl "part of '.*<file>.dart'" lib/` before deleting an import.
-
-**An empty commit runs nothing.** `72eb3d2` (`chore(ci): ... [full]`) is a valid
-empty commit and sits at the branch tip, but GitHub reports no run for it because
-a push with no file changes matches `paths-ignore` and never starts a workflow.
-`[full]` still needs a real file change to take effect — worth remembering before
-writing "verified on CI" next to a marker that never fired.
+  mirror):
+  - Confirmed the 5m34s `:app` `sdkmanager` NDK hang was eliminated and all Maven/Kotlin dependencies
+    cached in `~/.gradle/caches/` (initial cold fetch `33m 15s`; retry #1 reached `:jni` in `8.9s`).
+  - Failed configuring subproject `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`)
+    because transitive `jni` (`1.0.3`, brought in by `path_provider_android` `2.3.1`) genuinely builds
+    `libdartjni.so` via CMake + NDK (`externalNativeBuild { cmake { path = "../src/CMakeLists.txt" } }`),
+    while Fedora had neither `ndk` nor `cmake` installed.
+- Fix applied: `bin/android_doctor` now marks missing NDK/CMake as `MISSING` when `jni` is in
+  `pubspec.lock` and falls back to the best available `ndk;*` / `cmake;*` in the SDK mirror catalogue
+  during `--fix`; `bin/build_apk` fails fast with `bin/android_doctor --fix` when NDK/CMake is missing
+  for `:jni` and otherwise exports whichever valid NDK (`source.properties`) is on disk as
+  `notelyNdkVersion`; `android/build.gradle.kts` forwards `notelyNdkVersion` to `:app`
+  (`flutter.installedNdkVersions`) and `LibraryExtension` plugins (aligning `:jni`) and clamps
+  `compileSdk` to `notelyCompileSdk`. Next step: run `bin/android_doctor --fix` and re-run
+  `bin/build_apk --install --avd=storypad_dev`; then proceed to the lightweight phone build (`A-3`).

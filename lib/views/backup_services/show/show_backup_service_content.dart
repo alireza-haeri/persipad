@@ -26,22 +26,6 @@ class _ShowBackupServiceContent extends StatelessWidget {
           if (viewModel.params.service.currentUser != null)
             SpPopupMenuButton(
               items: (context) {
-                // iCloud has no in-app sign-out — Apple exposes no API to
-                // disable an app's iCloud Drive access, only the OS Settings
-                // toggle can. This opens that instead of clearing local
-                // state, which wouldn't actually stick (see
-                // ShowBackupServiceViewModel.disableICloud).
-                if (viewModel.serviceType == BackupServiceType.icloud) {
-                  return [
-                    SpPopMenuItem(
-                      titleStyle: TextStyle(color: ColorScheme.of(context).error),
-                      leadingIconData: SpIcons.setting,
-                      title: tr('button.disable'),
-                      onPressed: () => viewModel.disableICloud(context),
-                    ),
-                  ];
-                }
-
                 return [
                   SpPopMenuItem(
                     titleStyle: TextStyle(color: ColorScheme.of(context).error),
@@ -59,11 +43,6 @@ class _ShowBackupServiceContent extends StatelessWidget {
                 );
               },
             ),
-          // IconButton(
-          //   icon: const Icon(SpIcons.moreVert),
-          //   onPressed: () => viewModel.signOut(context),
-          //   tooltip: tr('button.sign_out'),
-          // ),
         ],
       ),
       body: RefreshIndicator.adaptive(

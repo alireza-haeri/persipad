@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/databases/models/asset_db_model.dart';
-import 'package:storypad/core/databases/models/place_db_model.dart';
 import 'package:storypad/core/databases/models/story_content_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/story_page_db_model.dart';
@@ -16,9 +15,7 @@ import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/objects/story_tile_preferences_object.dart';
 import 'package:storypad/core/types/asset_type.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/widgets/bottom_sheets/base_bottom_sheet.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_section_title.dart';
@@ -183,14 +180,6 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
         _demoFeeling2Tag.id.toString(),
       ],
       feeling: null,
-      place: PlaceDbModel(
-        latitude: 0.0,
-        longitude: 0.0,
-        placeName: "Home",
-        country: "Cambodia",
-        locality: "Phnom Penh",
-        address: "123 Main St, Phnom Penh, Cambodia",
-      ),
       latestContent: story.latestContent!.copyWith(
         title: "My Journal Entry ✨",
         plainText: body,
@@ -253,25 +242,6 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
         title: Text(tr("list_tile.story_tile_preferences.title")),
         automaticallyImplyLeading: !CupertinoSheetRoute.hasParentSheet(context),
         actions: [
-          // Pro users save automatically when the sheet closes, so no save button.
-          // Non-pro users keep a locked save button that opens the paywall; they can
-          // still preview changes but cannot persist them.
-          if (changed && !Provider.of<InAppPurchaseProvider>(context).isProUser)
-            IconButton(
-              tooltip: tr("button.done"),
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(SpIcons.save, color: Theme.of(context).colorScheme.primary),
-                  const Positioned(
-                    top: -2,
-                    right: -8,
-                    child: Icon(SpIcons.lock, size: 12.0),
-                  ),
-                ],
-              ),
-              onPressed: () => const PaywallRoute(initialFocus: .customizations).push(context),
-            ),
           IconButton(
             icon: const Icon(SpIcons.refresh),
             onPressed: resettable ? () => _apply(defaultStoryTilePreferences) : null,
@@ -342,16 +312,6 @@ class _StoryTilePreferencesSheetContentState extends State<_StoryTilePreferences
                       value: storyTilePreferences.showPageCount,
                       onChanged: (value) => _apply(storyTilePreferences.copyWith(showPageCount: value)),
                     ),
-                    // A switch for something the map add-on has removed would be a
-                    // dead control; the stored preference is kept for when it returns.
-                    if (context.read<DevicePreferencesProvider>().enableMap)
-                      SwitchListTile.adaptive(
-                        secondary: const SpSettingIconBadge(weekday: 6, icon: SpIcons.map),
-                        contentPadding: const EdgeInsets.only(left: 16.0, right: 14.0),
-                        title: Text(tr("list_tile.show_location.title")),
-                        value: storyTilePreferences.showLocation,
-                        onChanged: (value) => _apply(storyTilePreferences.copyWith(showLocation: value)),
-                      ),
                     _CharacterCountSlider(
                       preferences: storyTilePreferences,
                       onChanged: (value) => _apply(storyTilePreferences.copyWith(displayCharacterCount: value)),

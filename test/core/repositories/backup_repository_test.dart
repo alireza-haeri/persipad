@@ -6,12 +6,9 @@ import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart';
 import 'package:storypad/core/objects/cloud_file_object.dart';
 import 'package:storypad/core/objects/cloud_service_user.dart';
 import 'package:storypad/core/objects/cloud_storage_quota_object.dart';
-import 'package:storypad/core/objects/nextcloud_user_object.dart';
 import 'package:storypad/core/repositories/backup_repository.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
-import 'package:storypad/core/services/backups/dropbox_cloud_service.dart';
-import 'package:storypad/core/services/backups/nextcloud_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_latest_checker_service.dart';
@@ -27,17 +24,10 @@ void main() {
 
   BackupRepository buildRepository({
     required BackupCloudService googleDriveService,
-    required NextcloudCloudService nextcloudService,
-    BackupCloudService? icloudService,
     bool hasInternet = true,
   }) {
     final messenger = BackupSyncMessenger();
     return BackupRepository(
-      icloudService: icloudService,
-      // Not exercised by these checkConnection tests — a plain, never-signed-in
-      // instance is inert (excluded from checkableServices) without needing a
-      // dedicated fake, unlike Nextcloud/iCloud which these tests do assert on.
-      dropboxService: DropboxCloudService(),
       restoreService: RestoreBackupService(),
       messenger: messenger,
       step1ImagesUploader: BackupImagesUploaderService(messenger: messenger),
@@ -46,19 +36,14 @@ void main() {
       step4NewBackupUploader: BackupUploaderService(messenger: messenger),
       internetChecker: _FakeInternetChecker(hasInternet),
       googleDriveService: googleDriveService,
-      nextcloudService: nextcloudService,
       importHistoryStorage: BackupImportHistoryStorage(),
     );
   }
 
   group('BackupRepository.checkConnection', () {
-    // The actual regression: previously checkConnection() returned on the
-    // FIRST service that threw, so a broken Nextcloud connection meant
-    // Google Drive's own status was never even checked.
-    test('one service throwing does not prevent checking the other', () async {
+    test('healthy Google Drive reports readyToSync', () async {
       final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, shouldThrow: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: true),
+        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive),
       );
 
       final result = await repository.checkConnection();
@@ -66,25 +51,28 @@ void main() {
       expect(result.isSuccess, isTrue);
       expect(result.data!.hasInternet, isTrue);
       expect(result.data!.statusByService[BackupServiceType.google_drive], BackupConnectionStatus.readyToSync);
-      expect(result.data!.statusByService[BackupServiceType.nextcloud], BackupConnectionStatus.needServicePermission);
     });
 
-    test('both services healthy report readyToSync for both', () async {
+    test('revoked token reports needServicePermission', () async {
       final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, shouldThrow: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false),
+        googleDriveService: _FakeCloudService(
+          serviceType: BackupServiceType.google_drive,
+          shouldThrow: true,
+        ),
       );
 
       final result = await repository.checkConnection();
 
-      expect(result.data!.statusByService[BackupServiceType.google_drive], BackupConnectionStatus.readyToSync);
-      expect(result.data!.statusByService[BackupServiceType.nextcloud], BackupConnectionStatus.readyToSync);
+      expect(result.isSuccess, isTrue);
+      expect(
+        result.data!.statusByService[BackupServiceType.google_drive],
+        BackupConnectionStatus.needServicePermission,
+      );
     });
 
-    test('no internet marks every signed-in service noInternet without checking them', () async {
+    test('no internet marks signed-in service noInternet without checking it', () async {
       final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, shouldThrow: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false),
+        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive),
         hasInternet: false,
       );
 
@@ -92,13 +80,11 @@ void main() {
 
       expect(result.data!.hasInternet, isFalse);
       expect(result.data!.statusByService[BackupServiceType.google_drive], BackupConnectionStatus.noInternet);
-      expect(result.data!.statusByService[BackupServiceType.nextcloud], BackupConnectionStatus.noInternet);
     });
 
-    test('nobody signed in at all fails fast', () async {
+    test('not signed in fails fast', () async {
       final repository = buildRepository(
         googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, signedIn: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false, signedIn: false),
       );
 
       final result = await repository.checkConnection();
@@ -106,69 +92,13 @@ void main() {
       expect(result.isSuccess, isFalse);
     });
 
-    test('a service that is not signed in is excluded from the result, the other still checked', () async {
+    test('transient network error during reauth reports noInternet', () async {
       final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, signedIn: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false),
-      );
-
-      final result = await repository.checkConnection();
-
-      expect(result.isSuccess, isTrue);
-      expect(result.data!.statusByService.containsKey(BackupServiceType.google_drive), isFalse);
-      expect(result.data!.statusByService[BackupServiceType.nextcloud], BackupConnectionStatus.readyToSync);
-    });
-
-    // Unlike Drive/Nextcloud (excluded above when not signed in), iCloud is
-    // always included even while unsigned-in — see checkConnection's own doc
-    // comment: reauthenticateIfNeeded is how an iCloud tile recovers on its
-    // own after the user enables iCloud Drive in Settings and returns to the
-    // app, so it must be probed every time regardless of currentUser.
-    test('iCloud available reports readyToSync even though other services are unrelated', () async {
-      final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, signedIn: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false, signedIn: false),
-        icloudService: _FakeCloudService(serviceType: BackupServiceType.icloud, signedIn: true),
-      );
-
-      final result = await repository.checkConnection();
-
-      expect(result.isSuccess, isTrue);
-      expect(result.data!.statusByService[BackupServiceType.icloud], BackupConnectionStatus.readyToSync);
-    });
-
-    test('iCloud still disabled in Settings reports needServicePermission, not unknownError', () async {
-      final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, signedIn: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false, signedIn: false),
-        icloudService: _FakeCloudService(
-          serviceType: BackupServiceType.icloud,
-          signedIn: false,
-          reauthenticateError: const AuthException(
-            'iCloud is not available',
-            AuthExceptionType.signInRequired,
-            serviceType: BackupServiceType.icloud,
-          ),
-        ),
-      );
-
-      final result = await repository.checkConnection();
-
-      expect(result.isSuccess, isTrue);
-      expect(result.data!.statusByService.containsKey(BackupServiceType.icloud), isTrue);
-      expect(result.data!.statusByService[BackupServiceType.icloud], BackupConnectionStatus.needServicePermission);
-    });
-
-    test('iCloud transient network failure reports noInternet for that service specifically', () async {
-      final repository = buildRepository(
-        googleDriveService: _FakeCloudService(serviceType: BackupServiceType.google_drive, shouldThrow: false),
-        nextcloudService: _FakeNextcloudService(shouldThrow: false),
-        icloudService: _FakeCloudService(
-          serviceType: BackupServiceType.icloud,
-          signedIn: false,
+        googleDriveService: _FakeCloudService(
+          serviceType: BackupServiceType.google_drive,
           reauthenticateError: const NetworkException(
-            'Could not verify iCloud account',
-            serviceType: BackupServiceType.icloud,
+            'Could not reach Google',
+            serviceType: BackupServiceType.google_drive,
           ),
         ),
       );
@@ -176,9 +106,7 @@ void main() {
       final result = await repository.checkConnection();
 
       expect(result.isSuccess, isTrue);
-      expect(result.data!.statusByService[BackupServiceType.icloud], BackupConnectionStatus.noInternet);
-      // The other services aren't affected by iCloud's own transient failure.
-      expect(result.data!.statusByService[BackupServiceType.google_drive], BackupConnectionStatus.readyToSync);
+      expect(result.data!.statusByService[BackupServiceType.google_drive], BackupConnectionStatus.noInternet);
     });
   });
 }
@@ -189,45 +117,6 @@ class _FakeInternetChecker extends InternetCheckerService {
 
   @override
   Future<bool> check() async => _result;
-}
-
-class _FakeNextcloudUser implements NextcloudUserObject {
-  @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-
-  @override
-  BackupServiceType get serviceType => BackupServiceType.nextcloud;
-
-  @override
-  String get identifier => 'tester@nextcloud.example.com';
-}
-
-class _FakeNextcloudService extends NextcloudCloudService {
-  _FakeNextcloudService({required this.shouldThrow, this.signedIn = true});
-
-  final bool shouldThrow;
-  final bool signedIn;
-
-  @override
-  NextcloudUserObject? get currentUser => signedIn ? _FakeNextcloudUser() : null;
-
-  @override
-  bool get isSignedIn => signedIn;
-
-  @override
-  Future<bool> reauthenticateIfNeeded() async {
-    if (shouldThrow) {
-      throw AuthException(
-        'Nextcloud credentials no longer valid',
-        AuthExceptionType.tokenRevoked,
-        serviceType: serviceType,
-      );
-    }
-    return true;
-  }
-
-  @override
-  Future<bool> canAccessRequestedScopes() async => true;
 }
 
 class _FakeCloudService implements BackupCloudService {
@@ -243,10 +132,6 @@ class _FakeCloudService implements BackupCloudService {
 
   final bool shouldThrow;
   final bool signedIn;
-
-  /// Overrides [shouldThrow]'s hardcoded `tokenRevoked` when a test needs a
-  /// specific exception type/message out of [reauthenticateIfNeeded] (e.g.
-  /// iCloud's `signInRequired` or a transient `NetworkException`).
   final Exception? reauthenticateError;
 
   @override

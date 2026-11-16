@@ -46,10 +46,10 @@ android {
         compileSdkMinor = minor
     }
 
-    // The NDK is only needed when something actually compiles C/C++; nothing in this
-    // app does, and the debug build does not touch it. `notelyNdkVersion=none` (or
-    // bin/build_apk --no-ndk) skips sdkmanager provisioning (paired with the matching
-    // entry in android/build.gradle.kts).
+    // Transitive :jni (pulled by path_provider_android) compiles libdartjni.so via
+    // CMake + NDK, so Android builds normally need an NDK on disk. `notelyNdkVersion`
+    // lets local machines use whichever NDK version is installed on disk (paired with
+    // android/build.gradle.kts to align :jni), or `none` if :jni is ever removed.
     val notelyNdkVersion = project.findProperty("notelyNdkVersion") as String?
     ndkVersion = if (notelyNdkVersion != "none") {
         notelyNdkVersion ?: flutter.ndkVersion
@@ -79,14 +79,11 @@ android {
 
         // --dart-define-from-file=configs/example.json
         //
-        // These two used to be `resValue(...)`. AGP 9 disables custom *resource* values
+        // This used to be `resValue(...)`. AGP 9 disables custom *resource* values
         // in the legacy DSL ("defaultConfig contains custom resource values, but the
-        // feature is disabled"), and the manifest is the only reader of both, so they
-        // are manifest placeholders now — the same mechanism `appLogo` below already
-        // uses. The dart-define defaults are unchanged, so the storypad flavor keeps
-        // overriding its own name and Maps key exactly as before.
+        // feature is disabled"), and the manifest is the only reader, so it is a
+        // manifest placeholder now — the same mechanism `appLogo` below already uses.
         manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "StoryPad C."
-        manifestPlaceholders["googleMapsApiKey"] = dartDefines["GOOGLE_MAPS_ANDROID_API_KEY"] ?: ""
     }
 
     signingConfigs {
@@ -126,7 +123,6 @@ android {
             applicationId = "com.tc.writestory"
             namespace = "com.tc.writestory"
             manifestPlaceholders["appLogo"] = "storypad_logo_1_0"
-            manifestPlaceholders["dropboxCallbackScheme"] = "storypad"
         }
 
         create("community") {
@@ -134,7 +130,6 @@ android {
             applicationId = "com.tc.writestory.community"
             namespace = "com.tc.writestory.community"
             manifestPlaceholders["appLogo"] = "ic_launcher"
-            manifestPlaceholders["dropboxCallbackScheme"] = "storypadcommunity"
         }
     }
 

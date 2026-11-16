@@ -9,13 +9,10 @@ import 'package:storypad/core/services/platform_capabilities.dart';
 import 'package:storypad/core/types/backup_connection_status.dart';
 import 'package:storypad/providers/backup_provider.dart';
 import 'package:storypad/providers/backup_sync_state_store.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/views/backup_services/show/show_backup_service_view.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 
-/// Generic backup service tile that displays a cloud service status
-/// Works with any BackupCloudService implementation
+/// Generic backup service tile that displays a cloud service status.
 class BackupServiceTile extends StatelessWidget {
   final BackupCloudService service;
 
@@ -30,10 +27,6 @@ class BackupServiceTile extends StatelessWidget {
     final status = provider.statusFor(service.serviceType);
     final metadata = service.serviceType;
 
-    // Some services simply cannot work on every platform (iCloud exists only on
-    // Apple platforms). Offering a Connect button that can only ever fail is the
-    // worst option, so explain it and disable the tile. Drive used to be in this
-    // list on Linux; it now authenticates through loopback OAuth2 (D-019).
     final unavailable = !PlatformCapabilities.cloudSyncOnThisDevice(service.serviceType);
     if (unavailable) {
       return ListTile(
@@ -42,19 +35,6 @@ class BackupServiceTile extends StatelessWidget {
         title: Text(metadata.displayName),
         subtitle: Text(tr('list_tile.backup.unavailable_subtitle')),
         trailing: const Icon(SpIcons.cloudOff),
-      );
-    }
-
-    // isProUser is always true in this fork (everything is unlocked), so this
-    // branch only fires if gating is ever turned back on — see
-    // ProEntitlementService.
-    final locked = metadata.isProOnly && !Provider.of<InAppPurchaseProvider>(context).isProUser;
-    if (locked) {
-      return ListTile(
-        leading: Icon(metadata.icon),
-        title: Text(metadata.displayName),
-        trailing: const Icon(SpIcons.lock),
-        onTap: () => const PaywallRoute(initialFocus: .multi_cloud_sync).push(context),
       );
     }
 
@@ -85,23 +65,9 @@ class BackupServiceTile extends StatelessWidget {
 
     if (!service.isSignedIn) {
       trailing = const Icon(SpIcons.cloudOff);
-      // iCloud has no "Connect" flow to prompt — availability is driven
-      // entirely by the OS's own iCloud Drive toggle, so the subtitle
-      // explains that up front rather than inviting a tap-to-sign-in that
-      // doesn't exist. Tapping still re-checks live availability first (via
-      // BackupProvider.signIn) in case it's already on, and opens Settings
-      // directly — no confirm dialog — if it's still off.
-      // checkConnection still probes iCloud while signed out (it's the only
-      // way an unsigned-in iCloud tile ever recovers on its own — see
-      // BackupRepository.checkConnection), so a fresh/offline iCloud user
-      // can carry a noInternet status here; that must win over the generic
-      // "iCloud is off" copy, or an offline user gets sent to Settings for
-      // a network outage Settings can't fix.
       subtitle = Text(
         status.connectionStatus == BackupConnectionStatus.noInternet
             ? tr('list_tile.backup.no_internet_subtitle')
-            : metadata.icloudService
-            ? tr('list_tile.backup.icloud_unavailable_subtitle')
             : tr('list_tile.backup.unsignin_subtitle'),
       );
       onPressed = () => provider.signIn(context, service.serviceType);
@@ -131,13 +97,6 @@ class BackupServiceTile extends StatelessWidget {
           break;
       }
 
-      // Only paint the success/synced subtitle when THIS service's own
-      // status is ready AND it has actually completed a sync at least once
-      // — connectionStatus can turn readyToSync right after connecting
-      // (a plain ping), before any of the 4 sync steps have run. Show this
-      // service's own lastSyncedAt, not provider.lastSyncedAt (a global max
-      // across every service) — otherwise a freshly-connected Nextcloud tile
-      // could show Drive's timestamp despite never having synced itself.
       if (status.connectionStatus == BackupConnectionStatus.readyToSync && status.lastSyncedAt != null) {
         subtitle = Text(
           DateFormatHelper.yMEd_jmNullable(

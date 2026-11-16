@@ -4,8 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/databases/models/story_preferences_db_model.dart';
 import 'package:storypad/core/objects/gallery_template_object.dart';
 import 'package:storypad/core/objects/story_page_object.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/views/stories/local_widgets/story_pages_builder.dart';
 import 'package:storypad/views/templates/local_widgets/template_note.dart';
 import 'package:flutter/material.dart';

@@ -1,5 +1,4 @@
 import Flutter
-import GoogleMaps
 import UIKit
 import UserNotifications
 
@@ -11,8 +10,6 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey(Bundle.main.infoDictionary?["GOOGLE_MAPS_IOS_API_KEY"] as? String ?? "")
-
     // Required by flutter_local_notifications to present/handle reminders in the foreground.
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
@@ -32,7 +29,6 @@ import UserNotifications
     // falls back to FlutterMethodNotImplemented if none claim the call.
     let services: [(FlutterMethodCall, @escaping FlutterResult) -> Bool] = [
       AppLogoService.handle,
-      ICloudBackupService.handle,
     ]
 
     channel.setMethodCallHandler { call, result in

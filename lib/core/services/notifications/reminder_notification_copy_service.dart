@@ -5,17 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Picks varied English notification copy for the built-in reminders so the
 /// same text doesn't show up every single day. Other languages keep today's
-/// single translated string — mirrors `WelcomeMessageService`
-/// (lib/core/services/welcome_message_service.dart), which does the same for
-/// the home greeting for the same reason (untranslated variants would make
-/// the app feel unfinished in other languages).
-///
-/// Unlike `WelcomeMessageService`, this can't rely on `context.locale` —
-/// reminder scheduling runs from `RootProvider` (a ChangeNotifier, not a
-/// widget), so there's no BuildContext to read it from. Instead it reads the
-/// locale easy_localization itself persisted to SharedPreferences under the
-/// key `'locale'` (see EasyLocalizationController), which is the same source
-/// `context.locale` is initialized from.
+/// single translated string — mirrors `WelcomeMessageService`.
 class ReminderNotificationCopyService {
   static Future<bool> _useEnglishVariants() async {
     final prefs = await SharedPreferences.getInstance();
@@ -23,8 +13,6 @@ class ReminderNotificationCopyService {
     return locale == null || locale.startsWith('en');
   }
 
-  /// One title+body pair, kept together so tone always matches — never
-  /// mix-and-match a random title with an unrelated random body.
   static Future<(String title, String body)> dailyCopy() =>
       _pick(_daily, 'reminder.daily.notification_title', 'reminder.daily.notification_body');
 
@@ -33,9 +21,6 @@ class ReminderNotificationCopyService {
     'reminder.on_this_day.notification_title',
     'reminder.on_this_day.notification_body',
   );
-
-  static Future<(String title, String body)> periodCopy() =>
-      _pick(_period, 'reminder.period.notification_title', 'reminder.period.notification_body');
 
   static Future<(String, String)> _pick(
     List<(String, String)> variants,
@@ -90,28 +75,5 @@ class ReminderNotificationCopyService {
     ("Full circle", "This day has meaning in your journal's history."),
     ("Look who's back", "This day again — see what you once wrote."),
     ("A story from before", "Revisit your memory from this same day."),
-  ];
-
-  static const List<(String, String)> _period = [
-    ("Period reminder", "Your next period may be coming soon."),
-    ("Heads up", "Your cycle suggests your period is approaching."),
-    ("Time to prepare", "Your period might start in the next few days."),
-    ("Cycle check-in", "Based on your history, your period may be near."),
-    ("Be prepared", "Your predicted period date is coming up."),
-    ("A gentle nudge", "Your period may arrive soon — plan ahead."),
-    ("Cycle update", "Your next period is expected shortly."),
-    ("Stay ahead", "It might be time to get ready for your period."),
-    ("Coming soon", "Your period is predicted to start in a few days."),
-    ("Just a heads-up", "Time to stock up — your period may be near."),
-    ("Your body's calendar", "Your next period could be just around the corner."),
-    ("Plan ahead", "Your predicted cycle suggests your period is close."),
-    ("Prediction alert", "Your period may begin in the coming days."),
-    ("Cycle reminder", "Based on past cycles, your period could start soon."),
-    ("Get ready", "It's almost time for your predicted period."),
-    ("Your cycle, tracked", "Your next period is estimated to be near."),
-    ("A quick reminder", "Your period might be approaching soon."),
-    ("Stay on top of it", "Your predicted period date is coming up."),
-    ("Cycle awareness", "It may be time to prepare for your period."),
-    ("Your next cycle", "Your period is expected around this time."),
   ];
 }

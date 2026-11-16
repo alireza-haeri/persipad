@@ -93,7 +93,6 @@ class ReminderObject {
   /// - [ReminderType.onThisDay]: nostalgic look-back at past entries, best consumed
   ///   in the morning (like Timehop/Facebook Memories) rather than competing with
   ///   the evening writing nudge — 09:00.
-  /// - [ReminderType.period]: advance notice before the predicted period — 09:00.
   factory ReminderObject.builtin(ReminderType type) {
     return ReminderObject(
       id: type.index + 1,
@@ -101,7 +100,6 @@ class ReminderObject {
       enabled: false,
       hour: type == ReminderType.daily ? 21 : 9,
       minute: 0,
-      daysAhead: type == ReminderType.period ? 2 : null,
     );
   }
 

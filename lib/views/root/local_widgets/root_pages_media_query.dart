@@ -30,12 +30,8 @@ class RootPagesMediaQuery extends StatelessWidget {
     // Directionality must not turn a padding calculation into an assert.
     final bool isRtl = Directionality.maybeOf(context) == TextDirection.rtl;
 
-    final double left = bigScreen
-        ? (isRtl ? screenPadding.left + sidebarInset : sidebarInset)
-        : screenPadding.left;
-    final double right = bigScreen
-        ? (isRtl ? sidebarInset : screenPadding.right + sidebarInset)
-        : screenPadding.right;
+    final double left = bigScreen ? (isRtl ? screenPadding.left + sidebarInset : sidebarInset) : screenPadding.left;
+    final double right = bigScreen ? (isRtl ? sidebarInset : screenPadding.right + sidebarInset) : screenPadding.right;
 
     return MediaQuery(
       data: mediaQuery.copyWith(

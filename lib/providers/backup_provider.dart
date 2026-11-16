@@ -1,8 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/objects/cloud_service_user.dart';
@@ -15,11 +11,7 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/assets/db_asset_loader_service.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
-import 'package:storypad/core/services/backups/dropbox_cloud_service.dart';
 import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
-import 'package:storypad/core/services/backups/google_drive_linux_cloud_service.dart';
-import 'package:storypad/core/services/backups/icloud_cloud_service.dart';
-import 'package:storypad/core/services/backups/nextcloud_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_latest_checker_service.dart';
@@ -34,10 +26,8 @@ import 'package:storypad/core/types/backup_connection_status.dart';
 import 'package:storypad/core/services/messenger_service.dart';
 import 'package:storypad/core/types/backup_result.dart';
 import 'package:storypad/providers/backup_sync_state_store.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/views/home/home_view.dart';
-import 'package:storypad/widgets/bottom_sheets/sp_connect_nextcloud_sheet.dart';
-import 'package:storypad/widgets/bottom_sheets/sp_icloud_settings_sheet.dart';
+import 'package:storypad/widgets/sp_app_lock_wrapper.dart';
 
 class BackupProvider extends ChangeNotifier with DebounchedCallback {
   BackupProvider() {
@@ -92,29 +82,9 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       step3LatestBackupImporter: BackupImporterService(messenger: messenger),
       step4NewBackupUploader: BackupUploaderService(messenger: messenger),
       internetChecker: InternetCheckerService(),
-      googleDriveService: _createGoogleDriveService(),
-      nextcloudService: NextcloudCloudService(),
-      icloudService: _createICloudService(),
-      dropboxService: DropboxCloudService(),
+      googleDriveService: GoogleDriveCloudService(),
       importHistoryStorage: BackupImportHistoryStorage(),
     );
-  }
-
-  static BackupCloudService _createGoogleDriveService() {
-    if (!kIsWeb && Platform.isLinux) return GoogleDriveLinuxCloudService();
-    return GoogleDriveCloudService();
-  }
-
-  /// iCloud doesn't conceptually exist off-Apple platforms (unlike Drive,
-  /// which is at least meant to work everywhere) — so unlike
-  /// [_createGoogleDriveService]'s Linux stub, there's no always-registered
-  /// disabled placeholder here. `null` means no connect tile renders at all
-  /// on that platform; per-asset "backed up to iCloud" badges still work
-  /// everywhere regardless, since those read straight off the
-  /// [BackupServiceType] enum rather than this registration.
-  static BackupCloudService? _createICloudService() {
-    if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) return ICloudCloudService();
-    return null;
   }
 
   late final AutoSyncTriggerService _autoSyncTriggerService;
@@ -186,10 +156,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
   /// Media deferred by the Wi-Fi-only setting. [allYearSynced] only reflects the
   /// yearly backup files, so without this the app would report "Synced" while
   /// media is still pending.
-  ///
-  /// Refreshed on demand rather than from [_databaseListener]: the underlying
-  /// scan touches every asset row and stats each local file, which is too much
-  /// to repeat on every database commit.
   int _pendingMediaCount = 0;
   int get pendingMediaCount => _pendingMediaCount;
 
@@ -197,8 +163,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     try {
       _pendingMediaCount = await repository.pendingMediaCount();
     } catch (e) {
-      // Called from recheckAndSync's finally block — a throw here would mask
-      // the sync's own result.
       AppLogger.d('$runtimeType#refreshPendingMediaCount failed: $e');
     }
 
@@ -210,8 +174,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       repository.services.where((service) => service.autoBackupEnabled).toList();
 
   /// Every service with an active account — the set an asset could actually
-  /// be downloaded from right now. Used by [BackupAssetDownloaderService]
-  /// callers instead of assuming Drive is the only possible source.
+  /// be downloaded from right now.
   List<BackupCloudService> get signedInServices => repository.services.where((service) => service.isSignedIn).toList();
 
   Future<void> _setupConnection() async {
@@ -249,24 +212,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     if (services.isEmpty) return false;
     if (_syncing) return false;
 
-    // Free users only get Google Drive — Nextcloud/iCloud stay sign-in-able
-    // (e.g. via SpPurchaseSyncProviderSheet for purchase-identity linking)
-    // but never actually sync without Pro. Pinned to Drive explicitly rather
-    // than "first signed-in", since a first-signed-in rule would let a free
-    // user who only linked iCloud/Nextcloud for purchase identity get free
-    // sync through that service depending on BackupRepository.services' order.
-    final iapProvider = context.read<InAppPurchaseProvider>();
-    // RevenueCat's customer info loads asynchronously after InAppPurchaseProvider
-    // is constructed — without this, a startup auto-sync can race ahead of
-    // initialization and see isProUser as false for an actual Pro user,
-    // silently dropping their iCloud/Nextcloud sync for that run with no
-    // guaranteed retry once initialization finishes.
-    await iapProvider.ensureInitialized();
-    if (!iapProvider.isProUser) {
-      services = services.where((service) => service.serviceType == BackupServiceType.google_drive).toList();
-      if (services.isEmpty) return false;
-    }
-
     _syncing = true;
     _reachedDeepSyncStep = false;
     _syncState.onSyncQueueStarted(services.map((service) => service.serviceType).toList());
@@ -295,80 +240,16 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     BuildContext context,
     BackupServiceType serviceType,
   ) async {
-    // Linux Drive needs a Google OAuth client id that only the person building
-    // the app can create — it identifies the *app* to Google (it is not an
-    // account, nobody signs in with the maintainer's Google account). Without
-    // it the browser would end on Google's `invalid_client` page, so explain
-    // the missing piece instead of opening one.
-    if (serviceType == BackupServiceType.google_drive) {
-      final service = repository.getService(serviceType);
-      if (service is GoogleDriveLinuxCloudService && !service.isConfigured) {
-        if (context.mounted) await _showGoogleDriveSetupHelp(context);
-        return;
-      }
-    }
-
-    // Nextcloud's auth is a server/username/app-password form, not a
-    // no-argument OAuth flow — route through its connect sheet (which calls
-    // connectNextcloud and updates state itself) instead of the generic
-    // repository.signIn, which is a no-op for this service.
-    if (serviceType == BackupServiceType.nextcloud) {
-      await const SpConnectNextcloudSheet().show(context: context);
+    final service = repository.getService(serviceType);
+    if (service is GoogleDriveCloudService && !service.isConfigured) {
+      if (context.mounted) await _showGoogleDriveSetupHelp(context);
       return;
     }
 
-    final result = await repository.signIn(serviceType);
-
-    // iCloud has no OAuth/credential flow — signIn() just re-checks live OS
-    // availability and can legitimately come back false (iCloud Drive still
-    // disabled in Settings) without that being an error. Route that case to
-    // Settings guidance instead of the generic error snackbar below, which
-    // assumes a false/failed result always means something went wrong. A
-    // transient network failure with nothing cached yet is a distinct third
-    // case — Settings can't help there, so it gets the generic error
-    // snackbar instead of the Settings sheet.
-    if (serviceType == BackupServiceType.icloud) {
-      if (result.data == true) {
-        _syncState.onConnectionChecked({serviceType: BackupConnectionStatus.readyToSync});
-        _lastSyncedAtByYear = null;
-        _lastDbUpdatedAtByYear = null;
-      } else if (result.error?.type == BackupErrorType.network) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result.error!.message)),
-          );
-        }
-      } else if (context.mounted) {
-        final service = repository.getService(serviceType);
-        if (service is ICloudCloudService) {
-          await SpICloudSettingsSheet.show(context, service: service);
-        }
-      }
-      notifyListeners();
-      return;
-    }
-
-    // Dropbox runs its own interactive OAuth2 PKCE flow inside signIn() (no
-    // google_sign_in involved), so it can't share the generic branch below,
-    // which assumes success always means Drive — that call would otherwise
-    // mislabel a Dropbox connection as a Google sign-in in analytics.
-    if (serviceType == BackupServiceType.dropbox) {
-      if (result.isSuccess == true) {
-        AnalyticsService.instance.logLogin(loginMethod: 'dropbox');
-        _syncState.onConnectionChecked({serviceType: BackupConnectionStatus.readyToSync});
-        _lastSyncedAtByYear = null;
-        _lastDbUpdatedAtByYear = null;
-      } else if (result.error != null) {
-        AppLogger.d('Dropbox sign-in failed: ${result.error!.message}');
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result.error!.message)),
-          );
-        }
-      }
-      notifyListeners();
-      return;
-    }
+    final result = await SpAppLockWrapper.disableAppLockIfHas(
+      context,
+      callback: () => repository.signIn(serviceType),
+    );
 
     if (result.isSuccess == true) {
       AnalyticsService.instance.logSignInWithGoogle();
@@ -377,7 +258,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       _lastSyncedAtByYear = null;
       _lastDbUpdatedAtByYear = null;
     } else if (result.error != null) {
-      // Handle sign-in error - could show user-friendly message
       AppLogger.d('Sign-in failed: ${result.error!.message}');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -389,9 +269,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     notifyListeners();
   }
 
-  /// One-time setup instructions for the desktop Google Drive build. Kept in the
-  /// dialog (not a snackbar) because it is a multi-line checklist the user has
-  /// to act on, and it is shown *before* the browser opens.
+  /// One-time setup instructions when no OAuth client id is configured.
   Future<void> _showGoogleDriveSetupHelp(BuildContext context) {
     return showDialog<void>(
       context: context,
@@ -412,7 +290,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
             '6. Put both values next to the repo, outside git:\n\n'
             '   private_keys/dart_defines/community.json\n'
             '   {"GOOGLE_DESKTOP_CLIENT_ID": "...", "GOOGLE_DESKTOP_CLIENT_SECRET": "..."}\n\n'
-            'Then restart with bin/dev --community-linux.\n\n'
+            'Then rebuild with bin/dev --community-linux or bin/build_apk.\n\n'
             'Note: while the Google project stays in Testing, Google expires the '
             'refresh token after 7 days. Publishing the app (the scopes used here are '
             'non-sensitive, so no Google review is required) stops that.',
@@ -428,44 +306,16 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     );
   }
 
-  Future<bool> connectNextcloud(
-    BuildContext context, {
-    required String serverUrl,
-    required String username,
-    required String appPassword,
-    String? folderName,
-  }) async {
-    final result = await repository.connectNextcloud(
-      serverUrl: serverUrl,
-      username: username,
-      appPassword: appPassword,
-      folderName: folderName,
-    );
-
-    if (result.isSuccess == true) {
-      _syncState.onConnectionChecked({BackupServiceType.nextcloud: BackupConnectionStatus.readyToSync});
-      _lastSyncedAtByYear = null;
-      _lastDbUpdatedAtByYear = null;
-    } else if (result.error != null) {
-      AppLogger.d('Nextcloud connect failed: ${result.error!.message}');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.error!.message)),
-        );
-      }
-    }
-
-    notifyListeners();
-    return result.isSuccess == true;
-  }
-
   Future<void> requestScope(
     BuildContext context,
     BackupServiceType serviceType,
   ) async {
     final result = await MessengerService.of(context).showLoading<BackupResult<bool>>(
       debugSource: '$runtimeType#requestScope',
-      future: () => repository.requestScope(),
+      future: () => SpAppLockWrapper.disableAppLockIfHas(
+        context,
+        callback: () => repository.requestScope(),
+      ),
     );
 
     if (result?.isSuccess == true) {
@@ -510,26 +360,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     notifyListeners();
   }
 
-  /// Synchronization flow for multiple devices (v3 yearly backups)
-  ///
-  /// Per-service sync flow:
-  /// 1. For each signed-in service, execute Steps 1-4 sequentially:
-  ///    - Step 1: Upload local images/audio assets to this service
-  ///    - Step 2: Fetch and download yearly backups from this service if remote is newer
-  ///    - Step 3: Import downloaded data (only records with newer timestamps)
-  ///    - Step 4: Upload new/updated yearly backups to this service
-  ///
-  /// 2. Update global sync status using "Latest Wins" strategy:
-  ///    - Track the most recent timestamp across all services per year
-  ///    - UI shows "Synced" when local DB matches the latest remote timestamp
-  ///
-  /// 3. Handle failures gracefully:
-  ///    - Service failures don't affect other services
-  ///    - Auth failures trigger connection status update
-  ///    - Failed services retry on next sync
-  ///
-  /// Resolved once per sync run and passed down as a plain bool, so no sync
-  /// service has to reach for preferences or connectivity itself.
   Future<bool> _canUploadMedia() async {
     final mediaSync = DevicePreferencesStorage.appInstance.preferences.mediaSync;
     if (mediaSync == .wifiAndCellular) return true;
@@ -541,22 +371,15 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     required List<BackupCloudService> services,
     required bool uploadAssets,
   }) async {
-    // Get current state of all years in local database
     _lastDbUpdatedAtByYear = await repository.getLastDbUpdatedAtByYear();
     notifyListeners();
 
     var attemptedSync = false;
     var allSyncsSucceeded = true;
 
-    // Tracks whether any service actually imported remote content this run —
-    // used to fire restoreService.notify() once for the whole batch below
-    // instead of once per service (each service's own Step 3 already holds
-    // its listeners until it's done; this holds across services too, so a
-    // sync across N providers triggers at most one home reload instead of N).
     var didImportAny = false;
     final olderAppDeviceModels = <String>{};
 
-    // Process each service individually
     for (final service in services) {
       if (!service.isSignedIn) {
         AppLogger.d('Skipping service ${service.serviceType.displayName}: not signed in');
@@ -584,11 +407,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
             _syncState.onConnectionChecked(connectionResult.data!.statusByService);
           }
         } else {
-          // onServiceSyncFinished alone leaves connectionStatus untouched —
-          // if this service was readyToSync before the run (which is what
-          // let it run at all), a non-auth failure would otherwise go
-          // completely invisible: the tile keeps painting the last-known
-          // success state through repeated silent failures.
           final failureStatus = result.error?.type == BackupErrorType.network
               ? BackupConnectionStatus.noInternet
               : BackupConnectionStatus.unknownError;
@@ -596,7 +414,6 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
         }
 
         _syncState.onServiceSyncFinished(service.serviceType);
-        // Skip to next service on failure
         continue;
       }
 
@@ -605,34 +422,23 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       if (result.data?.didImport == true) didImportAny = true;
       olderAppDeviceModels.addAll(result.data?.olderAppDeviceModels ?? const {});
 
-      // Update local DB timestamps after successful sync (in case import happened)
       _lastDbUpdatedAtByYear = await repository.getLastDbUpdatedAtByYear();
 
-      // Build sync timestamps map for this service:
-      // 1. Start with remote timestamps from Step 2 (always available)
-      // 2. Override with uploaded file timestamps from Step 4 (fresher, reflects actual upload)
       final uploadedYearlyFilesPerService = result.data?.uploadedYearlyFiles;
       final lastSyncedAtByYearPerService = result.data?.lastSyncedAtByYear ?? {};
 
-      // Merge uploaded files (Step 4) over remote timestamps (Step 2)
-      // Uploaded timestamps are more accurate as they reflect the actual state after upload
       if (uploadedYearlyFilesPerService != null) {
         for (var entry in uploadedYearlyFilesPerService.entries) {
           lastSyncedAtByYearPerService[entry.key] = entry.value.lastUpdatedAt;
         }
       }
 
-      // This service's own latest synced-at, independent of the cross-service merge below.
       final serviceLastSyncedAt = lastSyncedAtByYearPerService.values.whereType<DateTime>().fold<DateTime?>(
         null,
         (latest, current) => latest == null || current.isAfter(latest) ? current : latest,
       );
       _syncState.onServiceSyncFinished(service.serviceType, lastSyncedAt: serviceLastSyncedAt);
 
-      // Update global sync status using "Latest Wins" strategy:
-      // - Compare timestamps across all services per year
-      // - Keep the most recent timestamp (latest wins)
-      // - This ensures UI reflects the true latest state across all backup services
       for (var entry in lastSyncedAtByYearPerService.entries) {
         final year = entry.key;
         final syncedAt = entry.value;

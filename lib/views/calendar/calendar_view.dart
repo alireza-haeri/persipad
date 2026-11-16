@@ -6,7 +6,6 @@ import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/objects/calendar_segment_id.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/month_picker_service.dart';
-import 'package:storypad/views/calendar/period/period_calendar_view.dart';
 import 'package:storypad/views/calendar/trend/score_trend_view.dart';
 import 'package:storypad/views/calendar/mood/mood_calendar_view.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';

@@ -104,10 +104,6 @@ class EditStoryViewModel extends BaseStoryViewModel {
     }
 
     notifyListeners();
-
-    if (params.autoRequestLocation) {
-      await addCurrentLocation();
-    }
   }
 
   Future<void> done(BuildContext context) async {

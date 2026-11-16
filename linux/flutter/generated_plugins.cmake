@@ -3,7 +3,6 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  desktop_webview_window
   dynamic_color
   emoji_picker_flutter
   file_selector_linux
@@ -13,7 +12,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   record_linux
   url_launcher_linux
   volume_controller
-  window_to_front
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

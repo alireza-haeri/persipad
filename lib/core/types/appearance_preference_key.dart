@@ -8,7 +8,6 @@ enum AppearancePreferenceKey {
   themeMode,
   colorSeed,
   fontSize,
-  fontFamily,
   fontWeight,
   dayColors,
   storyTilePreferences,

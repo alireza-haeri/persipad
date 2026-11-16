@@ -14,7 +14,6 @@ class RemoteConfigService {
     productHuntUrl,
     redditUrl,
     sourceCodeUrl,
-    relaxSoundFreeSetVariant,
     surveyUrl,
     tiktokUsername,
     twitterUrl,
@@ -82,12 +81,6 @@ class RemoteConfigService {
     'SOURCE_CODE_URL',
     _RemoteConfigValueType.string,
     'https://github.com/theachoem/storypad',
-  );
-
-  static const relaxSoundFreeSetVariant = _RemoteConfigObject<String>(
-    'RELAX_SOUND_FREE_SET_VARIANT',
-    _RemoteConfigValueType.string,
-    'variant_1',
   );
 
   static const surveyUrl = _RemoteConfigObject<String>(

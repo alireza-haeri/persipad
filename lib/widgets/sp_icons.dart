@@ -33,11 +33,6 @@ class SpIcons {
   static const IconData cloudUpload = kIsCupertino ? CupertinoIcons.cloud_upload : Icons.backup_outlined;
   // ignore: deprecated_member_use, brand icon deprecated upstream by MDI (trademark), no replacement
   static const IconData googleDrive = MdiIcons.googleDrive;
-  // Self-hosted, so a generic server icon rather than a Nextcloud brand mark.
-  static const IconData nextcloud = MdiIcons.server;
-  static const IconData icloud = Icons.cloud;
-  // ignore: deprecated_member_use, brand icon deprecated upstream by MDI (trademark), no replacement
-  static const IconData dropbox = MdiIcons.dropbox;
   static const IconData cloudDone = Icons.cloud_done_outlined;
   static const IconData mediaSync = kIsCupertino
       ? CupertinoIcons.antenna_radiowaves_left_right
@@ -179,7 +174,6 @@ class SpIcons {
   static const IconData moveDown = kIsCupertino ? CupertinoIcons.arrow_down : Icons.arrow_downward;
   static const IconData undo = kIsCupertino ? CupertinoIcons.arrow_uturn_left : Icons.undo;
   static const IconData redo = kIsCupertino ? CupertinoIcons.arrow_uturn_right : Icons.redo;
-  static const IconData addOns = kIsCupertino ? CupertinoIcons.square_grid_2x2 : Icons.grid_view_rounded;
   static const IconData verifiedFilled = !kIsCupertino ? CupertinoIcons.checkmark_seal_fill : Icons.verified;
   static const IconData gift = kIsCupertino ? CupertinoIcons.gift : Icons.card_giftcard_outlined;
   static const IconData waterDrop = Icons.water_drop;
@@ -199,5 +193,4 @@ class SpIcons {
   static const IconData twitter = MdiIcons.twitter; // ignore: deprecated_member_use
   static const IconData github = MdiIcons.github; // ignore: deprecated_member_use
   static const IconData apple = MdiIcons.apple; // ignore: deprecated_member_use
-  static const IconData googleMaps = MdiIcons.googleMaps; // ignore: deprecated_member_use
 }

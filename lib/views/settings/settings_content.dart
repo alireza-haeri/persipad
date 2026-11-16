@@ -51,13 +51,13 @@ class _SettingsContent extends StatelessWidget {
             TimeFormatTile.globalTheme(weekday: 7),
             FirstDayOfWeekTile.globalTheme(weekday: 1),
             WeekendDaysTile.globalTheme(weekday: 2),
-            MapProviderTile.globalTheme(weekday: 3),
           ],
           ...[
             const Divider(),
             SpSectionTitle(title: context.tr("general.stories")),
             const DefaultStoryPreferencesTile(weekday: 2),
             const MyTemplatesTile(weekday: 3),
+            buildDailyScoreTile(context, weekday: 2),
           ],
           const SizedBox(height: 120),
         ],
@@ -73,6 +73,20 @@ class _SettingsContent extends StatelessWidget {
           title: Text(context.tr("page.app_lock.title")),
           subtitle: appLockProvider.hasAppLock ? Text(context.tr("general.enabled")) : null,
           onTap: () => AppLocksRoute().push(context),
+        );
+      },
+    );
+  }
+
+  Widget buildDailyScoreTile(BuildContext context, {int weekday = 2}) {
+    return Consumer<DevicePreferencesProvider>(
+      builder: (context, provider, child) {
+        return SwitchListTile.adaptive(
+          secondary: SpSettingIconBadge(weekday: weekday, icon: SpIcons.gauge),
+          title: Text(context.tr("list_tile.daily_score.title")),
+          subtitle: Text(context.tr("list_tile.daily_score.subtitle")),
+          value: provider.enableDailyScore,
+          onChanged: (value) => provider.setEnableDailyScore(value),
         );
       },
     );

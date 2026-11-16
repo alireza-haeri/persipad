@@ -12,7 +12,6 @@ import 'package:storypad/core/services/remote_config/remote_config_service.dart'
 import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/types/app_logo.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_toggle_list_sheet.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';

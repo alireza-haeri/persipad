@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:storypad/core/types/support_directory_path.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/widgets/sp_app_lock_wrapper.dart';
 import 'package:tar/tar.dart';
 import 'package:flutter/material.dart';
@@ -59,7 +58,7 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
 
   bool get filtered =>
       SearchFilterObject.encode(exportFilter.toDatabaseFilter()) !=
-          SearchFilterObject.encode(initialExportFilter.toDatabaseFilter());
+      SearchFilterObject.encode(initialExportFilter.toDatabaseFilter());
 
   void setExportFilter(SearchFilterObject result) {
     exportFilter = result;
@@ -151,8 +150,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
   }
 
   Future<void> exportMarkdown(BuildContext context) async {
-    if (!context.read<InAppPurchaseProvider>().isProUser) return;
-
     AnalyticsService.instance.logExportOfflineBackup();
 
     (File, Directory)? result = await MessengerService.of(context).showLoading(
@@ -172,7 +169,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
 
         await tempDir.create(recursive: true);
 
-        // Export stories to markdown (organized by year)
         Map<int, TagDbModel?> tags = {};
 
         await ExportStoriesToMarkdownService.call(
@@ -184,13 +180,9 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
           },
         );
 
-        // Create tar.gz archive
         final tarFile = File("${SupportDirectoryPath.backups.directoryPath}/$exportFileName");
         await tarFile.create(recursive: true);
 
-        // Stream each file from the temp directory into the archive (one file
-        // at a time) instead of buffering them all in memory — avoids OOM
-        // crashes on large exports.
         Stream<TarEntry> buildEntries() async* {
           for (final entity in tempDir.listSync(recursive: true)) {
             if (entity is File) {
@@ -198,11 +190,11 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
               yield TarEntry(
                 TarHeader(
                   name: relativePath,
-                  mode: 420, // 0644 in octal
+                  mode: 420,
                   size: entity.lengthSync(),
                   modified: entity.lastModifiedSync(),
                 ),
-                entity.openRead(), // lazy disk read
+                entity.openRead(),
               );
             }
           }
@@ -220,18 +212,24 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
     Directory tempDir = result.$2;
 
     try {
-      // Share/save the tar.gz file by path (no in-memory copy of the archive).
-      // On Android the share sheet still offers "Save to Files/Drive".
-      RenderBox? box = context.findRenderObject() as RenderBox?;
-      await SharePlus.instance.share(
-        ShareParams(
-          title: basename(tarFile.path),
-          sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
-          files: [XFile(tarFile.path)],
-        ),
-      );
+      if (Platform.isLinux) {
+        await FilePicker.saveFile(
+          fileName: basename(tarFile.path),
+          type: FileType.custom,
+          allowedExtensions: ['gz'],
+          bytes: await tarFile.readAsBytes(),
+        );
+      } else {
+        RenderBox? box = context.findRenderObject() as RenderBox?;
+        await SharePlus.instance.share(
+          ShareParams(
+            title: basename(tarFile.path),
+            sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
+            files: [XFile(tarFile.path)],
+          ),
+        );
+      }
     } finally {
-      // Always clean up, even if sharing throws.
       if (await tempDir.exists()) await tempDir.delete(recursive: true);
       if (await tarFile.exists()) await tarFile.delete();
     }
@@ -252,7 +250,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
         final String exportFileName = "$kAppName-${kDeviceInfo.model}-text-${DateTime.now().toIso8601String()}.txt";
         final textFile = File("${SupportDirectoryPath.backups.directoryPath}/$exportFileName");
 
-        // Export stories to text
         Map<int, TagDbModel?> tags = {};
         await ExportStoriesToTextService.call(
           stories: stories,
@@ -270,7 +267,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
     if (!context.mounted) return;
     if (result == null) return;
 
-    // Share/save the text file
     if (Platform.isIOS || Platform.isMacOS) {
       RenderBox? box = context.findRenderObject() as RenderBox?;
       await SharePlus.instance.share(
@@ -280,7 +276,7 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
           files: [XFile(result.path)],
         ),
       );
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: basename(result.path),
         type: FileType.custom,
@@ -289,13 +285,10 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
       );
     }
 
-    // Cleanup
     await result.delete();
   }
 
   Future<void> exportCsv(BuildContext context) async {
-    if (!context.read<InAppPurchaseProvider>().isProUser) return;
-
     AnalyticsService.instance.logExportOfflineBackup();
 
     File? result = await MessengerService.of(context).showLoading(
@@ -310,7 +303,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
         final String exportFileName = "$kAppName-${kDeviceInfo.model}-csv-${DateTime.now().toIso8601String()}.csv";
         final csvFile = File("${SupportDirectoryPath.backups.directoryPath}/$exportFileName");
 
-        // Export stories to csv
         Map<int, TagDbModel?> tags = {};
         await ExportStoriesToCsvService.call(
           stories: stories,
@@ -328,7 +320,6 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
     if (!context.mounted) return;
     if (result == null) return;
 
-    // Share/save the csv file
     if (Platform.isIOS || Platform.isMacOS) {
       RenderBox? box = context.findRenderObject() as RenderBox?;
       await SharePlus.instance.share(
@@ -338,7 +329,7 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
           files: [XFile(result.path)],
         ),
       );
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: basename(result.path),
         type: FileType.custom,
@@ -347,17 +338,12 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
       );
     }
 
-    // Cleanup
     await result.delete();
   }
 
   Future<void> exportJson(BuildContext context) async {
     AnalyticsService.instance.logExportOfflineBackup();
 
-    // lastDbUpdatedAt is only populated after a DB write or a cloud sync run this
-    // session, so it can legitimately still be null here (e.g. fresh session, no
-    // sync configured). It's only used as the backup's "created at" metadata, so
-    // falling back to now() is safe — don't reintroduce a null-guard early return.
     DateTime lastDbUpdatedAt = context.read<BackupProvider>().lastDbUpdatedAt ?? DateTime.now();
 
     final String exportFileName = "$kAppName-${kDeviceInfo.model}-backup-${DateTime.now().toIso8601String()}.json";
@@ -400,7 +386,7 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
       }
 
       await file.delete();
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: exportFileName,
         type: FileType.custom,

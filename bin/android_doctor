@@ -133,11 +133,19 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
   if [ -n "$SDKMANAGER" ]; then
     row sdkmanager "$SDKMANAGER"
     INSTALLED=$(timeout 180 "$SDKMANAGER" --list_installed 2>/dev/null | sed -n '/Installed packages:/,$p' | sed '1d' | awk '{print $1}' | sed '/^$/d')
+    INSTALLED_NDK=$(printf '%s\n' "$INSTALLED" | grep '^ndk;' | sed 's/^ndk;//' | sort -V | tail -1 || true)
+    if [ -z "$INSTALLED_NDK" ] && [ -d "$SDK/ndk" ]; then
+      INSTALLED_NDK=$(for d in "$SDK"/ndk/*; do if [ -f "$d/source.properties" ]; then basename "$d"; fi; done | sort -V | tail -1 || true)
+    fi
+    INSTALLED_CMAKE=$(printf '%s\n' "$INSTALLED" | grep '^cmake;' | sed 's/^cmake;//' | sort -V | tail -1 || true)
+    if [ -z "$INSTALLED_CMAKE" ] && [ -d "$SDK/cmake" ]; then
+      INSTALLED_CMAKE=$(for d in "$SDK"/cmake/*; do if [ -x "$d/bin/cmake" ]; then basename "$d"; fi; done | sort -V | tail -1 || true)
+    fi
     row platforms "$(printf '%s\n' "$INSTALLED" | grep '^platforms;android-' | sed 's/platforms;android-//' | sort -n | tr '\n' ' ')"
     row platform_dirs "$(ls "$SDK/platforms" 2>/dev/null | tr '\n' ' ')"
     row build_tools "$(printf '%s\n' "$INSTALLED" | grep '^build-tools;' | sed 's/build-tools;//' | sort -V | tr '\n' ' ')"
-    row ndk "$(printf '%s\n' "$INSTALLED" | grep '^ndk;' | sed 's/ndk;//' | sort -V | tr '\n' ' ')"
-    row cmake "$(printf '%s\n' "$INSTALLED" | grep '^cmake;' | sed 's/cmake;//' | sort -V | tr '\n' ' ')"
+    row ndk "${INSTALLED_NDK:-}"
+    row cmake "${INSTALLED_CMAKE:-}"
     row platform_tools "$(printf '%s\n' "$INSTALLED" | grep -q '^platform-tools' && echo installed || echo missing)"
     row emulator "$(printf '%s\n' "$INSTALLED" | grep -q '^emulator' && echo installed || echo missing)"
 
@@ -151,12 +159,36 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
         MISSING_PKGS+=("platforms;android-$COMPILE_SDK")
       fi
     fi
-    if [ -n "$FLUTTER_NDK" ]; then
-      if printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
-        ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK)"
+
+    NEEDS_NDK=0
+    grep -qE '^  jni(_flutter)?:$' pubspec.lock 2>/dev/null && NEEDS_NDK=1
+    NDK_REQ="${FLUTTER_NDK:-28.2.13676358}"
+    if [ "$NEEDS_NDK" = 1 ]; then
+      if [ -n "$FLUTTER_NDK" ] && printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
+        ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK; needed by :jni)"
+      elif [ -n "$INSTALLED_NDK" ]; then
+        ok "ndk $INSTALLED_NDK (local fallback; CI pins $NDK_REQ — bin/build_apk adapts to it)"
       else
-        note "ndk $FLUTTER_NDK not installed (optional — bin/build_apk builds with --no-ndk)"
+        bad "ndk $NDK_REQ (required by transitive :jni plugin in pubspec.lock)"
+        MISSING_PKGS+=("ndk;$NDK_REQ")
       fi
+      if [ -n "$INSTALLED_CMAKE" ]; then
+        ok "cmake $INSTALLED_CMAKE (needed by :jni)"
+      else
+        bad "cmake (required by transitive :jni plugin in pubspec.lock)"
+        MISSING_PKGS+=("cmake;3.22.1")
+      fi
+    else
+      if [ -n "$FLUTTER_NDK" ]; then
+        if printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
+          ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK)"
+        elif [ -n "$INSTALLED_NDK" ]; then
+          ok "ndk $INSTALLED_NDK (local fallback; Flutter pins $FLUTTER_NDK)"
+        else
+          note "ndk $FLUTTER_NDK not installed (optional — bin/build_apk builds with --no-ndk)"
+        fi
+      fi
+      [ -n "$INSTALLED_CMAKE" ] || note "cmake not installed — Gradle downloads it only if a plugin has native code"
     fi
     if ! printf '%s\n' "$INSTALLED" | grep -q '^build-tools;'; then
       bad "build-tools"
@@ -167,7 +199,6 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
       MISSING_PKGS+=("platform-tools")
     fi
     printf '%s\n' "$INSTALLED" | grep -q '^emulator' || note "emulator package not installed (only needed for AVDs)"
-    printf '%s\n' "$INSTALLED" | grep -q '^cmake;' || note "cmake not installed — Gradle downloads it only if a plugin has native code"
   else
     note "sdkmanager not found under $SDK (cmdline-tools missing) — package checks skipped"
   fi
@@ -397,8 +428,11 @@ if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
     # host that is blocked for Maven above. SDK_TEST_BASE_URL points it at a mirror of
     # that repository; the archive URLs inside the XML are relative, so the downloads
     # follow the mirror too.
-    if [ "${SDKREPO_CODE:-000}" != "200" ]; then
-      SDK_MIRROR_URL="${SDK_MIRROR_URL:-https://mirrors.cloud.tencent.com/AndroidSDK/}"
+    if [ -n "${SDK_MIRROR_URL:-}" ]; then
+      printf '  Using SDK mirror %s\n' "$SDK_MIRROR_URL"
+      export SDK_TEST_BASE_URL="$SDK_MIRROR_URL"
+    elif [ "${SDKREPO_CODE:-000}" != "200" ]; then
+      SDK_MIRROR_URL="https://mirrors.cloud.tencent.com/AndroidSDK/"
       printf '  dl.google.com/android/repository is blocked here — fetching package lists from %s\n' "$SDK_MIRROR_URL"
       export SDK_TEST_BASE_URL="$SDK_MIRROR_URL"
     fi
@@ -426,17 +460,39 @@ if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
               pkg="$alt"
             fi
             ;;
+          ndk\;*)
+            req_major="${pkg#ndk;}"; req_major="${req_major%%.*}"
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E "^ndk;${req_major}\.[0-9.]+\$" | sort -V | tail -1 || true)
+            [ -z "$alt" ] && alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^ndk;[0-9]+\.[0-9.]+$' | sort -V | tail -1 || true)
+            [ -z "$alt" ] && alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^ndk;[0-9]' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            else
+              printf '\033[33m  warning: no ndk;* package found in %s\033[0m\n' "${SDK_MIRROR_URL:-dl.google.com}"
+            fi
+            ;;
+          cmake\;*)
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^cmake;[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+            [ -z "$alt" ] && alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^cmake;[0-9]' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            else
+              printf '\033[33m  warning: no cmake;* package found in %s\033[0m\n' "${SDK_MIRROR_URL:-dl.google.com}"
+            fi
+            ;;
         esac
       fi
       INSTALL_PKGS+=("$pkg")
     done
 
-    [ "${SDKREPO_CODE:-000}" != "200" ] && printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_MIRROR_URL" "${INSTALL_PKGS[*]}"
+    [ -n "${SDK_TEST_BASE_URL:-}" ] && printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_TEST_BASE_URL" "${INSTALL_PKGS[*]}"
     printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${INSTALL_PKGS[*]}"
-    yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
+    yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
     if ! "$SDKMANAGER" --install "${INSTALL_PKGS[@]}"; then
       printf '\033[31m  sdkmanager failed — see its output above.\033[0m\n'
-      printf '  Fallbacks: another mirror with --sdk-mirror=<url>, or Android Studio set up with a proxy.\n'
+      printf '  Fallbacks: another mirror with --sdk-mirror=<url>, or Android Studio (SDK Manager → SDK Tools → NDK + CMake).\n'
     fi
   else
     printf '  Install them with: sdkmanager --install %s   (or re-run with --fix)\n' "${MISSING_PKGS[*]}"

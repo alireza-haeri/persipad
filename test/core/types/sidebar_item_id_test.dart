@@ -11,28 +11,21 @@ void main() {
     test('a stored order is respected, in full', () {
       final order = SidebarItemId.parse([
         'calendar',
-        'map',
         'home',
         'search',
         'tags',
-        'relaxSounds',
       ]);
 
       expect(order, [
         SidebarItemId.calendar,
-        SidebarItemId.map,
         SidebarItemId.home,
         SidebarItemId.search,
         SidebarItemId.tags,
-        SidebarItemId.relaxSounds,
       ]);
       expect(order.length, SidebarItemId.values.length, reason: 'every item is still there');
     });
 
     test('an item added after the user customized is appended, not lost', () {
-      // A stored order from a version that had fewer items: the new one must still
-      // appear, and it must appear at the end rather than at a position the user
-      // never chose.
       final order = SidebarItemId.parse(['calendar', 'home']);
 
       expect(order.take(2), [SidebarItemId.calendar, SidebarItemId.home]);
@@ -41,7 +34,7 @@ void main() {
     });
 
     test('unknown and duplicate names are dropped', () {
-      final order = SidebarItemId.parse(['calendar', 'nonsense', 'calendar', '', 'home']);
+      final order = SidebarItemId.parse(['calendar', 'map', 'relaxSounds', 'nonsense', 'calendar', '', 'home']);
 
       expect(order.take(2), [SidebarItemId.calendar, SidebarItemId.home]);
       expect(order.length, SidebarItemId.values.length);
@@ -49,7 +42,7 @@ void main() {
     });
 
     test('encode round-trips through parse', () {
-      final order = SidebarItemId.parse(['tags', 'home', 'calendar', 'search', 'map', 'relaxSounds']);
+      final order = SidebarItemId.parse(['tags', 'home', 'calendar', 'search']);
 
       expect(SidebarItemId.parse(SidebarItemId.encode(order)), order);
     });
