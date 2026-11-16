@@ -400,3 +400,27 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - Follow-up while auditing "not a trace of the map": the story-tile preferences sheet still offered a
   "show location" switch whose reader no longer draws anything. Hidden with the add-on (`cb7411e`),
   preference preserved. CI `43803391050` green: Scope ✓, Analyze ✓, Test (1) ✓ 1m53s, 123s total.
+
+### 2026-11-16 — A local gate, and motion for the calendar (D-036, D-037)
+- **`bin/dev -t`**: the loop no longer has to wait for CI. `-t` (also `--test`, and
+  `-t full` for everything) is stripped before the flavor parsing and, instead of
+  `flutter run`, runs analyze → `bin/changed_tests`' scoped tests → `flutter build linux
+  --debug`, then prints one short report (a line per gate; analyzer errors, failing test
+  blocks and compiler errors when something broke) with full logs in `bin/.tmp/verify/`.
+  A dirty working tree falls back to the whole suite, because an uncommitted edit makes the
+  scoper's selection a guess. Verified with a stubbed `flutter` on PATH: both the failing and
+  the passing report render as intended, and `--community-linux -t` parses correctly.
+- **Motion in the calendar (D-037)** — the mood segment did not animate at all:
+  - the month grid now arrives row by row: one 420ms controller for the whole grid, each
+    row an interval inside it, each cell faded + lifted 6pt with the cell passed as
+    `AnimatedBuilder`'s `child` so it is not rebuilt per frame;
+  - the month title in the app bar cross-fades and slides up when the grid pages under it,
+    keyed on the label (not the widget);
+  - mood ↔ trend ↔ period cross-fade instead of cutting;
+  - the day badge grows 19→22pt and fills on selection, and the "today" ring thickens,
+    both as `AnimatedContainer`s on the same widget rather than a swapped one;
+  - the day's score card is wrapped in `AnimatedSize`, so selecting a day pushes the story
+    list down over 200ms instead of in a single frame.
+- Deliberately not animated: nothing loops (a repeating animation would fight the charts'
+  data-keyed entrances from D-034 and hang every `pumpAndSettle`), and impulse curves stay
+  in the charts where a dot landing is the point.

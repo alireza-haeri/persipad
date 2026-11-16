@@ -826,3 +826,56 @@ Template:
   users, not the smallest app), the stats lose `places`/`countries` when the map is off (they are
   location data), and the score card is absent in a window too short to show stories — with the score
   still reachable from the trend segment and the grid.
+
+## D-036 — A local gate: `bin/dev -t` (2026-11-15)
+- **Status:** accepted (supersedes nothing; CI stays the authority)
+- **Context:** you said the CI test rounds are far too slow to be the loop: *"I'd rather the
+  file I run the app with took a `-t` at the end and ran the tests and built it, and I hand
+  you the result."* Every CI round costs a push, a queue, a fresh checkout and `pub get`
+  before a single test compiles — minutes per iteration, and the iteration is the work.
+- **Decision:** `bin/dev` grew a second mode. `-t` (or `--test`) is stripped from the
+  arguments before the flavor parsing, and instead of `flutter run` it runs the same three
+  gates `.github/workflows/linux.yml` runs: analyzer errors only, `bin/changed_tests`'
+  scoped selection (the whole suite when the tree is dirty, since uncommitted edits make the
+  scoper's answer a guess), and `flutter build linux --debug --target=lib/main_community.dart`.
+  It prints one short report — one line per gate, then the analyzer errors, the failing test
+  blocks and the compiler errors if any — and leaves the full logs in `bin/.tmp/verify/`.
+  `-t full` forces the whole suite.
+- **Consequences:** the loop is now local and pasteable, and the flavor argument is ignored
+  in this mode because `lib/main_community.dart` is the only target that builds without
+  `private_keys/`. The risk is a green local report with a red CI run: CI still runs on every
+  push and remains the thing that decides "done" (D-020), so `-t` is a pre-check, not a
+  replacement. It also cannot check formatting (`dart format` rewrites files; that stays an
+  explicit `bin/format`).
+
+## D-037 — Motion: one timeline per surface, and only where it explains something (2026-11-15)
+- **Status:** accepted
+- **Context:** the calendar was correct and lifeless: a month appeared as 42 static cells,
+  the month title snapped when the grid swiped underneath it, the two segments cut rather
+  than changed, and inserting the day's score card shoved the story list down in one frame.
+- **Decision:**
+  1. **One controller per surface, intervals inside it.** The month grid owns a single
+     420ms controller and each *row* gets its own slice of it (`begin = row / rows * 0.6`,
+     each cell 0.4 of the timeline), rather than 42 controllers or 42 `CurvedAnimation`s.
+     The cell is passed to `AnimatedBuilder` as `child`, so an entrance costs an opacity and
+     a 6pt offset per frame — the cells themselves, which carry their own implicit
+     animations, are built once.
+  2. **State changes animate on the same widget, not on a replacement.** The day badge that
+     fills and grows on selection is an `AnimatedContainer`, not a second circle that
+     appears; the "today" ring thickens instead of being redrawn. A stable widget position
+     is what lets an implicit animation run at all.
+  3. **Insertion in a list is a size change, not a jump.** The day's score card is wrapped in
+     `AnimatedSize`, so selecting a day reveals the card and pushes the stories down over
+     200ms instead of in one frame.
+  4. **Switching a mode cross-fades.** The calendar's segments (grid / period grid / charts)
+     and the month title use `AnimatedSwitcher` keyed on the *value* that changed (the
+     segment, the label), because a key that changes on every rebuild would replay the
+     animation for no reason.
+  5. **Nothing loops and nothing blocks.** Every animation here is a one-shot entrance of
+     ≤420ms, and the UI is interactive on the first frame — a decorative loop would fight
+     the charts' own data-keyed entrances (D-034) and would make `pumpAndSettle` tests
+     hang forever.
+- **Consequences:** the calendar now moves in the order it is read (rows, then state, then
+  the list), and the costs are honest: 42 `Opacity` layers for the 420ms of a grid entrance,
+  and one extra mounted segment during a cross-fade. Impulse animations (overshoot, bounce)
+  stay limited to the score charts, where a dot landing is the point.

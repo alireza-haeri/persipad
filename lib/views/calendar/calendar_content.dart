@@ -14,7 +14,7 @@ class _CalendarContent extends StatelessWidget {
   }
 
   Widget buildBody() {
-    return switch (viewModel.selectedSegment) {
+    final Widget segment = switch (viewModel.selectedSegment) {
       CalendarSegmentId.mood => MoodCalendarView(
         hasMultipleSegments: viewModel.segments.length > 1,
         monthYearNotifier: viewModel.monthYearNotifier,
@@ -27,6 +27,21 @@ class _CalendarContent extends StatelessWidget {
         monthYearNotifier: viewModel.monthYearNotifier,
       ),
     };
+
+    // The segments are different screens (a grid, a period grid, two charts), so
+    // one fades into the next instead of being swapped inside a single frame. The
+    // key is the segment, not the widget: without it every rebuild would look like
+    // a segment change.
+    return AnimatedSwitcher(
+      duration: Durations.medium2,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      // Faded-out screens must not eat taps meant for the new one.
+      child: KeyedSubtree(
+        key: ValueKey(viewModel.selectedSegment),
+        child: segment,
+      ),
+    );
   }
 
   AppBar buildAppBar(BuildContext context) {
@@ -36,26 +51,49 @@ class _CalendarContent extends StatelessWidget {
       title: ValueListenableBuilder(
         valueListenable: viewModel.monthYearNotifier,
         builder: (context, monthYear, child) {
-          return SpTapEffect(
-            onTap: () async {
-              final result = await MonthPickerService(
-                context: context,
-                month: monthYear.month,
-                year: monthYear.year,
-              ).showPicker();
-              if (result != null) {
-                viewModel.onMonthYearChanged(result.year, result.month);
-              }
+          final String label = DateFormatHelper.yMMMM(
+            CalendarDisplay.firstDayOfMonth(monthYear.year, monthYear.month),
+            context.locale,
+          );
+
+          return AnimatedSwitcher(
+            duration: Durations.medium2,
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            // A swipe changes the grid under the title, so the title has to say so:
+            // it slides up into place instead of snapping while the month pages by.
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.0, 0.18),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
             },
-            child: Text(
-              // Same calendar as the grid below: both go through CalendarDisplay,
-              // so "آبان ۱۴۰۵" sits over آبان's days.
-              DateFormatHelper.yMMMM(
-                CalendarDisplay.firstDayOfMonth(monthYear.year, monthYear.month),
-                context.locale,
+            child: SpTapEffect(
+              // The key belongs to the child of the switcher: that is what makes it
+              // see a new title rather than the same one re-laid out.
+              key: ValueKey(label),
+              onTap: () async {
+                final result = await MonthPickerService(
+                  context: context,
+                  month: monthYear.month,
+                  year: monthYear.year,
+                ).showPicker();
+                if (result != null) {
+                  viewModel.onMonthYearChanged(result.year, result.month);
+                }
+              },
+              child: Text(
+                // Same calendar as the grid below: both go through CalendarDisplay,
+                // so "آبان ۱۴۰۵" sits over آبان's days.
+                label,
+                style: Theme.of(context).appBarTheme.titleTextStyle,
               ),
-              key: ValueKey("${monthYear.month}-${monthYear.year}"),
-              style: Theme.of(context).appBarTheme.titleTextStyle,
             ),
           );
         },

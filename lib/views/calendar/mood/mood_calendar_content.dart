@@ -164,29 +164,39 @@ class _CalendarStoriesContent extends StatelessWidget {
             // so rating a day does not require leaving the list or remembering to
             // long-press (D-033 §4 keeps long press as the shortcut, not the only
             // way).
-            if (showScoreCard)
-              Padding(
-                padding: EdgeInsets.only(
-                  left: MediaQuery.paddingOf(context).left + 16.0,
-                  right: MediaQuery.paddingOf(context).right + 16.0,
-                  top: 4.0,
-                  bottom: 8.0,
-                ),
-                child: SpScoreCallout(
-                  title: DateFormatHelper.yMMMd(
-                    CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
-                    Localizations.localeOf(context),
-                  ),
-                  subtitle: viewModel.scoresByDay[selectedDay] == null
-                      ? tr('general.score_none_yet')
-                      : tr('general.score_of_day'),
-                  score: viewModel.scoresByDay[selectedDay],
-                  onTap: () => viewModel.openScoreSheet(
-                    context,
-                    CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
-                  ),
-                ),
-              ),
+            //
+            // Animated, because selecting a day inserts this card: without it the
+            // story list jumps by the card's height in a single frame, which reads as
+            // a mis-tap rather than as "this is the day you picked" (D-036 §3).
+            AnimatedSize(
+              duration: Durations.medium2,
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: showScoreCard
+                  ? Padding(
+                      padding: EdgeInsets.only(
+                        left: MediaQuery.paddingOf(context).left + 16.0,
+                        right: MediaQuery.paddingOf(context).right + 16.0,
+                        top: 4.0,
+                        bottom: 8.0,
+                      ),
+                      child: SpScoreCallout(
+                        title: DateFormatHelper.yMMMd(
+                          CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+                          Localizations.localeOf(context),
+                        ),
+                        subtitle: viewModel.scoresByDay[selectedDay] == null
+                            ? tr('general.score_none_yet')
+                            : tr('general.score_of_day'),
+                        score: viewModel.scoresByDay[selectedDay],
+                        onTap: () => viewModel.openScoreSheet(
+                          context,
+                          CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+                        ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
             Expanded(child: pages),
           ],
         );

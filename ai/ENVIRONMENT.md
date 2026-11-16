@@ -116,6 +116,31 @@ If you prefer the raw command (e.g. for a debugger / IDE launch config):
 > `community.json` dart-defines file when the `private_keys/` submodule is absent, so
 > RevenueCat / Maps / Google Sign-In simply no-op instead of failing the build.
 
+## 2.4.1 Verifying locally instead of in CI: `bin/dev -t`
+
+```bash
+bin/dev -t            # analyze + scoped tests + debug Linux build, one short report
+bin/dev -t full       # ignore the scoper, run the whole suite
+```
+
+`-t` turns `bin/dev` from "run the app" into "verify this checkout", and prints a
+report meant to be pasted back into the chat — a pass/fail line per gate plus the
+analyzer errors / failing tests / compiler errors when something broke. It runs the
+same three gates as `.github/workflows/linux.yml`:
+
+1. `flutter analyze --no-fatal-infos --no-fatal-warnings` (only *errors* fail);
+2. `bin/changed_tests`' selection, diffed against `origin/main` — or the whole suite
+   when the working tree is dirty (uncommitted edits make the scoper's answer a
+   guess);
+3. `flutter build linux --debug --target=lib/main_community.dart`.
+
+Full logs are left in `bin/.tmp/verify/`. The flavor argument is irrelevant here:
+`lib/main_community.dart` is the only target this checkout can build without
+`private_keys/`.
+
+Why this exists: waiting for CI costs a push, a queue and ~2–3 minutes per iteration,
+and CI remains the authority (D-036). `-t` is the fast pre-check, not a replacement.
+
 ## 2.5 Troubleshooting (all of these actually happened)
 
 | Symptom | Cause | Fix |

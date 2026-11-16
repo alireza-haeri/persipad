@@ -70,13 +70,15 @@ class SpCalendarDateCell extends StatelessWidget {
         children: [
           if (isToday)
             Positioned.fill(
-              child: Container(
+              child: AnimatedContainer(
+                duration: Durations.short4,
+                curve: Curves.easeOutCubic,
                 margin: const EdgeInsets.all(6.0),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: Theme.of(context).colorScheme.primary,
-                    width: isSelected ? 2 : 1,
+                    width: isSelected ? 2.0 : 1.0,
                   ),
                 ),
               ),
@@ -204,9 +206,14 @@ class SpCalendarDateCell extends StatelessWidget {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final int? value = score;
 
-    return Container(
-      width: 19.0,
-      height: 19.0,
+    // Animating the badge rather than swapping it: picking a day fills this exact
+    // circle and grows it by 3pt, which is what makes the selection feel like it
+    // moved there instead of a second circle appearing (D-036 §2).
+    return AnimatedContainer(
+      duration: Durations.short4,
+      curve: Curves.easeOutCubic,
+      width: isSelected ? 22.0 : 19.0,
+      height: isSelected ? 22.0 : 19.0,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,

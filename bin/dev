@@ -15,6 +15,18 @@
 # bin/dev --community-linux      <-- Linux desktop, our primary dev target
 # bin/dev --storypad-linux
 #
+# Verify instead of running (no device, no window):
+# bin/dev -t                     <-- analyze + scoped tests + debug Linux build
+# bin/dev --community-linux -t   <-- same thing; the flavor is irrelevant here
+# bin/dev -t full                <-- force the whole suite (dirty tree, or the
+#                                    scoper's selection is not trusted)
+#
+# `-t` exists because the suite in CI costs a push, a queue and ~2-3 minutes per
+# iteration, and the iteration is the work. It runs the same three gates that
+# `.github/workflows/linux.yml` runs — the analyzer (errors only), `bin/changed_tests`'
+# scoped selection, and `flutter build linux --debug` — and prints one short report
+# that is meant to be pasted back. Full logs stay in bin/.tmp/verify/.
+#
 # Works without the private_keys/ submodule checked out (e.g. external contributors
 # who only cloned this repo) - see sync_private_keys / get_debug_keystore_path in
 # bin/helpers. `community` is the only flavor with public Firebase config, so it's the
@@ -22,7 +34,21 @@
 
 source "$(dirname "$0")/helpers"
 
-INPUT=$1
+# `-t` / `-t full` switch this script from "run the app" to "verify the checkout".
+# They are pulled out of the arguments first, so the flavor parsing below never sees
+# them (and `flutter run` never receives them).
+VERIFY=0
+VERIFY_FULL=0
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+  -t | --test) VERIFY=1 ;;
+  full | --full) VERIFY=1; VERIFY_FULL=1 ;;
+  *) ARGS+=("$arg") ;;
+  esac
+done
+
+INPUT="${ARGS[0]:-}"
 # Running with no argument means the community flavor (matches the case list below);
 # without this, FLAVOR is empty and every derived path (dart_defines) becomes bogus.
 if [ -z "$INPUT" ]; then INPUT="--community"; fi
@@ -88,6 +114,162 @@ if [ -n "$DEBUG_KEYSTORE_PATH" ]; then
   export DEBUG_KEY_ALIAS="androiddebugkey"
 fi
 
+# --- -t / --test: verify the checkout instead of running it --------------------
+# Mirrors `.github/workflows/linux.yml` step for step: analyzer errors only (infos
+# and warnings are upstream lint debt), the scoped test selection from
+# bin/changed_tests, and the community debug build (the only target that exists in
+# this checkout without private keys — that is also why the flavor is ignored here).
+verify_report_dir="bin/.tmp/verify"
+
+_status_word() { if [ "$1" -eq 0 ]; then echo PASS; else echo FAIL; fi; }
+
+_fmt_secs() {
+  local secs=$1
+  if [ "$secs" -ge 60 ]; then echo "$((secs / 60))m$((secs % 60))s"; else echo "${secs}s"; fi
+}
+
+_elapsed() { echo $(($(date +%s) - $1)); }
+
+run_verify() {
+  mkdir -p "$verify_report_dir"
+  local report="$verify_report_dir/report.txt" total_start
+  total_start=$(date +%s)
+
+  if ! command -v flutter >/dev/null 2>&1; then
+    echo "X flutter is not on PATH. See ai/ENVIRONMENT.md for the SDK setup."
+    return 1
+  fi
+
+  if [ ! -f .dart_tool/package_config.json ] || [ pubspec.yaml -nt .dart_tool/package_config.json ]; then
+    echo "→ flutter pub get (first run, or pubspec changed)"
+    flutter pub get > "$verify_report_dir/pub-get.log" 2>&1 || {
+      echo "X flutter pub get failed — see $verify_report_dir/pub-get.log"
+      return 1
+    }
+  fi
+
+  # 1/3 analyzer
+  echo "→ analyze"
+  local start analyze_secs analyze_status
+  start=$(date +%s)
+  flutter analyze --no-fatal-infos --no-fatal-warnings > "$verify_report_dir/analyze.log" 2>&1
+  analyze_status=$?
+  analyze_secs=$(_elapsed "$start")
+
+  # 2/3 tests. The scoper needs a base to diff against, and a dirty tree makes its
+  # answer a guess, so either of those falls back to the whole suite: a wrong
+  # selection is worse than a slow one when this is the only feedback loop.
+  local mode=full paths=()
+  if [ "$VERIFY_FULL" = "1" ]; then
+    :
+  elif [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "   (working tree has uncommitted changes — running the whole suite)"
+  else
+    local base
+    base=$(git merge-base HEAD origin/main 2>/dev/null || true)
+    if [ -n "$base" ]; then
+      local scoped scoped_mode scoped_paths
+      scoped=$(bin/changed_tests --base "$base" --head HEAD --github-output 2>/dev/null || true)
+      scoped_mode=$(printf '%s\n' "$scoped" | sed -n 's/^mode=//p' | tail -1)
+      scoped_paths=$(printf '%s\n' "$scoped" | sed -n 's/^paths=//p' | tail -1)
+      if [ "$scoped_mode" = "changed" ] && [ -n "$scoped_paths" ]; then
+        mode=changed
+        read -r -a paths <<< "$scoped_paths"
+      elif [ "$scoped_mode" = "none" ]; then
+        mode=none
+      fi
+    fi
+  fi
+
+  local test_status=0 test_secs=0 test_note
+  case "$mode" in
+  none)
+    test_note="nothing to run (docs/CI only)"
+    ;;
+  changed)
+    echo "→ test ${#paths[@]} scoped file(s)"
+    start=$(date +%s)
+    flutter test --reporter compact "${paths[@]}" > "$verify_report_dir/test.log" 2>&1
+    test_status=$?
+    test_secs=$(_elapsed "$start")
+    test_note="${#paths[@]} file(s)"
+    ;;
+  *)
+    echo "→ test (full suite)"
+    start=$(date +%s)
+    flutter test --reporter compact > "$verify_report_dir/test.log" 2>&1
+    test_status=$?
+    test_secs=$(_elapsed "$start")
+    test_note="full suite"
+    ;;
+  esac
+
+  # 3/3 build — the same command CI uses, so a green report means a green build.
+  echo "→ build linux (debug)"
+  local build_status=0 build_secs=0 build_note=""
+  start=$(date +%s)
+  flutter build linux --debug --target=lib/main_community.dart > "$verify_report_dir/build.log" 2>&1
+  build_status=$?
+  build_secs=$(_elapsed "$start")
+
+  # --- the report: one screen, meant to be pasted back ------------------------
+  local total
+  total=$(_elapsed "$total_start")
+
+  {
+    echo "=========== verify · linux · debug ==========="
+    printf '%-8s %-5s %s\n' "analyze" "$(_status_word "$analyze_status")" "$(_fmt_secs "$analyze_secs")"
+    printf '%-8s %-5s %s\n' "test" "$(_status_word "$test_status")" "$test_note ($(_fmt_secs "$test_secs"))"
+    if [ -n "$build_note" ]; then
+      printf '%-8s %-5s %s\n' "build" "SKIP" "$build_note"
+    else
+      printf '%-8s %-5s %s\n' "build" "$(_status_word "$build_status")" "$(_fmt_secs "$build_secs")"
+    fi
+    echo
+
+    if [ "$analyze_status" -eq 0 ] && [ "$test_status" -eq 0 ] && [ "$build_status" -eq 0 ]; then
+      echo "RESULT: PASS  (total $(_fmt_secs "$total"))"
+    else
+      echo "RESULT: FAIL  (total $(_fmt_secs "$total"))"
+
+      if [ "$analyze_status" -ne 0 ]; then
+        echo
+        echo "--- analyzer errors ---"
+        grep -E '^ *error • ' "$verify_report_dir/analyze.log" | head -25 || true
+      fi
+
+      if [ "$test_status" -ne 0 ]; then
+        echo
+        echo "--- test failures ---"
+        # `compact` prints one line per failing test (ending in [E]) followed by its
+        # error; the first dozen lines of each are the part that identifies it.
+        awk '
+          /\[E\]/ { block = 13; print "" }
+          block > 0 { print; block--; printed++ }
+          printed > 60 { exit }
+        ' "$verify_report_dir/test.log" | head -60 || true
+      fi
+
+      if [ "$build_status" -ne 0 ]; then
+        echo
+        echo "--- build errors ---"
+        grep -E 'lib/.*\.dart:[0-9]+:[0-9]+: Error|^Error: |error •' "$verify_report_dir/build.log" |
+          head -20 || true
+      fi
+    fi
+
+    echo
+    echo "full logs: $verify_report_dir/{analyze,test,build}.log"
+  } | tee "$report"
+
+  [ "$analyze_status" -eq 0 ] && [ "$test_status" -eq 0 ] && [ "$build_status" -eq 0 ]
+}
+
+if [ "$VERIFY" = "1" ]; then
+  run_verify
+  exit $?
+fi
+
 case "$INPUT" in
 --storypad)
   CMD="flutter run $BASE_ARG"
@@ -122,8 +304,8 @@ case "$INPUT" in
   ;;
 esac
 
-# Remove 1st args
-shift
+# Remove the flavor argument; anything else the user passed goes to flutter run.
+EXTRA_ARGS=("${ARGS[@]:1}")
 
-echo "Executing: $CMD $1"
-eval $CMD $1
+echo "Executing: $CMD ${EXTRA_ARGS[*]}"
+eval $CMD "${EXTRA_ARGS[@]}"
