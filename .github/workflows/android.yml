@@ -61,6 +61,7 @@ env:
   # (SIGTERM, exit 143) even after the image was cleaned.
   GRADLE_USER_HOME: /mnt/gradle-home
   PUB_CACHE: /mnt/pub-cache
+  TMPDIR: /mnt/tmp
 
 jobs:
   apk:
@@ -86,8 +87,8 @@ jobs:
                       /opt/hostedtoolcache/CodeQL /usr/lib/mono || true
           sudo apt-get clean
           docker image prune -af || true
-          # /mnt holds ~70 GB; the caches are pointed there by `env:` above.
-          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE"
+          # /mnt holds ~70 GB; the caches and temp files live there.
+          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE" "$TMPDIR"
           sudo chown -R "$(id -u):$(id -g)" /mnt || true
           echo '--- after ---'
           df -h /
@@ -122,11 +123,13 @@ jobs:
       - name: Cap the Gradle heap
         # android/gradle.properties asks for -Xmx8G -XX:MaxMetaspaceSize=4G. That is a
         # desktop setting; on a 16 GB runner it leaves nothing for the Kotlin daemon, the
-        # Dart compiler and the agent itself. `$GRADLE_USER_HOME/gradle.properties` wins
-        # over the project's, so the project file stays as it is for local builds.
+        # Dart compiler and the runner agent itself. `$GRADLE_USER_HOME/gradle.properties`
+        # wins over the project's, so the project file stays as it is for local builds.
         run: |
           cat > "$GRADLE_USER_HOME/gradle.properties" <<'EOF'
-          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m
+          kotlin.daemon.jvmargs=-Xmx1536m
+          org.gradle.workers.max=2
           org.gradle.parallel=true
           org.gradle.caching=true
           EOF

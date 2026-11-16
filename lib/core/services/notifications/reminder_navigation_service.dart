@@ -32,7 +32,7 @@ class ReminderNavigationService {
       case ReminderType.onThisDay:
         return ReminderNotificationCopyService.onThisDayCopy();
       case ReminderType.custom:
-        return (reminder.message?.trim() ?? '', tr('reminder.custom.notification_body'));
+        return (reminder.message!.trim(), tr('reminder.custom.notification_body'));
     }
   }
 
