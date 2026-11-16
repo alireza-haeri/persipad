@@ -154,6 +154,8 @@ def changed_files(base, head, files):
 
 
 def ignored(path):
+    if is_ci_definition(path):
+        return False
     return path.startswith(IGNORED_PREFIXES) or path.endswith(IGNORED_SUFFIXES)
 
 
@@ -189,8 +191,28 @@ def subject_of(message):
     return message.splitlines()[0] if message else ""
 
 
-def touches_packages(paths):
-    """Whether any of [paths] belongs to a package that has its own test suite."""
+# A workflow file is not "a change that cannot fail": it *is* the gate, and a
+# broken one (bad YAML, a wrong `needs:`, a job that no longer runs) is only
+# visible by running it. Everything else under `.github/` and `bin/` stays
+# ignored, because those are read by humans or by the workflow itself after it
+# has started.
+CI_DEFINITION_PREFIXES = (".github/workflows/",)
+
+
+def is_ci_definition(path):
+    return path.startswith(CI_DEFINITION_PREFIXES)
+
+
+def touches_packages(paths, message=""):
+    """Whether any of [paths] belongs to a package that has its own test suite.
+
+    A `[full]` subject asks for everything, and "everything" includes the
+    packages: before this, `[full]` ran both app shards and silently skipped the
+    package's suite, so the mark that exists to prove a green tree could come
+    back green with the editor's 390 cases never executed.
+    """
+    if any(marker in subject_of(message) for marker in FULL_MARKERS):
+        return True
     return any(path.startswith(PACKAGE_PREFIXES) for path in paths)
 
 
@@ -270,7 +292,7 @@ def main():
         explain("--- scope ---")
 
     changed = changed_files(args.base, args.head, args.files)
-    packages = touches_packages(changed or [])
+    packages = touches_packages(changed or [], args.message or "")
 
     mode, tests = decide(args.base, args.head, args.files, args.message)
     shards = list(range(1, SHARDS + 1)) if mode == "full" else [1]
