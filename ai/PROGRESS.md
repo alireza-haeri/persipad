@@ -812,3 +812,10 @@ a real redirect. A cancelled dialog does not abort anything; the loopback keeps 
   state → `invalid_state`) plus the two `D-058` tests that redirect from inside `openBrowser`;
 - `Linux` CI on this commit — `[full]`, so Scope/Analyze/Test 1/Test 2/Editor package
   tests/Build Linux desktop/Coverage all run. The run id is appended below once it lands.
+
+**CI (`Linux`, commit `8eddb61`):** run `43879014732` — `Analyze` ✅ (0 errors, *All Dart files
+are formatted*), `Test (1)` ✅ on the scoped 5 files including
+`test/core/services/google_desktop_oauth_service_test.dart`. The two failures before it were the
+same bug seen from two sides — `io.Socket` in a file that imports `dart:io` unprefixed, and a
+`Future<void>` prompt whose value came back as `void` — both fixed in `8eddb61`, and CI is what
+found them (the sandbox has no Dart SDK).

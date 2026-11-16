@@ -245,8 +245,14 @@ Two things can make that page hang, and they look identical in the UI:
 
 | Log line (`adb logcat -s flutter \| grep "Google sign-in"`) | Meaning | Fix |
 |---|---|---|
-| `waiting for the loopback redirect on 127.0.0.1:<port>` only | the redirect never reached the app: the listener was attached too late (fixed in `D-058`), the OEM froze the app while the browser was foreground, or a phone-side VPN refuses loopback | rebuild first; if it still happens, the paste-the-URL fallback (`NEXT.md` §1c) |
+| `waiting for the loopback redirect on 127.0.0.1:<port>` only | the redirect never reached the app: the listener was attached too late (fixed in `D-058`), the OEM froze the app while the browser was foreground, or a phone-side VPN refuses loopback | rebuild **and install** first (`adb devices` must list the phone); after 12 s the app now offers the paste-the-address dialog (`D-060`) |
 | `loopback request (code: true …)` then a failure | the app answered the browser; the failure is the token exchange (network/DNS) | `ENVIRONMENT.md` §2.2d |
+
+The paste-the-address fallback (`D-060`) turns the first row from a dead end into a step: the
+dialog appears only when the page is stuck, the pasted address goes through the same `state`
+check as a real redirect, and the code is still never logged. If the dialog appears and the
+pasted address is rejected with `invalid_state`, the address came from an earlier attempt —
+start the sign-in again from the app.
 
 The code itself is never logged — it is a credential.
 

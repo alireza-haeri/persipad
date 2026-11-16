@@ -72,17 +72,33 @@ expected on the next build**).
 
 ---
 
-## 1c. 📱 Phone sign-in — retest with D-058, then one logcat line if it still hangs
+## 1c. 📱 Phone sign-in — retest on a build that is actually installed (`D-058` + `D-060`)
 
-The first phone attempt stopped at `http://127.0.0.1:44399/?code=…` (a spinner). The loopback
-listener is now attached **before** the browser opens (`D-058`), which is a real bug fix and
-not a network workaround — but it has only been proven by tests here, not on a device.
+The first phone attempt stopped at `http://127.0.0.1:44399/?code=…` (a spinner). Two things are
+now in the app, and both matter:
+
+- **`D-058`** attaches the loopback listener *before* the browser opens. Right, tested, but the
+  round that "retested" it never installed anything: `bin/build_apk --install` printed
+  `nothing attached`, because the phone was not visible to `adb`. So the phone still ran the old
+  APK. **Check `adb devices` shows `device` (not `unauthorized`) before trusting a retest.**
+- **`D-060`** makes the stuck page survivable: after 12 s without a redirect the app offers a
+  dialog to paste the address from the browser. The loopback still wins whenever it arrives, so
+  a working device never sees the dialog.
 
 ```bash
-bin/build_apk --install --abi arm64 --launch        # rebuild: the fix is in Dart, not in the APK you had
+bin/build_apk --install --abi arm64 --launch        # the fix is in Dart, so the APK must be rebuilt
 ```
 
-Then sign in on the phone, and if it hangs again send me **one** line from:
+Then sign in on the phone. Three outcomes, and they are all informative:
+
+| what you see | what it means |
+| --- | --- |
+| Sign-in completes by itself | the loopback works on this device; nothing else to do |
+| A dialog asks for the address, and pasting it completes the sign-in | the browser could not reach the app (freezing or VPN); the fallback is doing its job |
+| The dialog appears but pasting does not help | the *exchange* is failing, which is the DNS problem in §2.2d — not this flow |
+
+If it still hangs with no dialog, the dialog itself did not get a chance to run, so send me **one**
+line from:
 
 ```bash
 adb logcat -d -s flutter | grep -i "Google sign-in"
