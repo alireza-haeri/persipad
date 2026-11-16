@@ -260,8 +260,10 @@ jobs:
         # The only way to prove the artifact without downloading it: read the badge and
         # the signer on the runner, publish them as annotations (which survive even when
         # the log is not readable) and put them in the release notes. A wrong package
-        # id or a missing libapp.so fails here instead of on the phone.
+        # id or a missing runtime/app binary fails here instead of on the phone.
         id: verify
+        env:
+          MODE: ${{ steps.signing.outputs.mode }}
         run: |
           set -uo pipefail
           APK="${{ steps.apk.outputs.path }}"
@@ -275,17 +277,23 @@ jobs:
           [ -x "$AAPT2" ] || AAPT2="$BUILD_TOOLS/aapt"
           BADGING=$("$AAPT2" dump badging "$APK" 2>/dev/null || true)
 
-          field() { printf '%s\n' "$BADGING" | sed -n "$1" | head -1; }
-          PKG=$(field "s/^package: name='\([^']*\)'.*/\1/p")
-          VNAME=$(field "s/^package: .*versionName='\([^']*\)'.*/\1/p")
-          VCODE=$(field "s/^package: .*versionCode='\([^']*\)'.*/\1/p")
-          MIN=$(field "s/^sdkVersion:'\([^']*\)'.*/\1/p")
-          TGT=$(field "s/^targetSdkVersion:'\([^']*\)'.*/\1/p")
+          field() { printf '%s\n' "$BADGING" | sed -nE "$1" | head -1; }
+          PKG=$(field "s/^package: name='([^']*)'.*/\1/p")
+          VNAME=$(field "s/^package: .*versionName='([^']*)'.*/\1/p")
+          VCODE=$(field "s/^package: .*versionCode='([^']*)'.*/\1/p")
+          MIN=$(field "s/^(minSdkVersion|sdkVersion):'([^']*)'.*/\2/p")
+          TGT=$(field "s/^targetSdkVersion:'([^']*)'.*/\1/p")
           ABI=$(field "s/^native-code: //p")
-          SIGNER=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>/dev/null |
-                   sed -n 's/^Signer #1 certificate DN: //p' | head -1 || true)
+
+          APKSIGNER_OUT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1 || true)
+          SIGNER=$(printf '%s\n' "$APKSIGNER_OUT" | sed -nE 's/^Signer #1.*certificate DN: //p' | head -1)
+          if [ -z "$SIGNER" ]; then
+            SIGNER=$(keytool -printcert -jarfile "$APK" 2>/dev/null | sed -n 's/^Owner: //p' | head -1 || true)
+          fi
 
           LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so' || true)
+          LIBFLUTTER=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libflutter\.so' || true)
+          KERNEL_BLOB=$(unzip -l "$APK" | grep -c 'assets/flutter_assets/kernel_blob\.bin' || true)
           DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex' || true)
 
           echo "package=$PKG" >> "$GITHUB_OUTPUT"
@@ -294,11 +302,16 @@ jobs:
           echo "abi=$ABI"   >> "$GITHUB_OUTPUT"
           echo "signer=$SIGNER" >> "$GITHUB_OUTPUT"
 
-          echo "::notice::APK $PKG $VNAME ($VCODE) minSdk=$MIN targetSdk=$TGT abi=[$ABI] signer=[$SIGNER] libapp.so=$LIBAPP dex=$DEX"
+          echo "::notice::APK $PKG $VNAME ($VCODE) mode=$MODE minSdk=$MIN targetSdk=$TGT abi=[$ABI] signer=[$SIGNER] libapp.so=$LIBAPP libflutter.so=$LIBFLUTTER kernel_blob=$KERNEL_BLOB dex=$DEX"
 
           [ "$PKG" = "com.tc.writestory.community" ] || { echo "::error::unexpected package id '$PKG'"; exit 1; }
-          [ "$LIBAPP" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libapp.so in the APK"; exit 1; }
-          [ -n "$SIGNER" ]    || { echo "::error::the APK has no signer"; exit 1; }
+          if [ "$MODE" = "release" ]; then
+            [ "$LIBAPP" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libapp.so in release APK"; exit 1; }
+          else
+            [ "$LIBFLUTTER" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libflutter.so in debug APK"; exit 1; }
+            [ "$KERNEL_BLOB" -ge 1 ] || { echo "::error::no assets/flutter_assets/kernel_blob.bin in debug APK"; exit 1; }
+          fi
+          [ -n "$SIGNER" ] || { echo "::error::the APK has no signer (apksigner: $APKSIGNER_OUT)"; exit 1; }
 
       - name: Publish the pre-release
         env:
