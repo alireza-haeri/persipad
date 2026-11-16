@@ -171,6 +171,8 @@ class BackupRepository {
       return BackupResult.success(result);
     } on exp.AuthException catch (e) {
       return BackupResult.failure(BackupError.fromException(e));
+    } on exp.NetworkException catch (e) {
+      return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       return BackupResult.failure(
         BackupError.unknown(
@@ -327,6 +329,10 @@ class BackupRepository {
       // "Sign out" or a successful reconnect changes stored state now, so the
       // UI can offer a reconnect action instead of forcing a fresh connect.
       return BackupResult.failure(BackupError.fromException(e));
+    } on exp.NetworkException catch (e) {
+      // A transport failure is not an unknown error: the type is what makes
+      // BackupProvider show `noInternet` instead of `unknownError`.
+      return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {
         AppLogger.critical(e.message.toString(), stackTrace: e.stackTrace);
@@ -356,6 +362,8 @@ class BackupRepository {
       );
       return BackupResult.success(result);
     } on exp.AuthException catch (e) {
+      return BackupResult.failure(BackupError.fromException(e));
+    } on exp.NetworkException catch (e) {
       return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {
@@ -393,6 +401,8 @@ class BackupRepository {
         notifyCallbacks: notifyCallbacks,
       );
       return BackupResult.success(result);
+    } on exp.NetworkException catch (e) {
+      return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {
         AppLogger.critical(e.message.toString(), stackTrace: e.stackTrace);
@@ -436,6 +446,8 @@ class BackupRepository {
       );
       return BackupResult.success(result);
     } on exp.AuthException catch (e) {
+      return BackupResult.failure(BackupError.fromException(e));
+    } on exp.NetworkException catch (e) {
       return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {

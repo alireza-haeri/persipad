@@ -82,6 +82,37 @@ sudo dnf install -y ffmpeg-free     # ffplay + ffprobe: seek, speed, and m4a/AAC
 Video attachments have no Linux backend either; the viewer offers to open them in the
 system player instead.
 
+### 2.2c Android emulator DNS — a "Sign-in failed" that is not an OAuth bug
+
+An AVD resolves host names through the host, and on a Fedora box using systemd-resolved
+(`/etc/resolv.conf` → `nameserver 127.0.0.53`) the guest often ends up with a resolver it
+cannot use. Then every outbound name fails and Google sign-in reports:
+
+```
+Sign-in failed: ClientException with SocketException: Failed host lookup:
+'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)
+```
+
+That is pure DNS: the client id, the consent screen and the account are all fine. Hand the
+guest a real resolver — `-dns-server` is an emulator flag, so the AVD has to be (re)booted
+for it to apply:
+
+```bash
+bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8    # or 8.8.8.8,1.1.1.1
+# same thing through the environment:
+NOTELY_DNS_SERVER=8.8.8.8 bin/build_apk --install --avd
+bin/local_verify --avd=storypad_dev --dns-server=8.8.8.8            # with the full suite
+
+# prove it once the device is up (this is what the app needs to do):
+adb shell ping -c1 oauth2.googleapis.com
+```
+
+`bin/build_apk` warns at boot when the host resolves only through a stub resolver, and
+again when the freshly booted AVD cannot resolve `oauth2.googleapis.com` — so this stays
+a two-line diagnosis instead of a Dart stack trace. Since D-053 the app also reports an
+unreachable Google as a network problem ("No internet connection!") rather than printing
+the raw `ClientException`.
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
@@ -241,6 +272,8 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | Gradle fails configuring `:jni` with `NDK not configured. Preferred NDK version is '28.2.13676358'` | transitive `jni` (`1.0.3`, from `path_provider_android`) builds `libdartjni.so` via CMake + NDK | run `bin/android_doctor --fix` to install NDK + CMake from the SDK mirror, then `bin/build_apk` |
 | Android build fails looking for `platforms;android-36` when machine has `android-36.1` | plugins pin `< 36`, `android/build.gradle.kts` raises to `36` without minor | fixed in `d3d534e`: `notelyCompileSdkMinor` aligns `app` and `LibraryExtension` plugins to `36.1` |
 | `emulator: command not found` or `bin/build_apk --install` exited silently with no device | SDK `emulator/`/`platform-tools/` not on `PATH`; `pipefail` tripped on empty `adb` | fixed in `0cb892f`: `bin/build_apk` resolves `$SDK/{emulator,platform-tools}` and adds `--avd` |
+| On the emulator: `Sign-in failed: ClientException … Failed host lookup: 'oauth2.googleapis.com' … errno = 7` | the AVD got a resolver it cannot use (host uses systemd-resolved's `127.0.0.53` stub) | reboot with `--dns-server=8.8.8.8` (§2.2c), then `adb shell ping -c1 oauth2.googleapis.com` |
+| `build_runner`/`bin/setup_linux` failed on `Directory ../static/sources/story_backgrounds not found` | the artwork submodule is not checked out (normal for this repo) | fixed: the generator now skips and keeps the committed `lib/gen/story_backgrounds.dart` |
 
 ## 2.6 Known Linux limitations (product-level, not build errors)
 

@@ -7,6 +7,11 @@
 // ```
 // dart bin/backgrounds_generation/generate.dart
 // ```
+//
+// The generated file is committed, so a checkout without that sibling directory
+// is a normal state, not an error: this exits 0 and leaves lib/gen as it is,
+// which keeps `bin/build_runner` (and therefore `bin/setup_linux`) working for
+// everyone who does not have the artwork sources.
 
 import 'dart:io';
 
@@ -16,8 +21,10 @@ void main() async {
   final backgroundsDir = Directory('../static/sources/story_backgrounds');
 
   if (!await backgroundsDir.exists()) {
-    print('Error: Directory ../static/sources/story_backgrounds not found');
-    exit(1);
+    print('Skipping: ${backgroundsDir.path} is not checked out.');
+    print('Keeping the committed lib/gen/story_backgrounds.dart as it is.');
+    print('(The artwork sources live in the static.storypad.me submodule, a sibling of this repo.)');
+    return;
   }
 
   // Get all image files

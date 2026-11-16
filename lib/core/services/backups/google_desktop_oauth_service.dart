@@ -117,13 +117,51 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
 
   final GoogleDesktopOAuthConfig config;
   final Future<bool> Function(String url) _openBrowser;
+  final http.Client _client;
 
-  GoogleDesktopOAuthService({GoogleDesktopOAuthConfig? config, Future<bool> Function(String url)? openBrowser})
-    : config = config ?? GoogleDesktopOAuthConfig.fromEnvironment(),
-      _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString;
+  GoogleDesktopOAuthService({
+    GoogleDesktopOAuthConfig? config,
+    Future<bool> Function(String url)? openBrowser,
+    http.Client? client,
+  }) : config = config ?? GoogleDesktopOAuthConfig.fromEnvironment(),
+       _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString,
+       _client = client ?? http.Client();
 
   @override
   bool get isConfigured => config.isConfigured;
+
+  /// How long a token/userinfo request may take before it is reported as a
+  /// connectivity problem. An unreachable host that black-holes packets would
+  /// otherwise hang for minutes with no feedback at all.
+  static const Duration requestTimeout = Duration(seconds: 30);
+
+  /// `package:http` surfaces a dead network as [http.ClientException] (which
+  /// carries the underlying `SocketException` text); a host name the device
+  /// cannot resolve — a broken DNS, as inside an Android emulator without
+  /// `-dns-server` — is the most common instance.
+  ///
+  /// None of that is an OAuth failure, so it becomes a [GoogleOAuthException]
+  /// tagged `offline` and the UI can answer with a translated "no internet"
+  /// instead of echoing `ClientException with SocketException: Failed host
+  /// lookup … errno = 7` at the user.
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
+    try {
+      return await request().timeout(requestTimeout);
+    } on io.SocketException catch (e) {
+      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+    } on http.ClientException catch (e) {
+      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+    } on io.TlsException catch (e) {
+      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+    } on TimeoutException {
+      throw GoogleOAuthException(
+        _offlineMessage('no answer within ${requestTimeout.inSeconds}s'),
+        error: GoogleOAuthException.offline,
+      );
+    }
+  }
+
+  static String _offlineMessage(String detail) => "Couldn't reach Google ($detail).";
 
   /// RFC 7636 §4.1 verifier: 43–128 chars from the unreserved set. 32 random
   /// bytes base64url-encoded is 43 chars, which is the sweet spot every
@@ -227,7 +265,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   @override
   Future<void> revoke(String token) async {
     try {
-      await http.post(Uri.parse(revokeUrl), body: {'token': token});
+      await _client.post(Uri.parse(revokeUrl), body: {'token': token}).timeout(requestTimeout);
     } catch (_) {
       // Revocation is a courtesy, not a requirement: the local tokens are
       // forgotten either way. A blocked network must not fail sign-out.
@@ -332,16 +370,18 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     required String codeVerifier,
     required String redirectUri,
   }) async {
-    final response = await http.post(
-      Uri.parse(tokenUrl),
-      body: {
-        'code': code,
-        'client_id': config.clientId,
-        'client_secret': config.clientSecret,
-        'redirect_uri': redirectUri,
-        'grant_type': 'authorization_code',
-        'code_verifier': codeVerifier,
-      },
+    final response = await _send(
+      () => _client.post(
+        Uri.parse(tokenUrl),
+        body: {
+          'code': code,
+          'client_id': config.clientId,
+          'client_secret': config.clientSecret,
+          'redirect_uri': redirectUri,
+          'grant_type': 'authorization_code',
+          'code_verifier': codeVerifier,
+        },
+      ),
     );
 
     return parseTokenResponse(response);
@@ -355,14 +395,16 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     final refreshToken = token.refreshToken;
     if (refreshToken == null) return null;
 
-    final response = await http.post(
-      Uri.parse(tokenUrl),
-      body: {
-        'grant_type': 'refresh_token',
-        'refresh_token': refreshToken,
-        'client_id': config.clientId,
-        'client_secret': config.clientSecret,
-      },
+    final response = await _send(
+      () => _client.post(
+        Uri.parse(tokenUrl),
+        body: {
+          'grant_type': 'refresh_token',
+          'refresh_token': refreshToken,
+          'client_id': config.clientId,
+          'client_secret': config.clientSecret,
+        },
+      ),
     );
 
     if (response.statusCode == 400) {
@@ -377,9 +419,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// shows (and for `GoogleUserObject.id`, which sync state is keyed on).
   @override
   Future<GoogleUserInfo> fetchUserInfo(String accessToken) async {
-    final response = await http.get(
-      Uri.parse(userInfoUrl),
-      headers: {'Authorization': 'Bearer $accessToken'},
+    final response = await _send(
+      () => _client.get(
+        Uri.parse(userInfoUrl),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      ),
     );
 
     if (response.statusCode != 200) {
@@ -411,12 +455,19 @@ class GoogleUserInfo {
 /// Carries an OAuth `error` code so the UI can react to the specific case
 /// (e.g. `not_configured` → show setup instructions instead of an alert).
 class GoogleOAuthException implements Exception {
+  /// The device could not reach Google at all (DNS failure, no route, timeout).
+  /// Distinct from every other code because the fix is on the network — or the
+  /// emulator's DNS — not in the OAuth flow.
+  static const String offline = 'offline';
+
   final String message;
   final String? error;
 
   const GoogleOAuthException(this.message, {this.error});
 
   bool get isNotConfigured => error == 'not_configured';
+
+  bool get isOffline => error == offline;
 
   @override
   String toString() => 'GoogleOAuthException($error): $message';

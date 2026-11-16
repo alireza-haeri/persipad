@@ -595,3 +595,34 @@ Not fixed, on purpose: the `Gtk-WARNING ... 'border-spacing' is not a valid prop
 lines come from the user's GTK theme, and the Gradle 9.3.1 / AGP 9.1.1 / Kotlin 2.4.10
 "will soon be dropped" warnings are genuine upgrade work (`BACKLOG`), not runtime bugs —
 passing `--android-skip-build-dependency-validation` would only hide them.
+
+### Session 13 — Emulator sign-in failure: it was DNS (2026-11-16)
+
+The user tried to sign in to Google Drive inside `storypad_dev` on their Fedora box and got:
+
+```
+Sign-in failed: ClientException with SocketException: Failed host lookup:
+'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)
+```
+
+Diagnosis: the AVD had no usable resolver (the host resolves through systemd-resolved's
+`127.0.0.53` stub, which the guest does not follow). Nothing was wrong with the OAuth
+client, the account or the consent screen — but three layers of code turned a DNS failure
+into an auth-looking screen, and the same failure could throw during app start-up.
+
+| # | Symptom | Cause | Fix |
+|---|---|---|---|
+| 1 | Raw `ClientException with SocketException … errno = 7` shown as a sign-in failure | `GoogleDesktopOAuthService` let `package:http` transport errors escape; everything non-auth became `AuthException(signInFailed)` | one `_send` wrapper with a 30s timeout → `GoogleOAuthException(error: 'offline')`; strategy maps it to `NetworkException`, `BackupProvider` shows `snack_bar.no_internet` and marks the service `noInternet` (**D-053**) |
+| 2 | Losing the account (or throwing out of `_initializeApp`) when the token refresh cannot reach Google | `restore()` rethrew, `_renew` → `_forget()` on any failure, `GoogleDriveCloudService.initialize` had no guard | offline keeps the stored account; `initialize` catches and leaves the account unauthenticated (**D-053**) |
+| 3 | AVD has no working DNS and nothing said so | `bin/build_apk` booted the emulator with no `-dns-server` | `--dns-server=<ip>` / `NOTELY_DNS_SERVER`, a stub-resolver warning, and a post-boot `ping oauth2.googleapis.com` from the guest; `bin/local_verify` forwards the flag (§2.2c) |
+| 4 | `Directory ../static/sources/story_backgrounds not found` then `err build_runner failed` | the artwork submodule is not checked out; the generator treated that as fatal | the generator skips and keeps the committed `lib/gen/story_backgrounds.dart` (**D-054**) |
+
+To retry sign-in on the emulator:
+
+```bash
+bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8
+adb shell ping -c1 oauth2.googleapis.com     # must answer before the app can sign in
+```
+
+The remaining log noise (GTK `border-spacing` / cursor theme, Impeller, Gradle/AGP
+deprecations) is unchanged and still benign or backlogged as noted in Session 12.

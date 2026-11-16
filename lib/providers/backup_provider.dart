@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
@@ -261,12 +262,31 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       AppLogger.d('Sign-in failed: ${result.error!.message}');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.error!.message)),
+          SnackBar(content: Text(_signInMessage(result.error!))),
         );
+      }
+
+      if (result.error!.type == BackupErrorType.network) {
+        // Nothing about the account is wrong — the device cannot reach Google
+        // (a DNS failure inside an emulator looks exactly like this). Record it
+        // as a connection state so the tile offers "fix connection" instead of
+        // puzzling over a credentials error.
+        _hasInternet = false;
+        _syncState.onConnectionChecked({serviceType: BackupConnectionStatus.noInternet});
       }
     }
 
     notifyListeners();
+  }
+
+  /// A sign-in that failed only because the device cannot reach Google gets the
+  /// translated "no internet" line: the raw transport text
+  /// (`ClientException with SocketException: Failed host lookup … errno = 7`)
+  /// tells the user nothing they can act on. Every other failure keeps the
+  /// specific message the stack produced.
+  String _signInMessage(BackupError error) {
+    if (error.type == BackupErrorType.network) return tr('snack_bar.no_internet');
+    return error.message;
   }
 
   /// One-time setup instructions when no OAuth client id is configured.

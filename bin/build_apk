@@ -10,6 +10,9 @@
 #   bin/build_apk --abi all          # every ABI (biggest, slowest, always installable)
 #   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
+#   bin/build_apk --dns-server=8.8.8.8
+#                                    # AVD: hand the guest a resolver (see below)
+#                                    # (also honoured: NOTELY_DNS_SERVER=8.8.8.8)
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
 #   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
 #   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
@@ -17,6 +20,14 @@
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
 # mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
 # emulator, and a universal one wastes a minute on every build.
+#
+# `--dns-server` exists because an emulator inherits the host's DNS in a way that
+# quietly fails on a box using systemd-resolved's stub (127.0.0.53): the guest then
+# cannot resolve anything, and Google sign-in dies with `Failed host lookup:
+# 'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)`
+# — which looks like an OAuth bug but is pure DNS. Passing a real resolver to the
+# emulator (or setting NOTELY_DNS_SERVER) is the fix; the AVD has to be restarted for
+# it to take effect. See ai/ENVIRONMENT.md §2.2c.
 #
 # Why this exists next to .github/workflows/android.yml: CI takes ~15 minutes per
 # attempt and grades you only at the end; a laptop takes ~2 minutes the first time and
@@ -33,6 +44,7 @@ INSTALL=0
 LAUNCH=0
 AVD=""
 VERBOSE=""
+DNS_SERVER="${NOTELY_DNS_SERVER:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,6 +61,10 @@ while [ $# -gt 0 ]; do
       fi
       ;;
     --avd=*)   AVD="${1#*=}"; [ -n "$AVD" ] || AVD="auto" ;;
+    --dns-server)
+      DNS_SERVER="${2:?--dns-server needs an address like 8.8.8.8}"; shift ;;
+    --dns-server=*) DNS_SERVER="${1#*=}" ;;
+    --no-dns-server) DNS_SERVER="" ;;
     --flavor)  FLAVOR="${2:?--flavor needs a value}"; shift ;;
     --flavor=*) FLAVOR="${1#*=}" ;;
     --abi)     ABI="${2:?--abi needs a value}"; shift ;;
@@ -137,6 +153,29 @@ first_online_device() {
   adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && $2=="device" {print $1; exit}' || true
 }
 
+# True when the host resolves names exclusively through a local stub resolver
+# (systemd-resolved on 127.0.0.53, or dnsmasq on 127.0.0.1). The emulator reads
+# the host's DNS at boot and historically fails to follow that stub, which is
+# exactly the broken-DNS state `--dns-server` fixes.
+host_dns_is_stub() {
+  [ -r /etc/resolv.conf ] || return 1
+  awk '
+    $1 == "nameserver" {
+      if ($2 ~ /^(127\.0\.0\.(1|53)|::1)$/) stub = 1; else real = 1
+    }
+    END { exit (stub && !real) ? 0 : 1 }
+  ' /etc/resolv.conf
+}
+
+# Cheap end-to-end proof that the guest can resolve and reach a host. `getprop
+# net.dns1` is empty on modern Android and proves nothing, so ping the name that
+# Google sign-in actually needs. Only called right after booting an AVD (~2s).
+emulator_can_resolve() {
+  local serial="$1"
+  [ -n "$serial" ] || return 0
+  timeout 20 adb -s "$serial" shell ping -c1 -W2 oauth2.googleapis.com >/dev/null 2>&1
+}
+
 has_pending_device() {
   command -v adb >/dev/null 2>&1 || return 1
   adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && ($2=="offline" || $2=="authorizing") {found=1; exit} END {exit !found}'
@@ -197,11 +236,30 @@ if [ -n "$AVD" ] && [ -z "$(first_online_device)" ]; then
     elif ! printf '%s\n' "$AVDS" | grep -qx "$AVD"; then
       die "AVD '$AVD' not found. Available AVDs: $(printf '%s' "$AVDS" | tr '\n' ' ')"
     fi
-    say "Starting AVD '$AVD'…"
-    nohup "$EMULATOR_BIN" -avd "$AVD" </dev/null >/tmp/notely-avd.log 2>&1 &
+    EMU_ARGS=(-avd "$AVD")
+    if [ -n "$DNS_SERVER" ]; then
+      case "$DNS_SERVER" in
+        *[!0-9a-fA-F:.,]*) die "--dns-server '$DNS_SERVER' is not an address list (e.g. 8.8.8.8 or 8.8.8.8,1.1.1.1)." ;;
+      esac
+      EMU_ARGS+=(-dns-server "$DNS_SERVER")
+    elif host_dns_is_stub; then
+      warn "this host resolves names through a local stub resolver (/etc/resolv.conf), which an AVD often fails to follow."
+      warn "if Google sign-in fails with 'Failed host lookup: oauth2.googleapis.com', reboot it with:"
+      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
+    fi
+    say "Starting AVD '$AVD'…${DNS_SERVER:+ (dns: $DNS_SERVER)}"
+    nohup "$EMULATOR_BIN" "${EMU_ARGS[@]}" </dev/null >/tmp/notely-avd.log 2>&1 &
     EMU_PID=$!
     wait_for_boot 120 "$EMU_PID" || die "timed out waiting for AVD '$AVD' to boot (see /tmp/notely-avd.log)."
     say "AVD '$AVD' is ready."
+
+    # Say it now rather than leave it to be discovered as a mysterious
+    # "Sign-in failed: ClientException with SocketException" minutes later.
+    if ! emulator_can_resolve "$(first_online_device)"; then
+      warn "AVD '$AVD' cannot resolve oauth2.googleapis.com, so Google sign-in will fail."
+      warn "Check the host's internet, or reboot the AVD with a real resolver:"
+      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
+    fi
   fi
 fi
 
