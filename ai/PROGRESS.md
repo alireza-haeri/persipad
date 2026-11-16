@@ -830,3 +830,34 @@ that imports `dart:io` unprefixed) and **`Future<Object>` cannot be assigned to 
 found in the sandbox — there is no Dart SDK here — which is exactly why the user's "test with CI"
 was the right call. Fixed in `8eddb61`; the scoped run `43879014732` then went green, and the
 full dispatch above is the final word.
+
+### Session 19b — the device log finally spoke (2026-11-16)
+
+The retest was real this time: `adb devices` showed `R5CWC1S4P0W device`, `bin/build_apk
+--install --abi arm64 --launch` printed *Installed and launched*, and logcat has exactly one
+line from the flow:
+
+```
+Google sign-in: waiting for the loopback redirect on 127.0.0.1:41185
+```
+
+while the browser showed Firefox's **"The connection has timed out"**. Nothing else — no
+`loopback request` line at all. Read literally:
+
+- the app did start a loopback server and did hand a URL to the browser (the line exists);
+- Google *did* redirect (the browser ended up on a page it could not load);
+- **the browser's request never reached the app**, and it was a *timeout*, not "connection
+  refused", so something between the two processes swallowed it. Two candidates remain, and
+  both are device-level: the OEM/app freezer pausing this process while the browser is
+  foreground, or the phone's proxy/VPN (the same setup that produced the `198.18.0.60` fake-IP
+  DNS) intercepting `127.0.0.1`. Neither is fixable from inside the app.
+
+So `D-060` is not a workaround for a bug — it is the only path that survives this class of
+device. One line was added at the 12 s mark (`no redirect after 12s — offering the manual
+fallback`) because "the dialog never appeared" and "the dialog appeared and nobody looked" were
+indistinguishable in logcat.
+
+`D-061` came out of the same round: the CI run for `4c03e62` changed the OAuth service and
+selected only two backup tests, because the scoper's mirror rule is a directory rule and the
+OAuth test sits one level above its mirror. A green run that never loaded the relevant test is
+worse than a red one. Fixed and verified locally by running `bin/changed_tests --files …`.

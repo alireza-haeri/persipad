@@ -1501,3 +1501,24 @@ Template:
   main path. Sign-in now completes on devices where the browser cannot reach the app, at the
   cost of one dialog that only appears when the page is stuck. Covered by three tests
   (pasted address succeeds; no code → `no_code`; foreign state → `invalid_state`).
+
+## D-061 — CI scoping must include the test file that carries the changed file's name (2026-11-16)
+- **Status:** accepted
+- **Context:** `bin/changed_tests` maps `lib/a/b/c.dart` onto the nearest existing `test/a/b`
+  directory. That is a *directory* rule, and a test is not always in the mirrored directory:
+  `lib/core/services/backups/google_desktop_oauth_service.dart` mirrors to
+  `test/core/services/backups/`, while its test is one level up at
+  `test/core/services/google_desktop_oauth_service_test.dart`. Run `43882897833` proved the
+  cost: it changed that file (a log line in the fallback path) and selected only two backup
+  tests — a green run that never loaded the OAuth tests at all. The user asked for CI to prove
+  the fix; a scoper that silently skips the relevant test defeats exactly that.
+- **Decision:** `same_name_tests()` adds every `test/**/<changed-name>_test.dart` to the
+  selection, unioned with the mirror rule and the cross-cutting table (deduped by `expand`).
+- **Verified locally** (the script needs only git + Python, so this is checkable in the sandbox):
+  with `--files lib/core/services/backups/google_desktop_oauth_service.dart` the old script
+  printed the two backup tests, the new one prints those *plus*
+  `test/core/services/google_desktop_oauth_service_test.dart`. `lib/providers/backup_provider.dart`
+  still selects `test/providers/**`, and a file with no test of its own still falls back to the
+  mirror rule — no regression in either direction.
+- **Consequences:** a scoped run costs a few files more, and stops being able to skip the one
+  test that would catch a break in the file that changed.
