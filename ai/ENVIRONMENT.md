@@ -141,6 +141,36 @@ Full logs are left in `bin/.tmp/verify/`. The flavor argument is irrelevant here
 Why this exists: waiting for CI costs a push, a queue and ~2–3 minutes per iteration,
 and CI remains the authority (D-036). `-t` is the fast pre-check, not a replacement.
 
+## 2.4.2 Getting an Android APK: push `[apk]`
+
+```bash
+git commit -m "something you want on your phone [apk]"   # or: Actions -> Android -> Run workflow
+```
+
+`.github/workflows/android.yml` builds the **community** flavor on ubuntu-latest
+(~18 minutes cold) and publishes a pre-release tagged `apk-<UTC date>-<sha7>` with
+the APK attached, plus version, signing mode, size and sha256 in the notes.
+
+- The marker is read from the **commit subject** only; a plain push never builds an APK.
+- No secrets → the APK is `--debug`: **debug-built, debug-signed, ~207 MB**, cannot
+  update a previous install. Fine for trying the app, not for a store.
+- With `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+  `ANDROID_KEY_PASSWORD` in *Settings → Secrets and variables → Actions*, the same
+  job builds a **release-signed** APK instead (smaller, updatable). Create that
+  keystore once and keep it:
+
+  ```bash
+  keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
+          -validity 10000 -alias upload
+  base64 -w0 release.jks        # paste as ANDROID_KEYSTORE_BASE64
+  ```
+
+- `storypad` (the upstream flavor) is **not** buildable here: it needs `private_keys/`.
+- Local builds are possible with a full Flutter + Android SDK, via
+  `bin/build_release_android` — but it expects the `private_keys/` submodule and
+  `codemagic-cli-tools`, and it uploads to Play/Firebase. The workflow exists so that
+  nobody has to reproduce that setup to get an APK.
+
 ## 2.5 Troubleshooting (all of these actually happened)
 
 | Symptom | Cause | Fix |

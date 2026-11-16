@@ -904,13 +904,51 @@ Template:
   4. **Every `[apk]` build publishes a pre-release**, tagged `apk-<UTC date>-<sha7>`, with the version,
      the signing mode, the size and the sha256 in the notes. Pre-release on purpose: these are build
      artifacts, not versions of the app, and they must never look like `vX.Y.Z`.
-  5. **The build itself is unmodified**: `flutter build apk --<mode> --flavor=community
-     --target=lib/main_community.dart --dart-define-from-file=…`, i.e. exactly what
-     `bin/build_release_android` does locally minus the store upload. No Gradle changes were needed to get
-     Android building again (if one turns out to be needed, it will be a separate, documented change).
+  5. **The build command is the one `bin/build_release_android` uses**: `flutter build apk --<mode>
+     --flavor=community --target=lib/main_community.dart --dart-define-from-file=…`, minus the store
+     upload. What changed is the toolchain underneath it, because the pinned Flutter SDK (3.50.0)
+     **refuses to build with the versions this repo was left on** — see D-039. The first APK was therefore
+     four build-config changes away, not one workflow file away.
+  6. **The runner has to be cleaned before it builds.** Flutter + Android SDK + Gradle caches + the NDK sit
+     right at the edge of the ~14 GB free on `/`; the first attempt that got as far as compiling died in
+     `mergeCommunityDebugNativeLibs` with `Could not update ~/.gradle/caches/…/last-build.bin` — a full
+     disk, reported by Gradle. The job now deletes the image's unused payload (dotnet, ghc, boost, emulator
+     and system images) first, and prints `df -h` / `df -i` when a build fails, so the next disk failure
+     says so instead of hinting at it.
+  7. **The asset is published under the name the notes promise.** `gh release create <file>#<label>` keeps
+     the *file's* name and only uses the label as a label; the first release therefore attached
+     `app-community-debug.apk` while its notes told you to install
+     `storypad-community-debug-<version>.apk`. The APK is copied to the promised name before upload.
 - **Consequences:** "an APK exists" is now a push away, and the same workflow is the path to a
   release-signed build the moment the keystore secrets are added. The keystore itself is the one thing that
   cannot be created by a workflow and stored safely by it: it has to be generated once and kept as a
   secret (or in `private_keys/`) — losing it means a new application ID as far as Android is concerned.
-  Also unchanged: nothing here is verified on a device, so "it installs and runs" remains a manual check
-  until we run it.
+  Two honest limits: the fallback APK is **debug-built and debug-signed** (207 MB, slow, not updatable
+  across builds) — the release path only runs once the four secrets exist; and nothing here is verified on
+  a device, so "it installs and runs" remains a manual check until someone installs it.
+
+## D-039 — The Android toolchain was nine months behind the pinned Flutter SDK (2026-11-15)
+- **Status:** accepted (forced by D-038; no product behaviour changed)
+- **Context:** the repo pins Flutter `3.50.0` (`.github/workflows/*.yml`, `ai/ENVIRONMENT.md`) but Android
+  had not been built since it was parked. Each of these was a *hard* failure from the first four runs,
+  not a warning:
+  1. `Your project's Gradle version (9.2.0) is lower than Flutter's minimum supported version of 9.3.1.`
+     → wrapper `9.2.0` → `9.3.1`.
+  2. `Your project's Android Gradle Plugin version (8.11.1) is lower than Flutter's minimum supported
+     version of 9.1.1.` → AGP `8.11.1` → `9.1.1`.
+  3. `android/app/build.gradle.kts:51:9: 'var jvmTarget: String' is deprecated` — an **error** under AGP 9.
+     → `kotlinOptions { jvmTarget = … }` became `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }`.
+  4. `defaultConfig contains custom resource values, but the feature is disabled.` AGP 9's legacy DSL no
+     longer accepts `resValue(...)`. → `app_name` and `google_map_api_key` are manifest placeholders now
+     (`${appName}`, `${googleMapsApiKey}`), next to the existing `appLogo`/`dropboxCallbackScheme`.
+- **Why it happened:** `gradle.properties` already carried AGP 9's migration switches
+  (`android.builtInKotlin=false`, `android.newDsl=false`) — the project had been *prepared* for AGP 9 and
+  never migrated onto it, and with no Android job in CI nothing said so.
+- **Decision:** follow the pinned SDK, not the other way round. Bumping the SDK down to meet the build
+  would have re-introduced Gradle 9.2 / AGP 8.11 and pinned the project to an older Flutter forever.
+- **Consequences:** the Android build is back under CI's eye — the `[apk]` job fails loudly the next time
+  the wrapper and the SDK drift apart. `compileSdk 37` and Kotlin `2.2.20` were accepted by AGP 9.1.1
+  unchanged; the Linux workflow is untouched (it never touches Gradle).
+- **Not done:** no Kotlin/AGP deprecation sweep beyond what the build rejected, and `android.newDsl` stays
+  off — moving to AGP 9's new DSL is its own task, and the placeholders above mean it is no longer
+  blocking.
