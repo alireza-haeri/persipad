@@ -1,9 +1,9 @@
 # Status
 
-**Last updated:** 2026-11-15
-**Current session:** session 9 — Persian font bundled + calendar settings (weekends, first day)
-**Branch:** `arena/f59917e7-notely` (base: `a0d9f727` on `main`)
-**Phase:** 🟢 fresh clones run again; CI green (Test / Analyze / Build Linux)
+**Last updated:** 2026-11-16
+**Current session:** session 10 — local Android APK loop (`bin/build_apk` + `bin/android_doctor`)
+**Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
+**Phase:** 🟢 Linux CI green; local APK script fixed for missing `PATH` tools & zero-device silent exit
 
 ---
 
@@ -451,3 +451,22 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   it locally.
 - Still manual, by nature: the release keystore (four `ANDROID_KEYSTORE_*` secrets) and installing
   the APK on a phone.
+
+### 2026-11-16 — Local APK loop (`bin/build_apk`, `bin/android_doctor`)
+- Added `bin/build_apk` (ABI-aware `--abi auto`, `--install`, `--compile-sdk=`, `--no-ndk` /
+  `notelyNdkVersion=none`) and `bin/android_doctor` (pinned SDK/AGP/Gradle check, `dl.google.com`
+  direct vs proxy probe, `--mirror` init script, `--fix` with `SDK_TEST_BASE_URL` mirror) up through
+  `67bac3c` (build against the installed `android-<n>` platform instead of failing on missing `android-37`).
+- Fixed two blockers hit on Fedora when running `emulator -avd storypad_dev &` + `bin/build_apk --install`:
+  - `bin/build_apk` ran under `set -euo pipefail`, and `device_abi()` piped `adb shell getprop`
+    without `|| true`, so whenever `adb` was present and 0 (or 2+) devices were attached,
+    `DEV=$(device_abi)` aborted silently with exit code 1 before printing anything.
+  - `emulator` and `adb` inside `$SDK/{emulator,platform-tools}` are normally not on `PATH` on
+    Fedora; `bin/build_apk` now resolves both (and `FLUTTER_BIN` / `~/development/flutter_stable`),
+    adds `--avd [name]` to boot and wait for `sys.boot_completed` automatically before ABI
+    detection, and waits on `offline` devices before `--install`.
+  - `bin/android_doctor` now resolves `$SDK/platform-tools/adb` too and parses `compileSdk` from
+    the `?: 37` expression added in `67bac3c`.
+- Verified against stubbed `flutter`/`java`/`adb`/`emulator` in the sandbox (`bash -n`, `--help`,
+  0-device `--abi auto`, missing `PATH` tools, `--avd --install` boot + install, immediate emulator
+  failure log dump). Real device/AVD build on Fedora is pending your run.

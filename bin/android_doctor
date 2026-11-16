@@ -51,7 +51,7 @@ row disk_here "$(df -h . | awk 'NR==2{print $4" free of "$2" on "$6}')"
 # would otherwise match with an empty number and report nothing.
 gradle_value() { # file, property
   grep -v '^[[:space:]]*//' "$1" 2>/dev/null |
-    sed -n "s/.*[[:space:]]$2[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p" | head -1
+    sed -n "s/.*[[:space:]]$2[[:space:]]*=.*[^0-9]\([0-9][0-9]*\)[[:space:]]*$/\1/p" | head -1
 }
 
 # ---------------------------------------------------------------- repo
@@ -177,18 +177,27 @@ fi
 
 # ---------------------------------------------------------------- devices & avds
 hdr "devices and AVDs"
-if have adb; then
-  row adb "$(adb version 2>/dev/null | head -1)"
-  DEVICES=$(timeout 30 adb devices -l 2>/dev/null | sed -n '2,$p' | sed '/^$/d')
+ADB=""
+have adb && ADB=$(command -v adb)
+if [ -z "$ADB" ] && [ -n "$SDK" ] && [ -x "$SDK/platform-tools/adb" ]; then
+  ADB="$SDK/platform-tools/adb"
+  note "adb is at ${ADB/#$HOME/\~} (not on PATH — bin/build_apk finds it automatically)"
+fi
+if [ -n "$ADB" ]; then
+  row adb "$("$ADB" version 2>/dev/null | head -1)"
+  DEVICES=$(timeout 30 "$ADB" devices -l 2>/dev/null | sed -n '2,$p' | sed '/^$/d')
   if [ -n "$DEVICES" ]; then
     printf '%s\n' "$DEVICES" | while IFS= read -r line; do row device "$line"; done
-    ABI_DEV=$(timeout 20 adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r' | head -1)
-    [ -n "$ABI_DEV" ] && ok "attached device ABI $ABI_DEV (bin/build_apk --abi auto follows it)"
+    FIRST_SERIAL=$(printf '%s\n' "$DEVICES" | awk '$2=="device"{print $1; exit}')
+    if [ -n "$FIRST_SERIAL" ]; then
+      ABI_DEV=$(timeout 20 "$ADB" -s "$FIRST_SERIAL" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r' | head -1)
+      [ -n "$ABI_DEV" ] && ok "attached device ABI $ABI_DEV (bin/build_apk --abi auto follows it)"
+    fi
   else
     note "no device/emulator attached ('adb devices' is empty)"
   fi
 else
-  bad "adb not on PATH (install platform-tools)"
+  bad "adb not found on PATH${SDK:+ or under $SDK/platform-tools} (install platform-tools)"
 fi
 
 EMULATOR=""
@@ -205,7 +214,8 @@ if [ -n "$EMULATOR" ]; then
       case "$ABI" in arm64*) ABI=arm64-v8a ;; x86_64|x86) : ;; esac
       row "avd $avd" "${ABI:-abi unknown — boot it and ask adb}"
     done <<< "$AVDS"
-    ok "AVDs present — start one, then bin/build_apk --install"
+    FIRST_AVD=$(printf '%s\n' "$AVDS" | head -1)
+    ok "AVDs present — run bin/build_apk --install --avd (or: ${EMULATOR/#$HOME/\~} -avd $FIRST_AVD &)"
   else
     note "emulator installed but no AVDs (avdmanager create avd -n pixel -k \"system-images;android-36;google_apis;x86_64\")"
   fi
