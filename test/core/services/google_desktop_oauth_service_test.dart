@@ -216,7 +216,7 @@ void main() {
       final state = overrideState ?? authorizeUri.queryParameters['state']!;
       final query = 'code=the-code&state=${Uri.encodeQueryComponent(state)}';
 
-      final socket = await io.Socket.connect(redirectUri.host, redirectUri.port);
+      final socket = await Socket.connect(redirectUri.host, redirectUri.port);
       try {
         socket.write(
           'GET /?$query HTTP/1.1\r\n'

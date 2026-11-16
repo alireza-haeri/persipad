@@ -282,7 +282,8 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
   /// browser instead of being stuck on a page that spins forever (`D-058`, `D-060`).
   Future<BackupResult<bool>> _signInWithFallback(BuildContext context, BackupServiceType serviceType) async {
     if (repository.getService(serviceType) is GoogleDriveCloudService) {
-      GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) => _askForRedirectUri(context, redirectArrived);
+      GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) =>
+          _askForRedirectUri(context, redirectArrived);
     }
 
     try {

@@ -406,15 +406,18 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // loopback wins the race late, so the user is never left with a modal asking
     // for an address that is no longer needed.
     final redirectArrived = completer.future.then((_) {});
-    final manual = Future.delayed(manualPromptDelay, () => completer.isCompleted ? null : prompt(redirectArrived)).then((pasted) {
-      final trimmed = pasted?.trim() ?? '';
-      if (trimmed.isEmpty) {
-        AppLogger.d('Google sign-in: manual fallback was declined; still waiting for the loopback redirect.');
-        return Completer<Uri>().future; // never completes: the loopback keeps its chance
+
+    final manual = Future<void>.delayed(manualPromptDelay).then<Uri>((_) async {
+      if (completer.isCompleted) return Completer<Uri>().future;
+
+      final pasted = (await prompt(redirectArrived))?.trim() ?? '';
+      if (pasted.isNotEmpty) {
+        AppLogger.d('Google sign-in: manual fallback received a pasted address.');
+        return Uri.parse(pasted);
       }
 
-      AppLogger.d('Google sign-in: manual fallback received a pasted address.');
-      return Uri.parse(trimmed);
+      AppLogger.d('Google sign-in: manual fallback was declined; still waiting for the loopback redirect.');
+      return Completer<Uri>().future; // never completes: the loopback keeps its chance
     });
 
     return Future.any([loopback, manual]);
