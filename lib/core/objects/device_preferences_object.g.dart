@@ -17,6 +17,8 @@ abstract class _$DevicePreferencesObjectCWProxy {
 
   DevicePreferencesObject enablePeriodCalendar(bool? enablePeriodCalendar);
 
+  DevicePreferencesObject enableDailyScore(bool? enableDailyScore);
+
   DevicePreferencesObject reminders(List<ReminderObject>? reminders);
 
   DevicePreferencesObject themeMode(ThemeMode? themeMode);
@@ -78,6 +80,7 @@ abstract class _$DevicePreferencesObjectCWProxy {
     int? fontWeightIndex,
     bool? enableRelaxSounds,
     bool? enablePeriodCalendar,
+    bool? enableDailyScore,
     List<ReminderObject>? reminders,
     ThemeMode? themeMode,
     TimeFormatOption? timeFormat,
@@ -127,6 +130,10 @@ class _$DevicePreferencesObjectCWProxyImpl
   @override
   DevicePreferencesObject enablePeriodCalendar(bool? enablePeriodCalendar) =>
       call(enablePeriodCalendar: enablePeriodCalendar);
+
+  @override
+  DevicePreferencesObject enableDailyScore(bool? enableDailyScore) =>
+      call(enableDailyScore: enableDailyScore);
 
   @override
   DevicePreferencesObject reminders(List<ReminderObject>? reminders) =>
@@ -225,6 +232,7 @@ class _$DevicePreferencesObjectCWProxyImpl
     Object? fontWeightIndex = const $CopyWithPlaceholder(),
     Object? enableRelaxSounds = const $CopyWithPlaceholder(),
     Object? enablePeriodCalendar = const $CopyWithPlaceholder(),
+    Object? enableDailyScore = const $CopyWithPlaceholder(),
     Object? reminders = const $CopyWithPlaceholder(),
     Object? themeMode = const $CopyWithPlaceholder(),
     Object? timeFormat = const $CopyWithPlaceholder(),
@@ -266,6 +274,10 @@ class _$DevicePreferencesObjectCWProxyImpl
           ? _value.enablePeriodCalendar
           // ignore: cast_nullable_to_non_nullable
           : enablePeriodCalendar as bool?,
+      enableDailyScore: enableDailyScore == const $CopyWithPlaceholder()
+          ? _value.enableDailyScore
+          // ignore: cast_nullable_to_non_nullable
+          : enableDailyScore as bool?,
       reminders: reminders == const $CopyWithPlaceholder()
           ? _value.reminders
           // ignore: cast_nullable_to_non_nullable
@@ -367,6 +379,7 @@ DevicePreferencesObject _$DevicePreferencesObjectFromJson(
   fontWeightIndex: (json['font_weight_index'] as num?)?.toInt(),
   enableRelaxSounds: json['enable_relax_sounds'] as bool?,
   enablePeriodCalendar: json['enable_period_calendar'] as bool?,
+  enableDailyScore: json['enable_daily_score'] as bool?,
   reminders: (json['reminders'] as List<dynamic>?)
       ?.map((e) => ReminderObject.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -450,6 +463,7 @@ Map<String, dynamic> _$DevicePreferencesObjectToJson(
   'hidden_stats_sections': instance.hiddenStatsSections,
   'enable_relax_sounds': instance.enableRelaxSounds,
   'enable_period_calendar': instance.enablePeriodCalendar,
+  'enable_daily_score': instance.enableDailyScore,
   'reminders': instance.reminders?.map((e) => e.toJson()).toList(),
 };
 
@@ -471,11 +485,6 @@ const _$TimeFormatOptionEnumMap = {
   TimeFormatOption.h24: 'h24',
 };
 
-const _$CalendarSystemOptionEnumMap = {
-  CalendarSystemOption.gregorian: 'gregorian',
-  CalendarSystemOption.persian: 'persian',
-};
-
 const _$FirstDayOfWeekOptionEnumMap = {
   FirstDayOfWeekOption.monday: 'monday',
   FirstDayOfWeekOption.tuesday: 'tuesday',
@@ -484,6 +493,11 @@ const _$FirstDayOfWeekOptionEnumMap = {
   FirstDayOfWeekOption.friday: 'friday',
   FirstDayOfWeekOption.saturday: 'saturday',
   FirstDayOfWeekOption.sunday: 'sunday',
+};
+
+const _$CalendarSystemOptionEnumMap = {
+  CalendarSystemOption.gregorian: 'gregorian',
+  CalendarSystemOption.persian: 'persian',
 };
 
 const _$AssetCompressionOptionEnumMap = {

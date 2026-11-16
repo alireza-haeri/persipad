@@ -4,13 +4,22 @@ name: Linux
 # sandbox has no Flutter SDK and no pub.dev access, so compile/test verification has
 # to happen here.
 #
-# SPEED: jobs are opt-in per commit instead of always running everything. A plain
-# push runs only `analyze` (~90s). Ask for more with a marker in the commit
-# message:
+# SPEED: the work is scoped to the change. A plain push runs `analyze` (~90s) plus
+# the tests that can actually fail for it — see `bin/changed_tests`, which mirrors
+# changed `lib/**` files onto `test/**` directories, skips everything for docs-only
+# changes, and falls back to the whole suite when a change cannot be mapped. That
+# is usually a handful of test files instead of 106, i.e. seconds instead of ~3.5
+# minutes.
 #
-#   [test]   also run the unit tests        (~3 min, sharded 2 ways)
-#   [build]  also build the Linux binary    (~2.5 min)
+# Markers still force work, for changes too broad to scope or too risky to scope:
+#
+#   [test]   the whole suite                (~3 min, sharded 2 ways)
+#   [build]  build the Linux binary         (~2.5 min)
 #   [full]   run all of them
+#
+# The `scope` job decides all of that in ~15s (checkout + Python, no Flutter) and
+# publishes `mode`/`shards`/`paths`, which is what lets the test matrix have one
+# shard for a scoped run and two for a full one.
 #
 # The jobs do NOT wait for `analyze` (they used to: that alone serialized ~90s in
 # front of every test/build). They run in parallel, so `[full]` costs about as
@@ -48,6 +57,42 @@ env:
   FLUTTER_VERSION: '3.50.0'
 
 jobs:
+  scope:
+    name: Scope
+    # Cheap on purpose: no Flutter, no pub get. Full history is needed to diff a
+    # push, and this repo packs into ~5 MB, so that costs a couple of seconds.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
+      shards: ${{ steps.scope.outputs.shards }}
+      paths: ${{ steps.scope.outputs.paths }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide what changed
+        id: scope
+        env:
+          # `[test]` / `[full]` force the whole suite (see bin/changed_tests).
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${{ github.base_ref }}" > /dev/null 2>&1
+            bin/changed_tests --base "origin/${{ github.base_ref }}" --head HEAD --explain --github-output >> "$GITHUB_OUTPUT"
+            status=$?
+          else
+            bin/changed_tests --base "${{ github.event.before }}" --head "${{ github.sha }}" --explain --github-output >> "$GITHUB_OUTPUT"
+            status=$?
+          fi
+          if [ $status -ne 0 ]; then
+            # Never let the scoper's own failure turn into "no tests at all".
+            echo "::warning::changed_tests failed; running the full suite"
+            printf 'mode=full\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
+          fi
+
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
@@ -112,17 +157,20 @@ jobs:
     # the job is skipped, and a literal `${{ matrix.shard }}` looks like a bug.
     name: Test
     # No `needs: analyze`: the two jobs are independent, and gating on the analyzer
-    # added ~90s of dead time before a single test compiled.
-    if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.head_commit && (contains(github.event.head_commit.message, '[test]') || contains(github.event.head_commit.message, '[full]')))
+    # added ~90s of dead time before a single test compiled. `scope` is a different
+    # matter — its output decides whether this job exists and how it is split.
+    needs: scope
+    # `none` means the change cannot affect runtime behaviour (docs, ai notes), and
+    # running the suite for it would be pure cost.
+    if: needs.scope.outputs.mode != 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        # One shard for a scoped run (a few files: splitting them would only add a
+        # second cold start), two for the full suite.
+        shard: ${{ fromJson(needs.scope.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -136,20 +184,36 @@ jobs:
         run: flutter pub get
 
       - name: Run tests
-        # `flutter test` has no built-in sharding, so the file list is split
-        # round-robin. 97 files / ~1000 cases take ~4.5 min in one job; two
-        # shards run in parallel and land near the length of the slower half.
+        # `flutter test` has no built-in sharding, so a full run splits the file
+        # list round-robin (106 files / ~1000 cases take ~4.5 min in one job; two
+        # shards land near the length of the slower half). A scoped run needs no
+        # split at all — it is the handful of files `bin/changed_tests` picked.
+        env:
+          TEST_MODE: ${{ needs.scope.outputs.mode }}
+          TEST_PATHS: ${{ needs.scope.outputs.paths }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set +e
-          mapfile -t files < <(find test -name '*_test.dart' | sort)
-          selected=()
-          for i in "${!files[@]}"; do
-            if (( i % 2 == ${{ matrix.shard }} - 1 )); then selected+=("${files[$i]}"); fi
-          done
-          echo "::notice::shard ${{ matrix.shard }}/2: ${#selected[@]} files"
+          if [ "$TEST_MODE" = "full" ]; then
+            mapfile -t files < <(find test -name '*_test.dart' | sort)
+            selected=()
+            for i in "${!files[@]}"; do
+              if (( i % 2 == SHARD - 1 )); then selected+=("${files[$i]}"); fi
+            done
+            echo "::notice::shard $SHARD/2: ${#selected[@]} files (full suite)"
           # JSON reporter: the human-readable log is unreadable for the agent
           # (blob storage), so failures are parsed and re-emitted as annotations
           # with the test name and the first line of the error.
+          else
+            read -r -a selected <<< "$TEST_PATHS"
+            echo "::notice::scoped run: ${#selected[@]} file(s): ${selected[*]}"
+          fi
+
+          if [ ${#selected[@]} -eq 0 ]; then
+            echo "::error::no test files selected"
+            exit 1
+          fi
+
           flutter test --reporter json "${selected[@]}" > /tmp/test.json 2>&1
           status=$?
           python3 - <<'PY' || true

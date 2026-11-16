@@ -29,8 +29,7 @@ class _ScoreCalendarContent extends StatelessWidget {
           ),
           // Hidden entirely when no month has data — an empty axis would be a
           // chart of nothing.
-          if (viewModel.monthlyAverages.isNotEmpty)
-            ScoreMonthlyAverageChart(months: viewModel.monthlyAverages),
+          if (viewModel.monthlyAverages.isNotEmpty) ScoreMonthlyAverageChart(months: viewModel.monthlyAverages),
         ],
       ),
     );

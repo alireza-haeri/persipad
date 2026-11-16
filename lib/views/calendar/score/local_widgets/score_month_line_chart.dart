@@ -120,8 +120,7 @@ class _ScoreLinePainter extends CustomPainter {
     );
     if (plot.width <= 0 || plot.height <= 0) return;
 
-    double yOf(int score) =>
-        plot.bottom - plot.height * DailyScoreScale.clamp(score) / DailyScoreScale.max;
+    double yOf(int score) => plot.bottom - plot.height * DailyScoreScale.clamp(score) / DailyScoreScale.max;
 
     double xOf(int day) {
       final double t = daysInMonth <= 1 ? 0.5 : (day - 1) / (daysInMonth - 1);
@@ -258,8 +257,7 @@ class _ScoreLinePainter extends CustomPainter {
       for (int i = 0; i < count - 1; i++) offsets[i + 1].dx - offsets[i].dx,
     ];
     final List<double> slopes = [
-      for (int i = 0; i < count - 1; i++)
-        widths[i] == 0 ? 0.0 : (offsets[i + 1].dy - offsets[i].dy) / widths[i],
+      for (int i = 0; i < count - 1; i++) widths[i] == 0 ? 0.0 : (offsets[i + 1].dy - offsets[i].dy) / widths[i],
     ];
 
     final List<double> tangents = List<double>.filled(count, 0.0);

@@ -30,9 +30,7 @@ class DailyScoreScale {
 
   static HSVColor hsvOf(int score) {
     final double t = clamp(score) / max;
-    return t <= 0.5
-        ? HSVColor.lerp(_low, _mid, t * 2)!
-        : HSVColor.lerp(_mid, _high, (t - 0.5) * 2)!;
+    return t <= 0.5 ? HSVColor.lerp(_low, _mid, t * 2)! : HSVColor.lerp(_mid, _high, (t - 0.5) * 2)!;
   }
 
   static Color colorOf(int score) => hsvOf(score).toColor();

@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Pick the smallest test set that can actually fail for a set of changes.
+
+The problem this solves: the full suite is ~106 files / ~1000 cases and takes
+~3.5 minutes across two shards, which is more than most changes deserve — and
+paying it for every push is what made CI feel like the task instead of the work.
+The opposite extreme (run nothing unless the commit says `[test]`) is worse: it
+means a broken change can sit green.
+
+The rule is deliberately conservative — it may over-select, never under-select:
+
+  * a changed test file runs itself;
+  * a changed `lib/**` file runs whatever exists under the mirroring `test/**`
+    directory (`lib/views/calendar/score/x.dart` → `test/views/calendar/score`),
+    plus anything listed in CROSS_CUTTING for relations the mirror cannot see;
+  * if *any* changed code file cannot be mapped, the whole suite runs, because an
+    empty selection would be a lie;
+  * changes that cannot affect behaviour (`ai/`, `*.md`, `.github/`, `bin/`) map
+    to nothing at all, so a docs push has nothing to run;
+  * `pubspec.*`, `analysis_options.yaml` and `test/flutter_test_config.dart`
+    affect every test, so they force the full suite;
+  * the commit message wins over all of it: `[test]` / `[full]` forces everything.
+
+Usage:
+  bin/changed_tests --base HEAD~1 --head HEAD           # human readable
+  bin/changed_tests --files lib/views/calendar/x.dart   # what-if, no git
+  bin/changed_tests --base "$BASE" --head "$HEAD" --github-output >> "$GITHUB_OUTPUT"
+
+Output keys (always, unless --quiet):
+  mode    full | changed | none
+  shards  JSON array of shard numbers for the test matrix (`[1]` or `[1, 2]`)
+  paths   space-separated test files (empty when mode is full or none)
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+SHARDS = 2
+
+# Changes that cannot affect Dart behaviour even indirectly.
+IGNORED_PREFIXES = ("ai/", "bin/", ".github/", "docs/", ".arena/")
+IGNORED_SUFFIXES = (".md",)
+
+# Any change here invalidates the assumption "the rest of the suite is unaffected".
+FULL_TRIGGERS = (
+    "pubspec.yaml",
+    "pubspec.lock",
+    "analysis_options.yaml",
+    "test/flutter_test_config.dart",
+    "bin/format",
+)
+
+# The mirror rule (`lib/a/b/c.dart` → `test/a/b`) covers most of the tree. These
+# are the relations it cannot see: cross-cutting helpers used by a different
+# area's tests, and sources whose tests are named after the concept rather than
+# the directory.
+CROSS_CUTTING = [
+    (
+        "lib/core/services/calendar/",
+        [
+            "test/core/services/calendar",
+            "test/core/services/persian_calendar_test.dart",
+            "test/core/services/calendar_days_generator_test.dart",
+            "test/core/services/days_count_in_month_service_test.dart",
+            "test/views/calendar",
+        ],
+    ),
+    (
+        "lib/core/helpers/date_format_helper.dart",
+        [
+            "test/core/services/calendar",
+            "test/core/services/persian_calendar_test.dart",
+        ],
+    ),
+    (
+        "lib/core/services/scores/",
+        ["test/providers/daily_score_provider_test.dart", "test/widgets/scores", "test/views/calendar/score"],
+    ),
+    (
+        "lib/providers/device_preferences_provider.dart",
+        ["test/providers", "test/core/objects", "test/core/types"],
+    ),
+    (
+        "lib/core/objects/device_preferences_object",
+        ["test/providers", "test/core/objects"],
+    ),
+    (
+        "lib/core/services/notifications/",
+        ["test/core/services/notifications", "test/core/objects/reminder_object_test.dart"],
+    ),
+    (
+        "lib/core/services/stories/",
+        ["test/core/services/stories", "test/core/databases/models"],
+    ),
+    (
+        "lib/core/storages/",
+        ["test/core/storages"],
+    ),
+    (
+        "translations/",
+        ["test/unused_translations_test.dart"],
+    ),
+    (
+        "lib/widgets/sp_icons.dart",
+        ["test/widgets/sp_icons_test.dart"],
+    ),
+]
+
+FULL_MARKERS = ("[test]", "[full]")
+
+
+def explain(message):
+    print(message, file=sys.stderr)
+
+
+def run(command):
+    return subprocess.run(command, capture_output=True, text=True, check=False)
+
+
+def changed_files(base, head, files):
+    if files:
+        return files
+
+    # A brand-new branch (or a force-push onto a commit we cannot see) has no
+    # usable base: treat that as "something big happened" rather than guessing.
+    if not base or set(base) == {"0"}:
+        return None
+
+    result = run(["git", "diff", "--name-only", "--diff-filter=ACMR", base, head])
+    if result.returncode != 0:
+        explain(f"cannot diff {base}..{head}: {result.stderr.strip()}")
+        return None
+
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def ignored(path):
+    return path.startswith(IGNORED_PREFIXES) or path.endswith(IGNORED_SUFFIXES)
+
+
+def expand(paths):
+    """A selection may name files or directories; tests are always files."""
+    selected = []
+    for path in paths:
+        if path.endswith("_test.dart"):
+            selected.append(path)
+        elif os.path.isdir(path):
+            for root, _, names in os.walk(path):
+                selected.extend(os.path.join(root, name) for name in names if name.endswith("_test.dart"))
+    # Keep the list stable and readable in logs.
+    return sorted(set(selected))
+
+
+def mirrored_tests(path):
+    """`lib/a/b/c.dart` → the nearest existing `test/a/b` directory."""
+    directory = os.path.dirname(path)
+    while directory.startswith("lib/"):
+        candidate = "test/" + directory[len("lib/") :]
+        if os.path.isdir(candidate):
+            return [candidate]
+        directory = os.path.dirname(directory)
+    return []
+
+
+def cross_cutting_tests(path):
+    return [test for prefix, tests in CROSS_CUTTING if path.startswith(prefix) for test in tests]
+
+
+def decide(base, head, files, message):
+    if any(marker in message for marker in FULL_MARKERS):
+        explain("commit message asks for the full suite")
+        return "full", []
+
+    changed = changed_files(base, head, files)
+    if changed is None:
+        explain("no usable base commit")
+        return "full", []
+
+    code_files = [path for path in changed if not ignored(path)]
+    explain(f"{len(changed)} file(s) changed, {len(code_files)} of them code")
+
+    if not code_files:
+        explain("only docs/CI changes — nothing can fail")
+        return "none", []
+
+    for trigger in FULL_TRIGGERS:
+        if trigger in code_files:
+            explain(f"{trigger} affects the whole suite")
+            return "full", []
+
+    selection = []
+    unmapped = []
+
+    for path in code_files:
+        if path.startswith("test/") and path.endswith("_test.dart"):
+            selection.append(path)
+            continue
+
+        candidates = mirrored_tests(path) + cross_cutting_tests(path)
+        if candidates:
+            selection.extend(candidates)
+            explain(f"{path} → {', '.join(candidates)}")
+        else:
+            unmapped.append(path)
+
+    if unmapped:
+        explain(f"unmapped changes, running everything: {', '.join(unmapped)}")
+        return "full", []
+
+    tests = expand(selection)
+    if not tests:
+        explain("matched areas, but no test files exist for them")
+        return "none", []
+
+    return "changed", tests
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Scope the test run to what changed.")
+    parser.add_argument("--base", default="", help="base revision (push: github.event.before)")
+    parser.add_argument("--head", default="HEAD", help="head revision")
+    parser.add_argument("--files", nargs="*", default=[], help="explicit changed files (skips git)")
+    parser.add_argument("--message", default=os.environ.get("COMMIT_MESSAGE", ""), help="commit message")
+    parser.add_argument("--github-output", action="store_true", help="print KEY=VALUE lines for $GITHUB_OUTPUT")
+    parser.add_argument("--explain", action="store_true", help="force the reasoning trace on stderr")
+    args = parser.parse_args()
+
+    if args.explain:
+        explain("--- scope ---")
+
+    mode, tests = decide(args.base, args.head, args.files, args.message)
+    shards = list(range(1, SHARDS + 1)) if mode == "full" else [1]
+
+    explain(f"mode={mode}, {len(tests)} test file(s)" + (f", {SHARDS} shards" if mode == "full" else ""))
+
+    if args.github_output:
+        print(f"mode={mode}")
+        print(f"shards={json.dumps(shards)}")
+        print(f"paths={' '.join(tests)}")
+    else:
+        print(f"mode: {mode}")
+        print(f"shards: {shards}")
+        for path in tests:
+            print(f"  {path}")
+
+
+if __name__ == "__main__":
+    main()
