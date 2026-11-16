@@ -397,3 +397,6 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - CI `43803014131` green on `411291a`: Scope 6s, Analyze ✓, Test (1) ✓ in 2m31s over 40 scoped files,
   162s total. (`flutter test failed but the JSON reporter reported no failing test` is the same
   pre-existing annotation the previous green run carries; the job exits success.)
+- Follow-up while auditing "not a trace of the map": the story-tile preferences sheet still offered a
+  "show location" switch whose reader no longer draws anything. Hidden with the add-on (`cb7411e`),
+  preference preserved. CI `43803391050` green: Scope ✓, Analyze ✓, Test (1) ✓ 1m53s, 123s total.
