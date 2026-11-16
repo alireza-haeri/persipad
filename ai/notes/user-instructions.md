@@ -196,6 +196,25 @@ must report through **annotations** (`gh run view` shows them) and be judged by 
 thing it recommends doing *first* is enabling the editor package's 390 existing tests in CI
 (T-9) — existing protection that is currently switched off, not new work.
 
+### N-017 — Do all of the analysis's items, then verify with CI and check speed
+> «بریم سراغ انجام نکاتی که گفتی. همه رو باهم انجام بده و بعد تست ها رو با ci اجرا کن و مطمئن شو که برنامه درست و تمیزه و حتی از نظر سرعت هم بهینه باشه»
+
+**Status:** ✅ done for everything that can be done without the user's machine
+**Delivered:** T-9 (editor package tests in CI + scoper), T-10 (backup merge tests + D-042
+seam), T-11 cheap half (`search_filter_object_test.dart`), search open-speed fix (D-044,
+one indexed `count()` + no first-paint wait), T-12 (bundled default font, D-043), T-14
+(coverage job), T-15 first surface (calendar-cell semantics + tests). T-13 turned out to be
+already true and was closed as a non-finding.
+**Honestly not done, with reasons:**
+- `allowRuntimeFetching = false` — cannot verify how `google_fonts` behaves for the picker's
+  ~1500 unbundled families without running it; bundling the default family is enough for the
+  offline-first goal (D-043).
+- The search *scan* itself (unindexed `contains`) — a design decision, not a fix (T-11).
+- A release-signed APK — needs the keystore secrets only the user can create (D-038).
+**Note:** one CI failure was mine and is recorded rather than hidden — the new
+`SearchFilterObject` test asserted a Shamsi conversion inside a Gregorian group; CI
+(`43832635160`, Test 2) caught it, and the test was corrected, not the code.
+
 ---
 
 ## Template for a new note

@@ -35,7 +35,11 @@ The gaps below are mostly *coverage* and *product surface*, not structural rot.
 
 ---
 
-## 1. Highest-value finding: the editor package's 390 tests never run in CI
+## 1. ~~Highest-value finding: the editor package's 390 tests never run in CI~~ ✅ fixed 2026-11-16
+
+> **Done.** `linux.yml` gained an `Editor package tests` job, and `bin/changed_tests` maps
+> `packages/**` to the new `packages` output instead of treating it as unmapped. Verified by
+> CI: the job appears in the run graph and its gating matches the scoper's answer.
 
 - **Evidence:** `.github/workflows/linux.yml` runs `flutter test` from the repo root only
   (test job, line ~220: `flutter test --reporter json "${selected[@]}"`). `bin/changed_tests`
@@ -57,7 +61,12 @@ The gaps below are mostly *coverage* and *product surface*, not structural rot.
   change additive.
 - **Backlog id:** new — see `BACKLOG.md` T-9.
 
-## 2. Backup/sync merge correctness is the least-tested thing that can lose data
+## 2. ~~Backup/sync merge correctness is the least-tested thing that can lose data~~ ✅ core fixed 2026-11-16
+
+> **Done (core).** A lazy table list + `BackupRepository.overrideDatabases` seam (D-042) made
+> the merge testable; `restore_backup_service_test.dart` now covers all six timestamp states,
+> listener batching and `forceRestore`. **Still open:** the latest-checker's
+> "older app on another device" detection and `BackupObject.fromContents`'s v2/v3/v4 branches.
 
 - **Evidence:** the merge decision lives in
   `lib/core/services/backups/sync_steps/utils/restore_backup_service.dart`
@@ -82,7 +91,11 @@ The gaps below are mostly *coverage* and *product surface*, not structural rot.
   (v2/v3/v4) which `BACKLOG.md` already flags as the manual cross-app migration path.
 - **Backlog id:** new — see `BACKLOG.md` T-10.
 
-## 3. Search is a linear scan with a leftover per-open reindex, and has no tests
+## 3. Search is a linear scan; the per-open reindex and the missing tests are fixed (2026-11-16)
+
+> **Partly done.** `SearchFilterObject` now has its own test file, and the per-open reindex is
+> a single indexed `count()` with the search no longer waiting on it (D-044). **Still open:**
+> the scan itself — `contains` on an unindexed field — which needs a decision, not a drive-by.
 
 - **Evidence:** `StoryObjectBox.searchMetadata` is a nullable `String` with **no `@Index()`**
   (`lib/core/databases/adapters/objectbox/entities.dart`, line 94), and queries use
@@ -156,7 +169,13 @@ The user's next planned track is a leaner phone APK. Measured reality:
 
 ## 5. Perceived speed / polish items found while reading
 
-- **Theme fonts are fetched at runtime.** `AppTheme` builds its text theme with
+> **Partly done (2026-11-16):** the default text family is bundled (D-043). The rest below is
+> unchanged.
+
+- ~~**Theme fonts are fetched at runtime.**~~ ✅ **Fixed:** `assets/fonts/Quicksand-Variable.ttf`
+  (OFL, variable 300..700) is declared in `pubspec.yaml`, so `google_fonts` finds the default
+  family locally. `allowRuntimeFetching` was deliberately **not** disabled — see D-043.
+  Original finding kept for context: `AppTheme` builds its text theme with
   `GoogleFonts.getTextTheme(...)` (`lib/app_theme.dart`, line 155), and the font picker screen
   calls `GoogleFonts.getFont(...)` to draw previews. `google_fonts` downloads missing families
   over the network on first use; nothing in the repo sets `allowRuntimeFetching` or bundles the
@@ -177,10 +196,11 @@ The user's next planned track is a leaner phone APK. Measured reality:
   `Tooltip(` → 4). Flutter's default semantics cover most things, but the calendar cell, the
   score bar and the story-list rail — our own custom widgets — are exactly where a screen
   reader gets nothing. Cheap to add where it matters and invisible where it doesn't.
-- **Three bare `print()` calls** outside guarded code: `app_logger.dart` (guarded by
-  `kDebugMode`, fine), `base_storage_adapter.dart:27` (`"ERROR: read $e"`, **unguarded** — the
-  only one that can reach a release log), and `base_story_view_model.dart:368` (guarded).
-  Worth routing the unguarded one through `AppLogger`, which already respects `kDebugMode`.
+- **Zero unguarded `print()` calls.** Three bare `print`s exist and all three sit behind
+  `kDebugMode` (`app_logger.dart:31`, `base_storage_adapter.dart:27`,
+  `base_story_view_model.dart:368`). **Correction to an earlier draft of this file:** the
+  storage one *is* guarded — it looked unguarded because the guard is on the previous line.
+  Nothing to fix here; listed so the next reader does not re-open it.
 
 ## 6. Build/CI health (the rules we already have, and where they leak)
 
@@ -229,18 +249,16 @@ These are ranked by "uses what already exists" rather than by novelty:
 
 Ordered by *risk removed per hour spent*, not by ambition:
 
-1. **Turn on the editor package's 390 tests** (`BACKLOG.md` T-9) — the persisted content
-   format is the most dangerous area and its suite is currently never executed. ~1 commit,
-   no product change.
-2. **Test the backup merge decision** (`BACKLOG.md` T-10) — needs a tiny test seam first
-   (see §2), then a three-case table. This is the only failure mode in the app that can
-   silently destroy notes.
-3. **Ship a release-signed APK instead of trimming features** (`ANALYSIS.md` §4, D-038) —
-   the 138 MB is a debug-build artifact, not a fat-codebase verdict. Four secrets, one
-   documented workflow, and every "lightweight" question can then be answered with numbers.
+1. ~~**Turn on the editor package's 390 tests**~~ ✅ **done 2026-11-16** (T-9).
+2. ~~**Test the backup merge decision**~~ ✅ **done 2026-11-16** (T-10, D-042).
+3. **Ship a release-signed APK instead of trimming features** (§4, D-038) — the 138 MB is a
+   debug-build artifact, not a fat-codebase verdict. Four secrets, one documented workflow,
+   and every "lightweight" question can then be answered with numbers. **This is the one
+   left, and it needs the user's keystore.**
 
-Everything else (search quality, fonts offline, accessibility, coverage, Linux reminders,
-Markdown folder binding) is real but should wait for a decision rather than be bundled in.
+Everything else (search *quality*, the picker catalogue offline, the remaining a11y
+surfaces, Linux reminders, Markdown folder binding) is real but should wait for a decision
+rather than be bundled in.
 
 ---
 

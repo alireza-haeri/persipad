@@ -82,13 +82,13 @@ Generic journaling-app ideas; your preferences set the priority.
 | T-3 | `bin/docs` points to a `docs/` folder that doesn't exist in this version | Dead reference |
 | T-4 | Two separate Google Drive paths (standard + Linux) | Duplicate-bug risk (see D-021 for why Android must also align on OAuth client if Drive sync is shared) |
 | T-5 | `.github/workflows/ci.yml` comes from upstream, targets `develop`, and assumes an Android-era setup | Same as I-10 |
-| T-9 | `🔜` Editor package's 390 tests never run (CI + `bin/changed_tests` ignore `packages/**`) | The persisted content format is the most dangerous area and its suite is switched off — see `ANALYSIS.md` §1 |
-| T-10 | `🔜` No tests for backup merge decisions (`restoreOnlyNewData`, latest-checker, backup file versions) | The one bug class that silently loses notes; pure logic over two timestamps — see `ANALYSIS.md` §2 |
-| T-11 | `⏸` Search: linear `contains` scan on an unindexed field, reindex attempted on every open, no search tests | Split: cheap `SearchFilterObject`/`buildQuery` tests now, search quality later behind a decision — see `ANALYSIS.md` §3 |
-| T-12 | `⏸` Theme fonts are fetched over the network at first use (`GoogleFonts.getTextTheme`, no bundling, `kDefaultFontFamily = 'Quicksand'`) | Contradicts offline-first; bundle the offered families and set `allowRuntimeFetching = false` — see `ANALYSIS.md` §5 |
-| T-13 | `💡` Android workflow has no `paths-ignore`; docs pushes still occupy a run slot and can cancel an `[apk]` build (D-039) | Mirror `linux.yml`'s `ai/**`/`*.md` ignore |
-| T-14 | `💡` No coverage reporting on any active workflow | `--coverage` + lcov artifact on `[full]`; no threshold enforcement |
-| T-15 | `💡` Essentially no `Semantics`/`Tooltip` on our own custom widgets (calendar cell, score bar, story rail) | Cheap accessibility win in exactly the places Flutter cannot guess for us |
+| T-9 | `✅` Editor package's tests now run | `linux.yml` has an `Editor package tests` job gated on the scoper's new `packages` output; `bin/changed_tests` maps `packages/**` there instead of falling back to the whole app suite |
+| T-10 | `✅` Backup merge decisions are tested | `restore_backup_service_test.dart` covers all six timestamp states plus listener batching and `forceRestore`; needed a lazy table list + `overrideDatabases` seam (D-042). The latest-checker and file-version branches are still open |
+| T-11 | `⏸` Search quality: linear `contains` on an unindexed `searchMetadata` | The cheap half is done (`search_filter_object_test.dart`, and the per-open reindex is now a single `count()` — D-044). Real search quality (prefix/FTS) still needs its own decision |
+| T-12 | `✅` The default family ships with the app | `assets/fonts/Quicksand-Variable.ttf` (OFL, variable) declared in `pubspec.yaml` (D-043). The picker's catalogue stays online on purpose; `allowRuntimeFetching` was **not** disabled, with the reason recorded |
+| T-13 | `✅` ~~Android workflow has no `paths-ignore`~~ — **wrong, it always had one** (`android.yml` ignores `ai/**`, `**/*.md`, `LICENSE`) | Checked while implementing T-9; the cancel-in-progress fix from D-039 was the real issue and is already in |
+| T-14 | `✅` Coverage is reported | Advisory `Coverage` job on `[full]`/PRs: lcov artifact + a percentage notice; no threshold yet (deliberately — measure first) |
+| T-15 | `🚧` Accessibility on our own widgets | The calendar cell now has one semantic sentence (date + feeling + score) with the fragments excluded. The score bar and the story-list rail still need the same treatment |
 
 ## 3. Open questions
 

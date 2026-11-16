@@ -1,7 +1,7 @@
 # Status
 
 **Last updated:** 2026-11-16
-**Current session:** session 11 — docs hygiene pass (branch/tip, translation key count, JDK) + project analysis
+**Current session:** session 11 — docs hygiene + project analysis, then the first four items of that analysis
 **Branch:** `arena/c5b3ddac-notely` (branched from `a23869853bd7` of `arena/e3e3866a-notely`)
 **Code tip:** `a238698` (docs-only tip; the last code changes are the Session-10 Android fixes `d3d534e` and its ancestors)
 **Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; first local Fedora APK build still awaiting a verdict from the user
@@ -171,6 +171,27 @@
       finding with evidence and a re-measure command.
 - [x] `BACKLOG.md` grew T-9…T-15 from that review; open question 5 (lightweight phone build) now
       points at the measured input.
+- [x] **Then the analysis's own top items were implemented** (T-9, T-10, T-11 cheap half,
+      T-12, T-14, T-15 first surface):
+  - **T-9 — editor package tests run.** `linux.yml` gained an `Editor package tests` job
+    (~57 files / ~390 cases) and `bin/changed_tests` maps `packages/**` to a new `packages`
+    output instead of treating it as unmapped. Verified on CI `43833412429` (scoped) and the
+    full-suite run; the job appears in the run graph.
+  - **T-10 — backup merge is tested.** `BackupRepository.databases` is now seeded lazily and
+    `overrideDatabases()` gives tests a seam (D-042); `restore_backup_service_test.dart`
+    covers device-newer/backup-newer/equal/missing/missing-timestamps, listener batching and
+    `forceRestore`.
+  - **T-11 (cheap half) — search contract pinned.** `test/core/objects/search_filter_object_test.dart`
+    covers field→query-key mapping, query widening, the Shamsi display-year conversion,
+    `encode`'s DateTime safety and `DateRangeFilterObject`.
+  - **T-12 — default font bundled.** `assets/fonts/Quicksand-Variable.ttf` (OFL, variable
+    300..700, ~122 KB) declared in `pubspec.yaml`; `allowRuntimeFetching` deliberately left
+    alone (D-043).
+  - **T-14 — coverage reported.** Advisory `Coverage` job on `[full]`/PRs: lcov artifact plus a
+    one-line percentage notice, no threshold.
+  - **T-15 (first surface) — the calendar cell speaks.** One `Semantics` label per cell
+    (formatted date, feeling, score) with the inner fragments excluded, plus tests asserting
+    through the semantics tree.
 
 ## 🔄 In progress
 
@@ -219,10 +240,12 @@
 |---|---|
 | Dart files (`lib/` + `packages/`) | 1013 |
 | Locale files (`translations/`) | 21 (626 keys each, `fa.json` added) |
+| Bundled fonts | 2 families — Vazirmatn (Persian fallback) + Quicksand (default text, variable) |
 | Active platform targets | **2** (Linux desktop + Android `community` APK) |
 | CI on a plain push | `Scope` (~6s) + `Analyze` (~85s) + scoped `Test` (~1–3 min); `[build]`/`[apk]`/`[codegen]` opt-in |
 | Test files | 110 in `test/` + 57 in `packages/storypad_editor/test/` |
-| Tests that actually run in CI | **110 root files only** — the editor package's 390 cases are never run (`ANALYSIS.md` §1, `BACKLOG.md` T-9) |
+| Tests that run in CI | **167 files** — 110 root + 57 in `packages/storypad_editor` (T-9, fixed this session) |
+| Jobs in `linux.yml` | 6 — Scope, Analyze, Test (×shards), Editor package tests, Coverage, Build Linux desktop |
 | Pro feature gates opened by one switch | ~30 call sites (`ProEntitlementService.unlockAll`) |
 
 ## 🧾 Test log
@@ -241,6 +264,8 @@
 | 2026-11-16 | Android `community` arm64 debug APK (138 MB, `f258929`) | GitHub Actions | ✅ build + `aapt2`/`apksigner` verify green (`43812916947`) |
 | 2026-11-16 | Local Android APK scripts + `forceNdkDownload`/`36.1` fixes (`d3d534e`) | GitHub Actions + Sandbox | ✅ Linux CI Scope + Analyze + Test ×2 full suite green (`43823502245`); sandbox `bash -n` + stubbed `flutter`/`curl`/`adb`/`emulator` tests pass |
 | 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
+| 2026-11-16 | Analysis items: editor tests, backup merge, search contract, font, coverage, a11y | GitHub Actions | ✅ scoped run `43833412429` green (Scope 6s, Analyze 90s, Test 65s); full-suite run below |
+| 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | 🟡 full-suite verification running |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box

@@ -1028,3 +1028,72 @@ Template:
      `BACKLOG.md`/`PROGRESS.md` with the usual labels.
 - **Consequences:** the next agent starts from measured facts instead of prose, and a stale
   number is a bug with an obvious fix rather than a matter of trust.
+
+## D-042 — The backup merge decision gets tests, and the table list gets a test seam (2026-11-16)
+- **Status:** accepted
+- **Context:** `RestoreBackupService.restoreOnlyNewData` is the code that decides which
+  copy of a record survives a sync. It is pure logic over two `updatedAt` values, and it
+  had **no test at all** (`ANALYSIS.md` §2). The reason was structural: it iterates
+  `BackupRepository.databases`, a `static final` list whose initializer reads eight
+  `*.db` getters, each of which opens the real ObjectBox store — so importing it in a
+  unit test meant opening a database that does not exist there.
+- **Decision:**
+  1. `BackupRepository.databases` is seeded **lazily**: the list lives behind a getter,
+     and `_databases` is a lazy `static final` that is only touched on first read. A test
+     that overrides it never evaluates it.
+  2. `BackupRepository.overrideDatabases()` (`@visibleForTesting`) installs fakes for the
+     duration of a test; an empty list restores the real tables.
+  3. `JsonTablesToModelService.decode` takes an optional `databases` parameter for the
+     same reason.
+  4. `restore_backup_service_test.dart` is a table test over the six reachable states:
+     device newer (touch, never overwrite), backup newer (import + count), equal (no-op),
+     missing locally (insert), local without `updatedAt`, backup without `updatedAt`.
+     It also pins listener batching (`notifyCallbacks: false` + one `notify()`) and
+     `forceRestore`.
+- **Why a seam instead of a rewrite:** the merge rule is upstream behaviour that works;
+  changing its shape to make it testable would risk the data it protects. A getter and a
+  test-only setter change nothing at runtime (the lazy initializer is evaluated on exactly
+  the same first read as before).
+- **Consequences:** the one bug class that silently destroys notes is now pinned by
+  executable expectations, and any future adapter (a new table, a new storage backend) can
+  be merged against a fake instead of a device.
+
+## D-043 — The default text family ships with the app; the font catalogue stays online (2026-11-16)
+- **Status:** accepted
+- **Context:** `AppTheme` builds its entire text theme with `GoogleFonts.getTextTheme()`
+  and `kDefaultFontFamily` was `'Quicksand'` — a family nothing bundled. `google_fonts`
+  downloads a family it cannot find in the asset manifest, so on a fresh offline install
+  the app rendered with a platform fallback and swapped faces once the network answered.
+  For a privacy-first, offline-first app that is a contradiction (`GOAL.md`).
+- **Decision:** bundle **only the default family** (`assets/fonts/Quicksand-Variable.ttf`,
+  OFL, variable 300..700, ~122 KB) and declare it in `pubspec.yaml`. The picker's other
+  ~1500 families are a catalogue, not typography: they keep the package's normal behaviour
+  (download on demand) because shipping them is impossible and pretending otherwise would
+  silently change how every font preview looks.
+- **Explicitly *not* done:** `GoogleFonts.config.allowRuntimeFetching = false`. It would
+  make every non-bundled family in the picker resolve to a fallback face (or throw, in
+  versions that treat a missing family as an error), and this sandbox cannot run the
+  package to confirm which. A global behavioural switch on unverified semantics is a worse
+  trade than the download it prevents. If offline-only is ever wanted, the picker must be
+  limited to bundled families in the same change.
+- **Consequences:** default typography is identical on every OS and every connection;
+  +122 KB in the binary; `Vazirmatn` continues to serve Persian/Arabic glyphs through
+  `kScriptFontFamilyFallback` (D-023), so the two decisions do not overlap.
+
+## D-044 — Search opens on the data it has, and indexes in the background only when needed (2026-11-16)
+- **Status:** accepted
+- **Context:** `SearchViewModel` awaited `reindexSearchMetadata()` before its first
+  `load()`, so opening search showed nothing until a backfill that is a no-op on a healthy
+  database finished. The backfill itself was expensive even when empty: it materialised
+  every live tag into a map *before* discovering that no story needed reindexing.
+- **Decision:**
+  1. `reindexSearchMetadata()` answers "is there anything to do?" with a single
+     `count()` on the indexed condition and returns when the answer is zero.
+  2. `SearchViewModel` calls `load()` first and lets the backfill run concurrently. When it
+     finishes, the search re-runs **only** if a query or a tag was chosen while it was in
+     flight — the only two ways its result can change.
+- **Consequences:** the search screen paints immediately on every open. On a legacy
+  database the first open can still show results that miss not-yet-indexed rows for a
+  moment, and then refresh; that is strictly better than an empty screen, and the refresh
+  is keyed on the user having started searching. The scan itself is unchanged and stays
+  tracked as `BACKLOG.md` T-11 for a real decision later.
