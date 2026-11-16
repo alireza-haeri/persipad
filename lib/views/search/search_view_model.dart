@@ -28,8 +28,23 @@ class SearchViewModel extends ChangeNotifier with DisposeAwareMixin, DebounchedC
     required BuildContext context,
   }) {
     tagsProvider = context.read<TagsProvider>();
+
+    // The first paint must not wait for the legacy-metadata backfill.
+    //
+    // `reindexSearchMetadata` is a no-op once every story has metadata (it now
+    // answers that with a single indexed `count()` and returns), but on a large
+    // legacy database it can still rewrite thousands of rows. Awaiting it meant the
+    // search screen opened with an empty list and no tags until that finished.
+    // Search results are correct without it *for already-indexed data*, and a query
+    // typed while it runs simply reloads when it lands.
+    load();
     StoryDbModel.db.reindexSearchMetadata().then((_) {
-      load();
+      if (disposed) return;
+      final filter = searchFilter;
+      // Only re-run the search if it can have changed: a query or tag was picked
+      // while the backfill was in flight. (A null filter means `load()` has not
+      // finished yet — it will run with the fresh index.)
+      if (filter != null && (filter.query != null || filter.tagIds.isNotEmpty)) load();
     });
   }
 

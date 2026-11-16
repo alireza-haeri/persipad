@@ -197,7 +197,35 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
   /// - Older app versions may have stories missing this field, causing search to not find them.
   ///
   /// Call this only on the search view (lazy-load pattern) when needed to search text,
+  ///
+  /// ## Why it returns early
+  ///
+  /// It used to run on *every* open of the search screen. The expensive part was
+  /// never the query — it was `TagsBox().box.query(...)`, which materialises every
+  /// live tag into a map, plus `StoryContentHelper.stringToContent` for every story
+  /// missing metadata. On a fully indexed database (the normal case) all of that
+  /// work computed an empty result. A `count()` on the indexed condition answers
+  /// the only question that matters — "is there anything to do?" — for the price of
+  /// an index lookup, so the tag query and the per-story work only happen when
+  /// legacy rows actually exist.
+  ///
+  /// The count is inclusive of deleted rows on purpose: `searchMetadata.isNull()`
+  /// is the same field the backfill writes, so counting with the full condition
+  /// (including `permanentlyDeletedAt.isNull()`) keeps this exactly as conservative
+  /// as the loop below it.
   Future<void> reindexSearchMetadata() async {
+    final pendingCondition = StoryObjectBox_.id
+        .notNull()
+        .and(StoryObjectBox_.permanentlyDeletedAt.isNull())
+        .and(StoryObjectBox_.searchMetadata.isNull());
+
+    final pending = box.query(pendingCondition).build().count();
+
+    if (pending == 0) {
+      AppLogger.d('🔍 Reindex not needed: every story already has search metadata');
+      return;
+    }
+
     final tagById = await TagsBox().box
         .query(TagObjectBox_.id.notNull().and(TagObjectBox_.permanentlyDeletedAt.isNull()))
         .build()
