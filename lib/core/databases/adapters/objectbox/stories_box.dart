@@ -12,6 +12,8 @@ import 'package:storypad/core/databases/adapters/objectbox/tags_box.dart';
 import 'package:storypad/core/databases/models/asset_db_model.dart';
 import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/event_db_model.dart';
+import 'package:storypad/core/databases/models/place_db_model.dart';
+import 'package:storypad/core/databases/models/story_content_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/tag_category_db_model.dart';
 import 'package:storypad/core/databases/models/tag_db_model.dart';
