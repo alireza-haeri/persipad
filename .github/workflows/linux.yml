@@ -131,9 +131,6 @@ jobs:
             echo "::error::Some Dart files are not formatted (run bin/format):"
             for f in $changed; do
               echo "::error file=$f::Not formatted. Run: bin/format"
-              # TEMP-DEBUG: base64 of the formatter's diff, so an agent with no
-              # Dart SDK can apply it verbatim (Actions logs are blocked).
-              echo "::warning title=format-diff::$f $(git diff -- "$f" | base64 -w0)"
             done
             exit 1
           fi

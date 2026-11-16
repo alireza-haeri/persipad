@@ -241,7 +241,7 @@ class LinuxVoicePlayerBackend {
       _warnOnce(
         'seek:${tool.binary}',
         '$LinuxVoicePlayerBackend: ${tool.binary} cannot start mid-file - seeking '
-        'restarts the note. Install ffmpeg-free (ffplay) or mpv for scrubbing.',
+            'restarts the note. Install ffmpeg-free (ffplay) or mpv for scrubbing.',
       );
       clamped = Duration.zero;
     }
@@ -260,7 +260,7 @@ class LinuxVoicePlayerBackend {
       _warnOnce(
         'speed:${tool.binary}',
         '$LinuxVoicePlayerBackend: ${tool.binary} cannot change playback speed - '
-        'staying at 1x. Install ffmpeg-free (ffplay) or mpv for speed control.',
+            'staying at 1x. Install ffmpeg-free (ffplay) or mpv for speed control.',
       );
       return;
     }
