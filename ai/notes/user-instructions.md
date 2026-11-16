@@ -150,6 +150,40 @@ must report through **annotations** (`gh run view` shows them) and be judged by 
 
 ---
 
+## Sessions 5–10 — 2026-11-15 .. 2026-11-16 (summary catch-up)
+
+### N-010 — Codegen branch, CI scoping & local `bin/dev -t` (2026-11-15)
+> Keep generated `.g.dart` files working on fresh clones, split/scope CI so pushes only run what can break, and add a `-t` flag to `bin/dev` to run analyze/tests/build locally.
+
+**Status:** ✅ done → D-016, D-017, D-020, D-032, D-036
+
+### N-011 — Google Drive on Linux (2026-11-15)
+> Restore Google Drive sync on Linux with desktop OAuth; keep cross-app sandboxing facts explicit.
+
+**Status:** ✅ implemented (`bin/setup_sync`), E2E verification with real user OAuth client pending → D-019, D-021
+
+### N-012 — Persian locale, Vazirmatn font, Shamsi display calendar & RTL (2026-11-15)
+> Add full Persian (`fa`) UI, bundle Vazirmatn in the app, allow any first day of week + custom weekends, render dates/filters/picker/calendar/stats/recaps in Shamsi while keeping storage Gregorian, and fix RTL layout/icons/drawers/month names.
+
+**Status:** ✅ done → D-022 … D-030 (wording review of `translations/fa.json` open)
+
+### N-013 — Daily Score add-on, unified calendar, map toggle & motion polish (2026-11-15 .. 2026-11-16)
+> Add toggleable 0–100 daily score add-on (drag bar, HSV palette, omitting charts), unify it into one calendar (emoji + circled day number + score background tint + long-press rating + day card), make the map a toggleable add-on, allow sidebar reordering, and polish chart/grid/RTL animations.
+
+**Status:** ✅ done → D-031, D-033, D-034, D-035, D-037
+
+### N-014 — Android APK builds via GitHub Actions and local Fedora loop (2026-11-15 .. 2026-11-16)
+> Unpark `community` Android APK builds: add `.github/workflows/android.yml` (`[apk]` pre-releases), update Gradle/AGP for Flutter 3.50, and provide `bin/build_apk` + `bin/android_doctor` for local emulator/phone testing on Fedora behind a Google Maven block.
+
+**Status:** 🚧 CI green (`apk-20261116-0608-f258929`); local Fedora build at `d3d534e` actively running (`bin/build_apk --install --avd=storypad_dev -v`) → D-038, D-039, D-040
+
+### N-015 — Agent handoff docs & upcoming lightweight phone build (2026-11-16)
+> While the local Fedora APK build is running, bring all project docs (`ai/`) up to date so I can start parallel/next work with another agent; afterward I'll return to continue building a lightweight version of the app for phone.
+
+**Status:** 📌 doc handoff done (`ai/` refreshed at Session 10); lightweight mobile build `⏳ pending` (recorded as `BACKLOG.md` A-3; scope/feature cuts to be decided with user after local APK finishes).
+
+---
+
 ## Template for a new note
 
 ```md

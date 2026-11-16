@@ -5,8 +5,10 @@
 
 ## 1. Git & branch rules
 
-- We **always** work on the current branch: `arena/f59917e7-notely`.
-  No other branch is created or switched to; renaming is not possible either.
+- We **always** work on the current active branch: currently `arena/e3e3866a-notely`
+  (branched from `67bac3c5` of `arena/f59917e7-notely`). Never switch to, create, push
+  to, or rename another branch unless you are explicitly working in a new session
+  attached to that branch.
 - Commits are small and focused. Messages in English, Conventional Commits style:
   `feat: ...`, `fix: ...`, `docs(ai): ...`, `refactor: ...`, `chore: ...`.
 - The upstream history is pinned as a reference point (commit `cffda48`). We never
@@ -35,30 +37,43 @@
 
 ## 3. Platform rules
 
-- **Only Linux is an active target right now.** Android is parked (temporarily out of
-  scope, not abandoned — see D-007). Every change must be verifiable with
-  `bin/dev --community-linux` on your Fedora box.
-- **Linux is the dev loop I optimize for:** build and run must stay fast and one-command.
-  If a change makes `bin/setup_linux` + `bin/dev --community-linux` fail, it is not done.
-- **Do not add a dependency that has no Linux implementation** without an explicit
-  decision. If a package is Android-only, gate it behind `Platform.isAndroid` and make
-  sure the Linux UI degrades gracefully (message instead of crash).
+- **Active targets: Linux desktop and Android (`community` flavor).**
+  Every change should keep `bin/dev --community-linux` / `bin/dev -t` working on Fedora,
+  and shared/Android changes must not break `bin/build_apk` or `.github/workflows/android.yml`
+  (D-038, D-039, D-040). The `storypad` flavor stays out of scope (`private_keys/` absent).
+- **Keep both dev loops fast and one-command:**
+  - Linux: `bin/setup_linux` + `bin/dev --community-linux` (and `bin/dev -t` for local checks).
+  - Android: `bin/android_doctor` + `bin/build_apk --install` (auto-adapts to local SDKs
+    such as `android-36.1` and `--no-ndk` without touching `dl.google.com`).
+- **Do not break Android local builds:**
+  - Do not remove `notelyCompileSdkMinor`, `flutter.installedNdkVersions` (`notelyNdkVersion=none`),
+    or the `LibraryExtension.compileSdk >= 36` floor in `android/build.gradle.kts` /
+    `android/app/build.gradle.kts` (D-040).
+  - Do not add plugins with C/C++ native builds without discussing NDK impact first.
+- **Do not add a dependency that lacks Linux support** without an explicit decision and
+  a `Platform.isAndroid` / `PlatformCapabilities` guard so Linux degrades cleanly.
 - When a package is disabled on Linux (Firebase, biometrics, IAP, camera, quick actions,
-  video compression, Google sign-in), the code path must still work — no silent no-op
-  that looks like a bug.
+  video compression), the code path must still work — no silent no-op that looks like a bug.
 - macOS / Windows / iOS: no commitment. Their code must not be deleted, but we don't
   spend time on them and we don't add complexity for them.
-- If a change would break macOS/iOS compilation, prefer a platform guard over a global
-  change — but don't block on verifying it.
 
-## 3b. Verification rules (Linux, no local SDK)
+## 3b. Verification rules (CI + local fast gates)
 
-- **CI is the compiler.** I cannot build here, so `.github/workflows/linux.yml` must be
-  green before I call anything done: **Test** and **Build Linux desktop** are blocking,
-  **Analyze** is advisory.
+- **CI is the compiler for the sandbox.** I cannot run Flutter here, so `.github/workflows/linux.yml`
+  must be green before I call a code change done:
+  - `Scope` (`bin/changed_tests`) selects only the tests affected by the diff (or skips them
+    for `ai/`/`bin/`/`.github/`/`*.md`, or runs full 2-shard suite on unmapped/`pubspec`/
+    `android`/subject `[test]`/`[full]`).
+  - `Analyze` runs `flutter analyze --no-fatal-infos --no-fatal-warnings` (errors fail;
+    formatting check is advisory via annotations).
+  - `Build Linux desktop` runs on `[build]` / `[full]` / PRs.
+  - `.github/workflows/android.yml` builds the `community` arm64 APK on `[apk]` in commit
+    subject (or `workflow_dispatch`) and publishes a pre-release.
+- **Fast local verification:** the user can run `bin/dev -t` on Fedora before pushing, and
+  `bin/build_apk --install` for Android.
 - Every behavioural change ships with tests in `test/` (pure logic is preferred over
   widget tests so it stays fast and hermetic).
-- Never leave a dead button: if a capability can't work on Linux, the UI must say so or
+- Never leave a dead button: if a capability can't work on a platform, the UI must say so or
   the feature must go — see `PlatformCapabilities`.
 - If CI is red, the task is not done — no exceptions, no "probably fine".
 
@@ -83,7 +98,7 @@
 
 - [ ] `dart format` on touched files (when the tool is available).
 - [ ] New logic is testable and, where reasonable, covered in `test/`.
-- [ ] The Linux path was considered (Android is parked, but guards must not break it).
-- [ ] New strings are translated.
-- [ ] I told you exactly what to run (`bin/dev --community-linux`) and what to look at.
+- [ ] Both active paths considered: Linux (`bin/dev --community-linux` / `bin/dev -t`) and Android `community` (`bin/build_apk`).
+- [ ] New strings are added to **all 21** `translations/*.json` files (parity enforced by `unused_translations_test.dart`).
+- [ ] I told you exactly what to run (`bin/dev -t`, `bin/dev --community-linux`, or `bin/build_apk --install`) and what to check.
 - [ ] `ai/PROGRESS.md` updated, `ai/DECISIONS.md` updated if a decision was made.

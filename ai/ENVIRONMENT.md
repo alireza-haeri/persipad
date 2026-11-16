@@ -165,16 +165,34 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
   base64 -w0 release.jks        # paste as ANDROID_KEYSTORE_BASE64
   ```
 
-- **On your own machine, skip CI:** `bin/build_apk` does the whole thing —
-  prerequisite checks (Flutter, `ANDROID_HOME`, JDK 17), the empty dart-defines file,
-  the build, the path/size/sha256, and with `--install` an `adb install -r` that
-  explains `INSTALL_FAILED_UPDATE_INCOMPATIBLE` instead of just failing. ~2 minutes the
-  first time, ~40 s warm: use it for the loop, CI for the artifact you keep.
+- **On your own machine, skip CI (`bin/build_apk` + `bin/android_doctor`):**
+  - Run `bin/android_doctor` (or `--short`) first to check JDK 17+, Android SDK, AVDs,
+    and whether `dl.google.com` is reachable or blocked.
+  - If `dl.google.com` is blocked on your network, run **`bin/android_doctor --mirror`**.
+    It probes Aliyun, Tencent, and Huawei mirrors for AGP `9.1.1`, `google-services:4.4.4`
+    (both `.pom` and `.gradle.plugin`), and `crashlytics:3.0.6`, picks a 4/4 `200` mirror
+    (Tencent `mirrors.cloud.tencent.com/nexus/repository/maven-public` or Huawei, skipping
+    Aliyun if it returns 502 on `.gradle.plugin`), and writes Groovy
+    `~/.gradle/init.d/notely-google-mirror.gradle` (rewriting `dl.google.com` in-place via
+    `repositories.all` + `eachPlugin` mappings; never `.gradle.kts`, never appending repos).
+  - Run **`bin/build_apk --install --avd=storypad_dev -v`** (or `--install` with a phone
+    plugged in). It resolves `flutter` (`~/development/flutter_stable`), `adb`, and
+    `emulator` even when `$SDK/platform-tools` / `$SDK/emulator` are missing from `PATH`,
+    boots and waits for the AVD if requested, detects attached device ABI (`--abi auto`),
+    adapts to local platforms such as `android-36.1` (`notelyCompileSdk=36` +
+    `notelyCompileSdkMinor=1`) when `android-37` is absent, and sets `notelyNdkVersion=none`
+    when no NDK is installed (bypassing Flutter 3.50's `forceNdkDownload` `sdkmanager` hang
+    because nothing in `pubspec.lock` compiles C/C++ — see D-040).
+  - First cold build downloads Maven/Gradle artifacts once; warm incremental builds take
+    under a minute.
+- **Verified Fedora Android environment (`/mnt/MyData/Develop/Projects/notely`):**
+  JDK `17.0.19` (`amazon-corretto`), `ANDROID_HOME=~/Android/Sdk`, `platforms: android-34`
+  and `android-36.1` (no `android-36` or `android-37`), `build-tools: 36.1.0 37.0.0`,
+  no `ndk` / no `cmake`, AVD `storypad_dev` (`x86_64`), active Gradle mirror: Tencent.
 - `storypad` (the upstream flavor) is **not** buildable here: it needs `private_keys/`.
-- Local builds are possible with a full Flutter + Android SDK, via
-  `bin/build_release_android` — but it expects the `private_keys/` submodule and
-  `codemagic-cli-tools`, and it uploads to Play/Firebase. The workflow exists so that
-  nobody has to reproduce that setup to get an APK.
+- Local store builds via `bin/build_release_android` expect `private_keys/` and
+  `codemagic-cli-tools`, and upload to Play/Firebase. The `community` workflow and
+  `bin/build_apk` exist so nobody has to reproduce that setup to get an APK.
 
 ## 2.5 Troubleshooting (all of these actually happened)
 
@@ -195,6 +213,11 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | `Invalid client_id: ""` page from Dropbox | `DROPBOX_APP_KEY` is empty in the build | `bin/setup_sync --dropbox-key <app key>`; Dropbox app needs redirect `http://localhost:8763/callback` |
 | `objectbox.g.dart: Error: Method not found: 'loadObjectBoxLibraryAndroidCompat'` | committed generated code is older than the pinned objectbox 6 preview | run `bin/build_runner --delete` once (or `bin/setup_linux`); `bin/dev` now catches this in a second (D-016) |
 | `bin/dev` refuses to start: "Generated code has not been built in this checkout" | codegen stamp missing (fresh clone or pubspec change) | `bin/setup_linux`, or bypass once with `SKIP_CODEGEN_CHECK=1` |
+| `bin/build_apk`: `dl.google.com` 404 or `google-services:4.4.4` 502 from Aliyun | Google Maven blocked or mirror lacks `.gradle.plugin` marker POMs | run `bin/android_doctor --mirror` (selects 4/4 healthy Tencent/Huawei mirror, removes stale `.gradle.kts`) |
+| Gradle fails on `notely-google-mirror.gradle.kts` or `RepositoriesMode` (`prefer settings repositories`) | old Kotlin DSL init script or mirror script appended `repos.maven` instead of rewriting URLs | run `bin/android_doctor --mirror` to overwrite with Groovy in-place `repos.all` script |
+| Android build hangs 5+ min in `:app` on `sdkmanager --install ndk;28.2.13676358` | Flutter 3.50 `forceNdkDownload` calls `sdkmanager` even when nothing builds C/C++ | ensure `notelyNdkVersion=none` (`bin/build_apk --no-ndk` sets it automatically; D-040) |
+| Android build fails looking for `platforms;android-36` when machine has `android-36.1` | plugins pin `< 36`, `android/build.gradle.kts` raises to `36` without minor | fixed in `d3d534e`: `notelyCompileSdkMinor` aligns `app` and `LibraryExtension` plugins to `36.1` |
+| `emulator: command not found` or `bin/build_apk --install` exited silently with no device | SDK `emulator/`/`platform-tools/` not on `PATH`; `pipefail` tripped on empty `adb` | fixed in `0cb892f`: `bin/build_apk` resolves `$SDK/{emulator,platform-tools}` and adds `--avd` |
 
 ## 2.6 Known Linux limitations (product-level, not build errors)
 

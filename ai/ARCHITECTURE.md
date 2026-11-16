@@ -1,21 +1,21 @@
 # Architecture map
 
 Canonical source: the project's own `README.md` and `CONTRIBUTING.md`. This file is
-the practical cheat sheet for day-to-day work. Numbers were measured on 2026-11-15
-(version 2.34.0).
+the practical cheat sheet for day-to-day work. Numbers refreshed on 2026-11-16
+(version `2.34.0+834`, Session 10).
 
 ## Basics
 
 | Item | Value |
 |---|---|
-| Framework | Flutter (Dart SDK `^3.11.0`) |
+| Framework | Flutter **3.50.0** / Dart **3.14.0** (`.tool-versions`; `pubspec.yaml` declares `^3.11.0`) |
 | App version | `2.34.0+834` |
-| Dart files | ~981 (excluding `build/`) |
-| Tests | 92 files in `test/` + 57 in `packages/storypad_editor/test/` |
-| Database | ObjectBox (legacy SQLite adapter still present) |
+| Dart files | ~1013 across `lib/` and `packages/` (excluding `build/`) |
+| Tests | 110 files in `test/` + 57 in `packages/storypad_editor/test/` |
+| Database | ObjectBox (`6.0.0-preview.6`; legacy SQLite adapter still present) |
 | State | Provider + ChangeNotifier, three levels: Global / View / Widget |
 | Pattern | MVVM across 3–4 files: `Model` / `View` / `ViewContent` / `ViewModel` |
-| i18n | `easy_localization`, 20 files in `translations/` |
+| i18n | `easy_localization`, **21** files in `translations/` (628 keys each, `fa.json` added) |
 | Codegen | `build_runner` → `json_serializable`, `copy_with_extension`, `objectbox_generator`, `flutter_gen` |
 
 ## Entry points and boot
@@ -42,7 +42,8 @@ Then `runApp(ProviderScope(child: App()))`.
 
 `RootProvider` (navigation + sidebar), `BackupProvider`, `TagsProvider`,
 `AppLockProvider`, `DevicePreferencesProvider`, `InAppUpdateProvider`,
-`InAppPurchaseProvider`, `NicknameProvider`, `RelaxSoundsProvider` (lazy).
+`InAppPurchaseProvider`, `NicknameProvider`, `RelaxSoundsProvider` (lazy),
+`DailyScoreProvider` (eager `lazy: false` — preloaded for the calendar).
 
 > A new global provider is registered here. A screen-scoped provider is a
 > `ChangeNotifierProvider` inside that screen's `XView`, not here.
@@ -125,10 +126,37 @@ The ones that matter most for us:
 - The editor package has its own suite: `packages/storypad_editor/test/`.
 - Follow the existing conventions; a new test goes into the matching topical folder.
 
+## Fork additions & key subsystems (Sessions 2–10)
+
+Quick map of everything we added or rewired on top of StoryPad `v2.34.0`:
+
+- **Linux desktop & entitlements:**
+  - `lib/core/services/pro_entitlement_service.dart` (`unlockAll` switch opening ~30 Pro gates; `showUpsell`).
+  - `lib/core/services/platform_capabilities.dart` (capability matrix for Firebase, sync backends, etc.).
+  - `lib/core/services/backups/google_drive_auth_strategy.dart` + `google_desktop_oauth_service.dart` + `google_drive_linux_cloud_service.dart` (loopback PKCE OAuth2 on Linux; `bin/setup_sync`).
+  - Desktop media picking in `AppFilePickerService` via `file_picker`.
+- **Persian (fa), bundled font & RTL:**
+  - `translations/fa.json` + all 21 locales kept in exact 628-key parity (`unused_translations_test.dart`).
+  - `assets/fonts/Vazirmatn-*.ttf` + `OFL.txt` + `kScriptFontFamilyFallback` in `lib/core/constants/app_constants.dart`.
+  - RTL helpers: `SpIcons.previous(context)` / `SpIcons.next(context)`, `AppTheme.rtl(context)`, `RootPagesMediaQuery`, full Persian month names (never abbreviated).
+- **Shamsi (Solar Hijri) display calendar (`D-024`…`D-029`):**
+  - Storage & ObjectBox columns stay **Gregorian**. Conversion happens only at display/query boundaries.
+  - `lib/core/services/calendar/` (`persian_calendar.dart`, `calendar_display.dart`, `calendar_config.dart`, `weekday_name_service.dart`), `DateFormatHelper`, `SpDatePickerDialog`, `DateRangeFilterObject`, `SearchFilterObject.encode`, and `date_range`/`date_ranges` filters on `StoriesBox` & `EventsBox`.
+  - User-defined `firstDayOfWeek`, `weekendDays`, and `calendarSystem` (`DevicePreferencesObject`).
+- **Daily Score add-on, unified calendar & add-on controls (`D-031`…`D-037`):**
+  - `lib/core/services/scores/daily_score_scale.dart` (HSV red→orange→green scale, explicit `gradient(rtl:)`), `DailyScoreProvider` (`yyyy-MM-dd` Gregorian `MapStorage`), `lib/widgets/scores/` (`SpDailyScoreBar`, `SpDailyScoreSheet`, `SpScoreCallout`), `lib/views/calendar/trend/` (`ScoreTrendView` + animated hand-painted charts).
+  - Unified `SpCalendarDateCell`: mood emoji/check + circled day number + score background tint + long-press rating (`D-033`), animated row entrance & selection (`D-037`).
+  - `AddOnType` (`relax_sounds`, `map`, `period_calendar`, `daily_score`) and configurable `SidebarItemId` / `sidebarOrder` (`lib/core/types/`).
+- **Android toolchain & local/CI APK (`D-038`…`D-040`):**
+  - `android/gradle/wrapper/gradle-wrapper.properties` (Gradle `9.3.1`), `android/settings.gradle.kts` (AGP `9.1.1`, Kotlin `2.2.20`, FlutterFire plugins).
+  - `android/build.gradle.kts` (`notelyNdkVersion=none` → `flutter.installedNdkVersions` bypass for `forceNdkDownload`; `LibraryExtension.compileSdk >= 36` floor; `notelyCompileSdkMinor` propagation) and `android/app/build.gradle.kts` (`compileSdk`/`compileSdkMinor`, `ndkVersion`, `manifestPlaceholders`, `compilerOptions.jvmTarget`).
+  - `.github/workflows/linux.yml` (`Scope` via `bin/changed_tests` + `Analyze` + sharded `Test` + `[build]`), `android.yml` (`[apk]` pre-releases), `codegen.yml` (`[codegen]`), plus `bin/dev`, `bin/setup_linux`, `bin/build_apk`, `bin/android_doctor`, `bin/ci`.
+
 ## Sensitive areas (think three times before touching)
 
-1. `lib/core/databases/models/*` + `objectbox.g.dart` → real user-data migrations.
+1. `lib/core/databases/models/*` + `objectbox.g.dart` → real user-data migrations (requires `[codegen]` if schema/`@CopyWith` classes change).
 2. `lib/core/initializers/` + `lib/main.dart` → boot order breaks everything.
 3. `lib/core/services/backups/*` → risk of data loss.
 4. `lib/provider_scope.dart` and `RootProvider` → the entire navigation model.
 5. `packages/storypad_editor` → the persisted content format (backward compatibility).
+6. `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, `bin/android_doctor` → local Fedora build relies on `notelyCompileSdkMinor`, `flutter.installedNdkVersions`, and Groovy mirror rewriting (`D-040`).

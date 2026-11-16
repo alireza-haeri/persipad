@@ -39,3 +39,4 @@ At the end of every task:
 | 2026-11-15 | Created `ai/` alongside importing the StoryPad codebase |
 | 2026-11-15 | Rewritten in English (see D-006) |
 | 2026-11-15 | Linux-only dev scope, toolchain baseline, one-command dev loop (D-007 … D-010) |
+| 2026-11-16 | Refreshed docs through Session 10 (Shamsi/RTL, Daily Score, CI/local Android APK, agent handoff) |

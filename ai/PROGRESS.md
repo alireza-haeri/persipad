@@ -1,9 +1,32 @@
 # Status
 
 **Last updated:** 2026-11-16
-**Current session:** session 10 — local Android APK loop (`bin/build_apk` + `bin/android_doctor`)
+**Current session:** session 10 — local Android APK loop (`bin/build_apk` + `bin/android_doctor`) + handoff
 **Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
-**Phase:** 🟢 Linux CI green; local APK script fixed for missing `PATH` tools & zero-device silent exit
+**Code tip:** `d3d534e` (plus this `ai/` documentation handoff commit)
+**Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; first local Fedora APK build actively running on user's machine
+
+---
+
+## 🤝 Handoff Snapshot (start here if you are a new agent/session)
+
+1. **What exists right now (`d3d534e`):**
+   - **Desktop (Linux):** Fully working app (`bin/setup_linux`, `bin/dev --community-linux`, `bin/dev -t`) with all Pro features unlocked (`ProEntitlementService.unlockAll`), `PlatformCapabilities` gating, loopback OAuth2 Google Drive (`bin/setup_sync`, E2E credentials pending), `file_picker` media picking, Persian (`fa`) locale across all 21 `translations/*.json` files (628 keys), bundled `Vazirmatn` font, full Shamsi display calendar (storage/queries remain Gregorian), RTL layout/icon fixes, Daily Score add-on + animated charts integrated into one calendar (`SpCalendarDateCell`), toggleable Map add-on, and configurable sidebar ordering.
+   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without an NDK or `android-37` (D-040).
+2. **What is running on the user's Fedora machine right now:**
+   - User pulled `d3d534e`, ran `bin/android_doctor --mirror` (selected 4/4 healthy Tencent mirror `mirrors.cloud.tencent.com/nexus/repository/maven-public`), and ran `bin/build_apk --install --avd=storypad_dev -v`.
+   - **Verified fixed:** the 5m 34s `:app` `sdkmanager` NDK hang is gone (`notelyNdkVersion=none` + `flutter.installedNdkVersions` bypass worked) and Gradle is downloading artifacts cleanly from Tencent.
+   - **In progress on user's machine:** cold first-time Gradle plugin configuration (~50% through the ~31 Android plugins in `pubspec.lock`, last seen at `:google_sign_in_android`), followed by remaining Android plugins (`image_picker_android`…`volume_controller`), dependency resolution, Dart/Kotlin compilation, APK packaging, and `adb install` on `storypad_dev`.
+3. **What is planned next (do not step on these):**
+   - **Wait for Fedora build verdict** (either success + manual AVD check, or any final Gradle/runtime log the user brings back to the original session).
+   - **Lightweight mobile build (`BACKLOG.md` A-3 / `N-015`):** after the first APK runs, the user plans to return to trim heavy/unneeded features/dependencies into a lighter phone build.
+4. **Hard rules & invariants for any agent touching this repo:**
+   - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` (`Scope` + `Analyze` + sharded `Test`) or user's `bin/dev -t`.
+   - **Never leave `HEAD` depending on un-generated `*.g.dart`:** changing `@CopyWith` or ObjectBox models requires `.github/workflows/codegen.yml` (`[codegen]`) first (`D-016`).
+   - **Keep Gregorian storage / Shamsi display boundary intact** (`CalendarDisplay`, `DateRangeFilterObject`, `SearchFilterObject.encode`, `D-025`..`D-029`).
+   - **Keep all 21 `translations/*.json` key sets identical** (628 keys, enforced by `unused_translations_test.dart`).
+   - **Preserve RTL invariants** (`SpIcons.previous/next`, `AppTheme.rtl`, never abbreviate Persian month names, never wrap row widgets in `OverflowBox`, `DailyScoreScale.gradient(rtl:)`, `D-030`/`D-035`).
+   - **Preserve Fedora Android build hooks** in `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, and `bin/android_doctor` (`notelyCompileSdkMinor`, `flutter.installedNdkVersions`, `LibraryExtension.compileSdk >= 36`, Groovy mirror init script — `D-040`).
 
 ---
 
@@ -133,27 +156,34 @@
 
 ## 🔄 In progress
 
-- [ ] You pull, run `bin/setup_linux` + `bin/dev --community-linux`, and try adding a photo
-      and a video to an entry (the flows that used to fail on the desktop).
+- [ ] **First local Fedora APK build (`d3d534e`):** `bin/build_apk --install --avd=storypad_dev -v`
+      actively running on user's Fedora machine via Tencent mirror (NDK `forceNdkDownload` hang
+      confirmed resolved; Gradle downloading/configuring plugin subprojects). Awaiting final
+      build + `storypad_dev` AVD install outcome.
+- [ ] **Next planned track (`A-3` / `N-015`):** once the local APK build is verified on device/AVD,
+      scope and build a **lightweight phone version** of the app with the user.
 
 ## ⏳ Remaining (roadmap)
 
-### Phase 1 — verify
-- [ ] CI green on `arena/f59917e7-notely`.
-- [ ] You run `bin/setup_linux` + `bin/dev --community-linux` and confirm: all Pro
-      features present, Drive tile explains itself, Dropbox/Nextcloud connectable.
+### Phase 1 — verify current Android & Linux builds
+- [x] CI green on `arena/e3e3866a-notely` (`Linux` `43823502245`, `Android` `43812916947`).
+- [ ] Finish running `bin/build_apk --install --avd=storypad_dev -v` on Fedora and verify basic
+      flows on `storypad_dev` / physical Android phone (install, boot, Persian/Shamsi UI, calendar/scores).
+- [ ] On Linux desktop (`bin/dev --community-linux`), verify real Google Drive OAuth credentials
+      (`bin/setup_sync`), Nextcloud bridge (`I-12`), and wording review of `translations/fa.json`.
 
-### Phase 2 — remaining Linux gaps (see BACKLOG I-11…I-16)
-- [ ] Reminders/notifications on Linux (needs an app-side scheduler).
-- [ ] Photo picking on Linux (verify `file_picker` path).
-- [ ] Decide on Google Drive via loopback OAuth, or drop the Drive idea for Linux for good.
+### Phase 2 — lightweight phone build & Linux gaps
+- [ ] **Lightweight mobile/phone APK (`A-3` / `N-015`):** decide with the user which heavy modules/plugins
+      or locales to keep vs strip/gate for a smaller, faster phone APK.
+- [ ] Reminders/notifications on Linux (`BACKLOG.md` I-12 — needs an app-side scheduler).
 
-### Phase 3 — first real feature / personal redesign
-- [ ] Pick from `BACKLOG.md`; the redesign list is still yours to write.
+### Phase 3 — first new product features / personal redesign
+- [ ] Pick from `BACKLOG.md` (`F-1`…`F-10`); the redesign list is still yours to write.
 
-### Parked (do not work on)
-- Android builds/Gradle, camera, quick actions, video compression, biometrics.
-- macOS / Windows / iOS entirely.
+### Parked / out of scope (do not spend time on)
+- `storypad` upstream flavor (needs `private_keys/`).
+- macOS / Windows / iOS / Web targets.
+- Camera, quick actions, and video compression on Linux (stay guarded behind platform checks).
 
 ## 🧹 Known debt (small, tracked)
 
@@ -168,37 +198,46 @@
 
 | Metric | Value |
 |---|---|
-| Dart files (lib + packages) | 983 (+2 new services) |
-| Active platform targets | **1** (Linux desktop) |
-| CI on a plain push | 1 job (Analyze, ~2 min); `[test]`/`[build]`/`[full]` add more |
-| Tests added by us | 30 |
-| Existing tests | 92 + 57 (editor package) |
-| Pro feature gates opened by one switch | ~30 call sites |
+| Dart files (`lib/` + `packages/`) | 1013 |
+| Locale files (`translations/`) | 21 (628 keys each, `fa.json` added) |
+| Active platform targets | **2** (Linux desktop + Android `community` APK) |
+| CI on a plain push | `Scope` (~6s) + `Analyze` (~85s) + scoped `Test` (~1–3 min); `[build]`/`[apk]`/`[codegen]` opt-in |
+| Test files | 110 in `test/` + 57 in `packages/storypad_editor/test/` |
+| Pro feature gates opened by one switch | ~30 call sites (`ProEntitlementService.unlockAll`) |
 
 ## 🧾 Test log
 
 | Date | Task | Verified by | Result |
 |---|---|---|---|
 | 2026-11-15 | Base app runs as Linux desktop on Fedora | you | ✅ runs; ObjectBox + features work (N-006) |
-| 2026-11-15 | Dep bumps + `bin/dev --community-linux` + `bin/setup_linux` | you | ⏳ pending |
-| 2026-11-15 | Pro unlock + capability layer + CI | GitHub Actions | ✅ Test + Build green (run 43712927893) |
-| 2026-11-15 | Desktop media picking (`file_picker`) | GitHub Actions | ✅ all three jobs green (run 43716086122) |
-| 2026-11-15 | Formatting | GitHub Actions | ✅ "All Dart files are formatted" |
-| 2026-11-15 | Bundled font + calendar settings (weekends, any first day) | GitHub Actions | ✅ Analyze 80s, Test ×2, Build Linux — run 43727580987 |
-| 2026-11-15 | Shamsi display mode (list grouping, chips, dates, year scope) | GitHub Actions | ✅ Analyze 84s, Test ×2 — run 43731618364 |
+| 2026-11-15 | Pro unlock + capability layer + CI | GitHub Actions | ✅ Test + Build green (run `43712927893`) |
+| 2026-11-15 | Desktop media picking (`file_picker`) | GitHub Actions | ✅ all three jobs green (run `43716086122`) |
+| 2026-11-15 | Bundled font + calendar settings (weekends, any first day) | GitHub Actions | ✅ Analyze 80s, Test ×2, Build Linux (run `43727580987`) |
+| 2026-11-15 | Shamsi display mode, picker, filters, calendar, stats, recaps | GitHub Actions | ✅ green across rounds (`43731618364`…`43748544073`) |
+| 2026-11-15 | RTL layout/icons/month-chip + blank home fix | GitHub Actions | ✅ Analyze + Test ×2 green (`43751115475`, `43796471061`) |
+| 2026-11-15 | Daily score add-on + CI scoper (`bin/changed_tests`) | GitHub Actions | ✅ Scope + Analyze + Test ×2 + Build (`43798528975`) |
+| 2026-11-15 | Unified calendar (`SpCalendarDateCell` + `ScoreTrendView`) | GitHub Actions | ✅ Scope + Analyze + Test ×2 (`43800211911`) |
+| 2026-11-16 | Motion polish, day score callout, map add-on, sidebar order, `bin/dev -t` | GitHub Actions | ✅ green (`43801222059`, `43803014131`, `43803391050`, `43803970360`, `43804325119`) |
+| 2026-11-16 | Android `community` arm64 debug APK (138 MB, `f258929`) | GitHub Actions | ✅ build + `aapt2`/`apksigner` verify green (`43812916947`) |
+| 2026-11-16 | Local Android APK scripts + `forceNdkDownload`/`36.1` fixes (`d3d534e`) | GitHub Actions + Sandbox | ✅ Linux CI Scope + Analyze + Test ×2 full suite green (`43823502245`); sandbox `bash -n` + stubbed `flutter`/`curl`/`adb`/`emulator` tests pass |
+| 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
-> blocked). CI is the verifier now — see D-013. Nothing is "done" until it is green.
+> blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box
+> (`bin/dev -t`, `bin/build_apk`) are the verifiers — see D-013, D-032, D-036, D-040.
 
 ### What to run now
 
 ```bash
-bin/setup_linux                        # only if dependencies changed
-bin/dev --community-linux              # run the app
+# On Fedora — Android local build/install (currently running for d3d534e)
+bin/android_doctor --mirror                    # only once if dl.google.com is blocked
+bin/build_apk --install --avd=storypad_dev -v  # builds against local android-36.1 without NDK
+
+# On Fedora — Linux desktop dev & local test gate
+bin/setup_linux                                # only after fresh clone or pubspec changes
+bin/dev --community-linux                      # launch desktop app
+bin/dev -t                                     # fast local analyze + scoped test + build check
 ```
-Then check: Settings → Data & Backup (Drive should explain itself, Nextcloud/Dropbox
-should connect), any previously locked feature (fonts, backgrounds, templates, stats,
-markdown export) should now just open.
 
 ### Run log — 2026-11-15 (third round: picker, re-anchor, year filters)
 - `e6eba30` Shamsi date picker + `resetToToday()` on calendar change + per-calendar day
@@ -493,8 +532,15 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
     `compileSdkMinor` (via `com.android.build.api.dsl.LibraryExtension` on matching plugin
     subprojects) so AGP compiles against `platforms/android-36.1` instead of invoking `sdkmanager`
     for missing `android-36`.
-- Verified against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager`/`curl` in the sandbox
+- Verified in sandbox against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager`/`curl`
   (`bash -n`, `--help`, 0-device `--abi auto`, missing `PATH` tools, `--avd --install`, mirror
   502/200 selection, `android-34` + `android-36.1` platform selection + `--compile-sdk=36.1`,
-  `notelyNdkVersion=none` + `notelyCompileSdkMinor` env forwarding). Real device/AVD build on Fedora
-  is pending your run.
+  `notelyNdkVersion=none` + `notelyCompileSdkMinor` env forwarding) and committed/pushed at
+  `d3d534e`. `Linux` CI (`43823502245`) passed full suite (`Scope` + `Analyze` + `Test (1)` +
+  `Test (2)`).
+- Live Fedora check (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e` with Tencent
+  mirror): confirmed the 5m34s `:app` `sdkmanager` NDK hang is gone; Gradle passed `:geolocator_android`
+  / `:google_maps_flutter_android` and was configuring `:google_sign_in_android` (~50% through ~31
+  Android plugins) while downloading Maven/Kotlin artifacts cleanly. Waiting for the build +
+  `storypad_dev` AVD install to finish; next goal after verification is a lightweight phone build
+  (`BACKLOG.md` A-3 / `N-015`).
