@@ -140,6 +140,24 @@ android {
 
         release {
             signingConfig = signingConfigs.getByName("release")
+
+            // R8 + resource shrinking. Dart is tree-shaken by the AOT compiler itself;
+            // this removes what it cannot see — unused Java/Kotlin code and resources
+            // from ~40 plugins (Firebase, ObjectBox, image/video pickers, …).
+            // They must stay in lockstep: `isShrinkResources` without minification is an
+            // AGP error, not a warning.
+            //
+            // Escape hatch, if a plugin ever needs a keep rule and the release build dies
+            // in `minifyReleaseWithR8`:
+            //   bin/build_apk --release --sign-debug --abi arm64 -PnotelyMinify=false
+            //   (or ORG_GRADLE_PROJECT_notelyMinify=false)
+            val minify = (project.findProperty("notelyMinify") as String?)?.toBoolean() ?: true
+            isMinifyEnabled = minify
+            isShrinkResources = minify
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

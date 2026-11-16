@@ -7,6 +7,9 @@
 #   bin/build_apk --install --avd    # boot an AVD if nothing is attached, then install
 #   bin/build_apk --install --avd=storypad_dev
 #   bin/build_apk --release          # release build (needs the RELEASE_KEYSTORE_* env vars)
+#   bin/build_apk --release --sign-debug
+#                                    # release build signed with the Android debug key:
+#                                    # installable today, no secrets, ~4x smaller than debug
 #   bin/build_apk --abi all          # every ABI (biggest, slowest, always installable)
 #   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
@@ -51,12 +54,14 @@ VERBOSE=""
 DNS_SERVER="${NOTELY_DNS_SERVER:-}"
 NO_DNS_SERVER=0
 AVD_BOOTED=0
+SIGN_DEBUG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) INSTALL=1 ;;
     --launch)  INSTALL=1; LAUNCH=1 ;;
     --release) MODE=release ;;
+    --sign-debug) SIGN_DEBUG=1 ;;
     --debug)   MODE=debug ;;
     -v|--verbose) VERBOSE="-v" ;;
     --avd)
@@ -275,13 +280,17 @@ device_abi() {
 }
 
 # Flutter target platforms: android-arm, android-arm64, android-x64, android-x86.
+# Accepts both the device ABI names reported by `getprop ro.product.cpu.abi`
+# (arm64-v8a, armeabi-v7a, x86_64, x86) and the short names `--help` advertises
+# (arm64, arm, armv7) — the short ones used to fall through to "unknown --abi",
+# so the documented command did not work.
 to_flutter_platform() {
   case "$1" in
-    arm64-v8a)           echo android-arm64 ;;
-    armeabi-v7a|armeabi) echo android-arm ;;
-    x86_64)              echo android-x64 ;;
-    x86)                 echo android-x86 ;;
-    *)                   echo "" ;;
+    arm64|arm64-v8a|aarch64)       echo android-arm64 ;;
+    arm|armv7|armv7a|armeabi-v7a|armeabi) echo android-arm ;;
+    x64|x86_64)                    echo android-x64 ;;
+    x86|i686)                      echo android-x86 ;;
+    *)                             echo "" ;;
   esac
 }
 
@@ -488,7 +497,20 @@ DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
 
 # ---------------------------------------------------------------- signing
 if [ "$MODE" = "release" ] && [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then
-  cat >&2 <<'EOF'
+  DEBUG_KEYSTORE="$HOME/.android/debug.keystore"
+  if [ "$SIGN_DEBUG" = 1 ] && [ -f "$DEBUG_KEYSTORE" ]; then
+    # `--sign-debug`: a real release build (AOT Dart, R8, no VM) signed with the
+    # standard Android debug key. Everything that makes the APK big is a property
+    # of the build *type*; only the signature is the compromise, and that only
+    # matters if you later want to update an install signed with a store/upload key.
+    export RELEASE_KEYSTORE_PATH="$DEBUG_KEYSTORE"
+    export RELEASE_KEYSTORE_PASSWORD="android"
+    export RELEASE_KEY_ALIAS="androiddebugkey"
+    export RELEASE_KEY_PASSWORD="android"
+    warn "signing this release build with the Android DEBUG key ($DEBUG_KEYSTORE)."
+    warn "Fine for your own phone today; a future build signed with your own key will not update it in place."
+  else
+    cat >&2 <<'EOF'
 release builds need a keystore. Either export the four variables
 
   RELEASE_KEYSTORE_PATH=/abs/path/release.jks
@@ -501,9 +523,22 @@ or create one once (and keep it — losing it changes your app's identity):
   keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
           -validity 10000 -alias upload
 
+Want the small/fast build right now, without creating anything? Sign the release
+build with the Android debug key (already on this machine after any debug build):
+
+  bin/build_apk --release --sign-debug --abi arm64
+
 Use --debug if you just want something to install right now.
 EOF
-  exit 1
+    exit 1
+  fi
+fi
+
+# Release builds get their Dart symbols written outside the APK: they are what
+# `flutter symbolize` needs for a stack trace, and nothing on a phone reads them.
+SYMBOLS=""
+if [ "$MODE" = "release" ]; then
+  SYMBOLS="--split-debug-info=build/symbols"
 fi
 
 # ---------------------------------------------------------------- build
@@ -522,7 +557,7 @@ say "Building $FLAVOR ($MODE, $CHOSEN)…"
   --flavor="$FLAVOR" \
   --target="lib/main_$FLAVOR.dart" \
   --dart-define-from-file="$DEFINES" \
-  $TOOLCHAIN $VERBOSE
+  $SYMBOLS $TOOLCHAIN $VERBOSE
 
 APK="build/app/outputs/flutter-apk/app-$FLAVOR-$MODE.apk"
 [ -f "$APK" ] || die "the build finished but $APK is missing — check the output above."
@@ -532,6 +567,7 @@ printf '  file    %s\n' "$APK"
 printf '  size    %s\n' "$(du -h "$APK" | cut -f1)"
 printf '  abi     %s\n' "$CHOSEN"
 printf '  sha256  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)"
+printf '  report  bin/apk_report %s\n' "$APK"
 
 # ---------------------------------------------------------------- install
 if [ "$INSTALL" = 1 ]; then
