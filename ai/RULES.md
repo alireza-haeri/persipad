@@ -5,12 +5,11 @@
 
 ## 1. Git & branch rules
 
-- We **always** work on the current active branch of the session. As of 2026-11-16
-  (session 11) that is **`arena/c5b3ddac-notely`**, branched from `a23869853bd7`
-  (the Session-10 handoff commit on `arena/e3e3866a-notely`). Never switch to,
-  create, push to, or rename another branch unless you are explicitly working in a
-  new session attached to that branch. The branch name is per-session: when a new
-  session starts, this line is updated rather than the old one being kept.
+- We **always** work on the current active branch of the session (`main` holds the
+  integrated baseline; per-session Arena branches such as **`arena/41be3147-notely`**
+  merge back into `main` via PR once verified). Never switch to, create, push to, or
+  rename another branch unless you are explicitly working in a new session attached
+  to that branch.
 - Commits are small and focused. Messages in English, Conventional Commits style:
   `feat: ...`, `fix: ...`, `docs(ai): ...`, `refactor: ...`, `chore: ...`.
 - The upstream history is pinned as a reference point (commit `cffda48`). We never

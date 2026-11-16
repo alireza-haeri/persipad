@@ -42,10 +42,11 @@ does not collide with c5's D-041.
 ## Verification
 
 The individual branch CI results are not proof that the combination works.
-Run full Linux analyze, app and editor tests, coverage and Linux build on the
-integration commit. Android build and real-device OAuth/Fedora validation remain
-separate checks. Do not delete source branches or merge into main until the
-integration is reviewed and verification succeeds.
+Verified on the integrated commit:
+- **GitHub Actions Linux CI (`43854176350`):** 7/7 jobs green (`Scope`, `Analyze`, `Test (1)`, `Test (2)`, `Editor package tests`, `Build Linux desktop`, `Coverage` 14.7%).
+- **GitHub Actions Android CI (`43849981463`):** `Build APK` + `Verify the APK` (fail-closed `apksigner` signature check + Python regression tests) green.
+- **Fedora 44 local verification (`bin/local_verify`):** `analyze` PASS (`12s`), `root tests` PASS (`+1087`, `56s`), `editor tests` PASS (`+11088` steps, `24s`), `linux build` PASS (`13s`), and `android apk` PASS (`1m32s`, with `NDK 28.2.13676358` + `CMake 3.22.1` + `android-36.1` + Tencent mirror).
+- Consolidated onto `main` via PR and pruned merged feature branches (`arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, `ci/codegen`). Real-device Google Drive OAuth sign-in remains an optional E2E check once user OAuth credentials are configured via `bin/setup_sync`.
 
 The integration review also found that the APK verification step ignored a
 nonzero `apksigner verify` exit status. The workflow now fails closed on an

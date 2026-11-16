@@ -1,35 +1,37 @@
 # Status
 
 **Last updated:** 2026-11-16
-> Integration note: the parallel c5 and e3e branches are combined on `arena/41be3147-notely`. This document describes the e3e branch before integration; see `MERGE_REVIEW.md` for the integrated state and `merge-history/` for exact branch snapshots.
+> Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 11 — lightweight fork trim (`D-047`) + unified Google Drive OAuth2
-**Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
-**Phase:** 🚧 Lightweight feature/dependency trim implemented; verifying via `[codegen]`, Linux CI, and Android `[apk]` CI
+**Current session:** session 12 — parallel branch review, integration, local+CI verification, and `main` consolidation (`D-047`..`D-049`)
+**Branch:** `main` (integrated via `arena/41be3147-notely`)
+**Phase:** ✅ Consolidated on `main` — Linux CI (7/7 jobs), Android APK CI, and local Fedora Linux + Android APK verification all green
 
 ---
 
 ## 🤝 Handoff Snapshot (start here if you are a new agent/session)
 
 1. **What exists right now:**
-   - **Streamlined cross-platform core (`D-047`):** Removed Maps/Location/Geocoding, Relax Sounds (`audio_service`), Period Calendar, Add-ons screen, Fonts picker (`google_fonts`), In-App Purchases/Paywall/Support Us (`purchases_flutter`), non-Drive cloud providers (`Nextcloud`/`Dropbox`/`iCloud`/`webdav_client`/`dio`/`flutter_web_auth_2`), and 19 non-EN/FA translation locales. Removed 14 dependencies from `pubspec.yaml`.
-   - **Unified Google Drive sync (Linux + Android):** Both platforms now authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
-   - **Two locales & bundled fonts:** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using system default fonts for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale`).
-   - **Daily Score in Settings:** Daily Score toggle moved into Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
-   - **Android (`community` flavor):** `MainActivity` extends `FlutterFragmentActivity` directly, `AndroidManifest.xml` drops unused location/foreground-service/ad-service declarations and adds an `https` `BROWSABLE` `<queries>` intent, and `.github/workflows/android.yml` injects OAuth secrets and fixes `Verify the APK` (`$ANDROID_HOME`, `grep -c`, `ABI`). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) remain intact (`D-040`).
-2. **Latest Fedora APK build diagnosis & fix:**
-   - On `d3d534e`, `bin/build_apk --install --avd=storypad_dev -v` cached all Maven/Kotlin dependencies from Tencent (`33m 15s` cold; Retry #1 reached `:jni` in `8.9s`), passed `:app` and 25 plugins cleanly, and failed at `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`) because transitive `jni` (`1.0.3`, pulled by `path_provider_android` `2.3.1`) genuinely compiles `libdartjni.so` via CMake + NDK, while Fedora lacked `ndk` and `cmake`.
-   - Updated `bin/android_doctor` (`MISSING` + catalogue fallback for `ndk;*` and `cmake;*` from the SDK mirror when `jni` is in `pubspec.lock`), `bin/build_apk` (fail fast if NDK/CMake missing; otherwise export installed NDK via `notelyNdkVersion`), and `android/build.gradle.kts` (propagate `notelyNdkVersion` to `:app` and `LibraryExtension` plugins such as `:jni`, and clamp `compileSdk` to `notelyCompileSdk`).
-3. **What is planned next (do not step on these):**
-   - **User installs NDK + CMake (`bin/android_doctor --fix`) and re-runs `bin/build_apk --install --avd=storypad_dev`** (reusing cached `~/.gradle/caches/`).
-   - **Lightweight mobile build (`BACKLOG.md` A-3 / `N-015`):** after the first APK runs, the user plans to return to trim heavy/unneeded features/dependencies into a lighter phone build.
+   - **Streamlined cross-platform core (`D-047`, confirmed in `N-020`):** Removed Maps/Location/Geocoding, Relax Sounds (`audio_service`), Period Calendar, Add-ons screen, Fonts picker (`google_fonts`), In-App Purchases/Paywall/Support Us (`purchases_flutter`), non-Drive cloud providers (`Nextcloud`/`Dropbox`/`iCloud`/`webdav_client`/`dio`/`flutter_web_auth_2`), and 19 non-EN/FA translation locales (14 dependencies removed).
+   - **Unified Google Drive sync (Linux + Android):** Both platforms authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
+   - **Two locales & 100% offline dual-font typography (`D-048`):** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using bundled `Quicksand` (`Quicksand-Variable.ttf`) for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale` / `fontFamilyForLanguageCode`), with zero network font fetching.
+   - **Performance, tests, CI & DST-safe calendar (`D-042`..`D-046`, `D-049`):** Non-blocking search reindex (`count()` probe), backup merge unit tests (`BackupRepository.overrideDatabases`), `SearchFilterObject` tests, calendar cell accessibility semantics, DST-safe civil/UTC date math (`Asia/Tehran` verified), editor package test job (`390` cases) + `Coverage` job (`14.7%`) in `linux.yml`, fail-closed `apksigner` signature check + `[apk-test]` mode in `android.yml`, and `bin/local_verify` for one-command local Linux + Android verification.
+   - **Daily Score in Settings:** Daily Score toggle lives in Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
+   - **Android (`community` flavor, local Fedora & CI verified):** `bin/android_doctor` + `bin/build_apk` confirmed working end-to-end on Fedora (`NDK 28.2.13676358` + `CMake 3.22.1` + `android-36.1` + Tencent Maven mirror → APK built in `1m32s`), alongside `.github/workflows/android.yml` on GitHub Actions.
+2. **Verified metrics (2026-11-16):**
+   - **Fedora local (`bin/local_verify`):** `analyze` PASS (`12s`), `root tests` PASS (`+1087`, `56s`), `editor tests` PASS (`+11088` steps / 57 files, `24s`), `linux build` PASS (`13s`), `android apk` PASS (`1m32s`).
+   - **GitHub Actions CI:** Linux (`43854176350`) 7/7 jobs green; Android (`43849981463`) APK build + signature verification green.
+3. **What is planned next:**
+   - **Real-device Google Drive OAuth E2E check:** configure `GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET` via `bin/setup_sync` and test sign-in + sync between Linux desktop and Android phone.
+   - **Release keystore secrets (optional):** add `ANDROID_KEYSTORE_*` secrets in GitHub Settings if smaller, updatable release-signed APKs are wanted from `[apk]`.
 4. **Hard rules & invariants for any agent touching this repo:**
-   - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` (`Scope` + `Analyze` + sharded `Test`) or user's `bin/dev -t`.
+   - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` / `android.yml` or user's `bin/local_verify` / `bin/dev -t`.
    - **Never leave `HEAD` depending on un-generated `*.g.dart`:** changing `@CopyWith` or ObjectBox models requires `.github/workflows/codegen.yml` (`[codegen]`) first (`D-016`).
-   - **Keep Gregorian storage / Shamsi display boundary intact** (`CalendarDisplay`, `DateRangeFilterObject`, `SearchFilterObject.encode`, `D-025`..`D-029`).
-   - **Keep all 21 `translations/*.json` key sets identical** (628 keys, enforced by `unused_translations_test.dart`).
+   - **Keep Gregorian storage / Shamsi display boundary intact** (`CalendarDisplay`, `DateRangeFilterObject`, `SearchFilterObject.encode`, `D-025`..`D-029`) and never step calendar dates with `Duration(days:)` on local `DateTime` (`D-049`).
+   - **Keep `translations/en.json` and `translations/fa.json` key sets identical** (`485` keys, enforced by `unused_translations_test.dart`).
+   - **Keep both fonts 100% offline (`D-048`):** `Vazirmatn` (`fa`) and `Quicksand` (`en`) in `assets/fonts/`; never reintroduce runtime network font fetching.
    - **Preserve RTL invariants** (`SpIcons.previous/next`, `AppTheme.rtl`, never abbreviate Persian month names, never wrap row widgets in `OverflowBox`, `DailyScoreScale.gradient(rtl:)`, `D-030`/`D-035`).
-   - **Preserve Fedora Android build hooks** in `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, and `bin/android_doctor` (`notelyCompileSdkMinor`, `flutter.installedNdkVersions`, `LibraryExtension.compileSdk >= 36`, Groovy mirror init script — `D-040`).
+   - **Preserve Fedora Android build hooks** in `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, and `bin/android_doctor` (`notelyCompileSdkMinor`, `notelyNdkVersion`, `LibraryExtension.compileSdk >= 36`, Groovy mirror init script — `D-040`).
 
 ---
 

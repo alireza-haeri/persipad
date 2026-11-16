@@ -24,6 +24,8 @@ where we stand.
 | [`ANALYSIS.md`](ANALYSIS.md) | Measured findings: what could be better next, with evidence + a re-measure command (D-041) |
 | [`CHANGES.md`](CHANGES.md) | One session's diff told as a story: what changed, why, and the run id that proves it |
 | [`NEXT.md`](NEXT.md) | The ordered plan: what is blocked on you, what needs a decision, what I can do alone |
+| [`MERGE_REVIEW.md`](MERGE_REVIEW.md) | Session 12 parallel-branch review (`c5` + `e3e`), findings, fixes, and `main` consolidation |
+| [`merge-history/`](merge-history/) | Exact historical `ai/` snapshots of `c5`, `e3e`, `f599`, and `codegen` before pruning |
 | [`notes/`](notes/) | Raw, dated notes of what you asked for |
 
 ## Update ritual
@@ -63,3 +65,4 @@ At the end of every task:
 | 2026-11-16 | Refreshed docs through Session 10 (Shamsi/RTL, Daily Score, CI/local Android APK, agent handoff) |
 | 2026-11-16 | Session 11: branch/tip, translation key count (626) and JDK facts corrected; `ANALYSIS.md` added (D-041) |
 | 2026-11-16 | Session 11 round two: T-9…T-15 implemented; `CHANGES.md` and `NEXT.md` added, `RULES.md` §3b rewritten to match the new CI (D-042…D-046) |
+| 2026-11-16 | Session 12: Parallel branches (`c5`, `e3e`, `f599`, `ci/codegen`) reviewed, merged, verified on Fedora + CI, and consolidated onto `main` (`MERGE_REVIEW.md`, `D-047`…`D-049`) |

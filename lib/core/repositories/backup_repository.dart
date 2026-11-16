@@ -81,22 +81,21 @@ class BackupRepository {
   static List<BaseDbAdapter> _databasesOverride = const [];
 
   static List<BaseDbAdapter> _seedDatabases() => [
-        PreferenceDbModel.db,
-        StoryDbModel.db,
-        TagDbModel.db,
-        TagCategoryDbModel.db,
-        EventDbModel.db,
-        TemplateDbModel.db,
-        AssetDbModel.db,
-        RelaxSoundMixModel.db,
-      ];
+    PreferenceDbModel.db,
+    StoryDbModel.db,
+    TagDbModel.db,
+    TagCategoryDbModel.db,
+    EventDbModel.db,
+    TemplateDbModel.db,
+    AssetDbModel.db,
+    RelaxSoundMixModel.db,
+  ];
 
   /// The tables a backup reads and writes.
   ///
   /// Tests that exercise merge logic (no real database, no ObjectBox native code)
   /// replace this with fakes through [overrideDatabases].
-  static List<BaseDbAdapter> get databases =>
-      _databasesOverride.isEmpty ? _databases : _databasesOverride;
+  static List<BaseDbAdapter> get databases => _databasesOverride.isEmpty ? _databases : _databasesOverride;
 
   /// Replaces [databases] for the duration of a test. Pass an empty list to
   /// restore the real tables.

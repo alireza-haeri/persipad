@@ -131,8 +131,7 @@ void main() {
     // Assertions go through the semantics *tree* (`tester.binding.pipelineOwner.
     // semanticsOwner`) rather than one node's identity: `SpTapEffect` wraps the cell
     // in a `GestureDetector`, which contributes its own node above ours.
-    SemanticsNode rootNode(WidgetTester tester) =>
-        tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
+    SemanticsNode rootNode(WidgetTester tester) => tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
 
     String allLabels(SemanticsNode node) {
       final labels = <String>[];
@@ -175,8 +174,11 @@ void main() {
       await pumpCell(tester, feelings: ['🥳'], score: 70);
 
       final labels = allLabels(rootNode(tester));
-      expect('15'.allMatches(labels).length, lessThanOrEqualTo(1),
-          reason: 'excludeSemantics keeps the badge from being read as a second, bare "15"');
+      expect(
+        '15'.allMatches(labels).length,
+        lessThanOrEqualTo(1),
+        reason: 'excludeSemantics keeps the badge from being read as a second, bare "15"',
+      );
 
       handle.dispose();
     });

@@ -41,7 +41,7 @@ features layered on top and parts of the UX redesigned to our taste.
 
 - [ ] Final product name: keep `StoryPad`, or use our own brand (the repo is `notely`)?
 - [ ] Will this fork ever be public (GPLv3 → modifications must stay open source)?
-- [ ] Do we keep the paid features (StoryPad Pro / RevenueCat) or remove them?
-- [ ] Is 20-language support needed, or are Persian + English enough?
+- [x] Do we keep the paid features (StoryPad Pro / RevenueCat) or remove them? → **Removed (`D-047`, `N-020`)**
+- [x] Is 20-language support needed, or are Persian + English enough? → **Persian + English only (`D-047`, `N-020`), with offline `Vazirmatn` + `Quicksand` (`D-048`)**
 
 Answers get recorded in [`DECISIONS.md`](DECISIONS.md) as they arrive.

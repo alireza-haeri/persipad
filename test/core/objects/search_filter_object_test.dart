@@ -32,7 +32,9 @@ void main() {
     test('only carries the fields that were set', () {
       final filters = empty().toDatabaseFilter()!;
 
-      expect(filters, {'types': ['docs']});
+      expect(filters, {
+        'types': ['docs'],
+      });
     });
 
     test('maps every supported field to its query key', () {
@@ -170,8 +172,11 @@ void main() {
       CalendarConfig.apply(system: CalendarSystemOption.persian);
       final filters = SearchFilterObject(years: {1405}, types: {PathType.docs}, assetId: null).toDatabaseFilter();
 
-      expect(() => jsonEncode(filters), throwsA(anything),
-          reason: 'this is the crash D-028 fixed; the test documents it');
+      expect(
+        () => jsonEncode(filters),
+        throwsA(anything),
+        reason: 'this is the crash D-028 fixed; the test documents it',
+      );
       expect(() => SearchFilterObject.encode(filters), returnsNormally);
       expect(SearchFilterObject.encode(filters), contains('2026-03-21'));
     });

@@ -14,6 +14,7 @@ the practical cheat sheet for day-to-day work. Refreshed on 2026-11-16
 | State | Provider + ChangeNotifier, three levels: Global / View / Widget |
 | Pattern | MVVM across 3–4 files: `Model` / `View` / `ViewContent` / `ViewModel` |
 | i18n | `easy_localization`, **2** files in `translations/` (`en.json`, `fa.json`, `485` keys each) |
+| Fonts | 100% offline bundled assets (`Vazirmatn` for `fa`, `Quicksand` variable for `en` — `D-048`) |
 | Codegen | `build_runner` → `json_serializable`, `copy_with_extension`, `objectbox_generator`, `flutter_gen` |
 
 ## Entry points and boot

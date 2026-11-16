@@ -245,7 +245,7 @@ question, so the next session does not have to guess.
 ### N-019 — Read all `ai/` across branches, review parallel AIs' work, finish `e3e`, merge to `main`, test, delete other branches, and report
 > «ازت میخوام ابتدا پوشه ai رو کامل روی تمامی برنچ ها مطالعه کنی ... بعد باید برنچ ها رو برسی کنی و تمامشون رو باهم روی main مرج کنی ... تست ها رو هم اجرا میکنی و برنچ های دیگه رو حذف میکنی ... کار ai روی `arena/e3e3866a-notely` ناتموم موند و خطا داد ... برسی کن چه کاری انجام میداده و کارش رو تموم کن»
 
-**Status:** 🔄 in progress (code merged & verified; awaiting final local confirmation before pushing `main` and pruning branches)
+**Status:** ✅ done → merged to `main`, verified on CI + Fedora, historical snapshots archived under `ai/merge-history/`
 **Ref:** [`../MERGE_REVIEW.md`](../MERGE_REVIEW.md), `D-047`..`D-049`
 
 ### N-020 — Confirm lightweight removals + offline dual-font policy (`Vazirmatn` + `Quicksand`)
