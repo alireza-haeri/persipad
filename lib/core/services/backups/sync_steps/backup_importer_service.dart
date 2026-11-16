@@ -36,7 +36,7 @@ class BackupImporterService {
         success: true,
         message: 'No new data to import.',
       );
-      return true;
+      return false;
     }
 
     _messenger.report(
@@ -60,7 +60,7 @@ class BackupImporterService {
       totalChangesCount += changesCount;
     }
 
-    if (notifyCallbacks) await restoreService.notify();
+    if (notifyCallbacks && totalChangesCount > 0) await restoreService.notify();
 
     _messenger.report(
       serviceType: cloudService.serviceType,
@@ -70,6 +70,6 @@ class BackupImporterService {
       message: '$totalChangesCount records are imported or updated.',
     );
 
-    return true;
+    return totalChangesCount > 0;
   }
 }

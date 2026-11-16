@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
 import 'package:storypad/core/services/duration_format_service.dart';
+import 'package:storypad/core/services/linux_voice_player_backend.dart';
 import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/widgets/sp_animated_icon.dart';
@@ -117,9 +118,17 @@ class SpVoicePlayer extends StatefulWidget {
 }
 
 class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserver {
-  /// AudioPlayer instance managed by this widget.
-  /// Handles actual playback using the just_audio package.
-  final AudioPlayer player = AudioPlayer();
+  static bool get _useLinuxBackend => Platform.isLinux;
+
+  /// AudioPlayer instance managed by this widget on non-Linux platforms.
+  /// Never instantiated on Linux, because `just_audio` has no Linux plugin
+  /// implementation and its constructor immediately calls `init` over a missing
+  /// `MethodChannel`.
+  late final AudioPlayer? _justAudioPlayer = _useLinuxBackend ? null : AudioPlayer();
+
+  /// System-CLI player used on Linux (see [LinuxVoicePlayerBackend]); null
+  /// everywhere else.
+  LinuxVoicePlayerBackend? _linuxPlayer;
 
   /// Whether audio is currently playing.
   bool playing = false;
@@ -178,6 +187,29 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
     _playbackSpeed = _preferencesProvider.preferences.voicePlaybackSpeed;
     _preferencesProvider.addListenerForVoicePlaybackSpeed(_onPreferencesChanged);
 
+    // On Linux `just_audio` has no implementation at all, so [AudioPlayer] is
+    // never constructed there; the CLI backend reports through these callbacks.
+    if (_useLinuxBackend) {
+      _linuxPlayer = LinuxVoicePlayerBackend(
+        onPlayingChanged: (isPlaying) {
+          if (!mounted) return;
+          setState(() => playing = isPlaying);
+        },
+        onPositionChanged: (position) {
+          if (!mounted) return;
+          setState(() => _position = position);
+        },
+        onDurationChanged: (duration) {
+          if (!mounted) return;
+          setState(() => _duration = duration);
+        },
+        onCompleted: () {
+          if (!mounted) return;
+          _listenToPositionStream = null;
+        },
+      );
+    }
+
     setupListeners();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -202,7 +234,11 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
     AppLogger.debug('$runtimeType#_onPreferencesChanged setting _playbackSpeed');
 
     _playbackSpeed = _preferencesProvider.preferences.voicePlaybackSpeed;
-    await player.setSpeed(_playbackSpeed);
+    if (_useLinuxBackend) {
+      await _linuxPlayer!.setSpeed(_playbackSpeed);
+    } else {
+      await _justAudioPlayer!.setSpeed(_playbackSpeed);
+    }
 
     setState(() {});
   }
@@ -211,18 +247,33 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _preferencesProvider.removeListenerForVoicePlaybackSpeed(_onPreferencesChanged);
-    player.dispose();
+    if (_useLinuxBackend) {
+      _linuxPlayer?.dispose();
+    } else {
+      _justAudioPlayer!.dispose();
+    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Pause playback when app goes to background
-    if (state == AppLifecycleState.paused) player.pause();
+    if (state == AppLifecycleState.paused) {
+      if (_useLinuxBackend) {
+        _linuxPlayer!.pause();
+      } else {
+        _justAudioPlayer!.pause();
+      }
+    }
   }
 
   /// Sets up listeners for AudioPlayer state changes.
   void setupListeners() {
+    // The Linux backend pushes state through the callbacks it was built with,
+    // so there is nothing to subscribe to here.
+    if (_useLinuxBackend) return;
+
+    final player = _justAudioPlayer!;
     player.playerStateStream.listen((state) {
       if (!mounted) return;
 
@@ -253,9 +304,14 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
     });
   }
 
-  /// Loads [filePath] into [player], retrying once on failure.
+  /// Loads [filePath] into the active audio backend, retrying once on failure.
   /// Returns whether the audio source was successfully loaded.
   Future<bool> _loadAudio(String filePath) async {
+    if (_useLinuxBackend) {
+      return _linuxPlayer!.setFilePath(filePath, fallbackDuration: _duration);
+    }
+
+    final player = _justAudioPlayer!;
     try {
       await Future.delayed(const Duration(milliseconds: 100));
       await player.setFilePath(filePath);
@@ -312,7 +368,21 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
 
     try {
       await _ensureAudioLoaded();
-      if (downloading) return;
+      if (downloading || !_audioLoaded) return;
+
+      if (_useLinuxBackend) {
+        if (_linuxPlayer!.speed != _playbackSpeed) {
+          await _linuxPlayer!.setSpeed(_playbackSpeed);
+        }
+        if (playing) {
+          await _linuxPlayer!.pause();
+        } else {
+          await _linuxPlayer!.play();
+        }
+        return;
+      }
+
+      final player = _justAudioPlayer!;
       if (player.speed != _playbackSpeed) await player.setSpeed(_playbackSpeed);
       if (playing) {
         player.pause();
@@ -339,7 +409,11 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
     if (!mounted) return;
 
     setState(() => _playbackSpeed = nextSpeed);
-    player.setSpeed(nextSpeed);
+    if (_useLinuxBackend) {
+      _linuxPlayer!.setSpeed(nextSpeed);
+    } else {
+      _justAudioPlayer!.setSpeed(nextSpeed);
+    }
 
     // Update the provider last to avoid redundant triggers from the preference change listener.
     // This ensures _playbackSpeed is already updated, so the listener detects no further changes and skips itself.
@@ -356,7 +430,11 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
 
     if (!_isDragging) {
       _isDragging = true;
-      player.pause();
+      if (_useLinuxBackend) {
+        _linuxPlayer!.pause();
+      } else {
+        _justAudioPlayer!.pause();
+      }
       _draggedPosition = _position;
     }
 
@@ -385,7 +463,11 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
 
     try {
       _listenToPositionStream = null;
-      await player.seek(_draggedPosition);
+      if (_useLinuxBackend) {
+        await _linuxPlayer!.seek(_draggedPosition);
+      } else {
+        await _justAudioPlayer!.seek(_draggedPosition);
+      }
     } catch (e) {
       AppLogger.error('Error seeking to position', tag: '$runtimeType', error: e);
     }
@@ -500,10 +582,12 @@ class _SpVoicePlayerState extends State<SpVoicePlayer> with WidgetsBindingObserv
     );
   }
 
-  /// Build progress bar background that fills from left to right.
+  /// Build progress bar background that fills from the reading-start edge, so
+  /// it grows left-to-right in LTR and right-to-left in RTL (e.g. Persian).
   Widget buildCurrentPositionBackground(BoxConstraints constraints, BuildContext context) {
-    return Positioned(
-      left: 0,
+    return Positioned.directional(
+      textDirection: Directionality.of(context),
+      start: 0,
       bottom: 0,
       top: 0,
       child: Container(

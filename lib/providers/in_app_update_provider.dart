@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
 import 'package:in_app_update/in_app_update.dart'
     show AppUpdateInfo, AppUpdateResult, InAppUpdate, InstallStatus, UpdateAvailability;
 import 'package:storypad/core/services/app_store_opener_service.dart' show AppStoreOpenerService;
+import 'package:storypad/core/services/platform_capabilities.dart' show PlatformCapabilities;
 import 'package:storypad/core/types/in_app_update_status.dart' show InAppUpdateStatus;
 import 'package:storypad/widgets/packages/new_version_plus.dart' show NewVersionPlus, VersionStatus;
 
@@ -23,6 +24,12 @@ class InAppUpdateProvider extends ChangeNotifier {
   AppUpdateInfo? _androidInAppUpdateInfo;
 
   Future<void> _load() async {
+    // Store/in-app update checks only exist on Android and iOS; skip cleanly on
+    // Linux/macOS/Windows instead of probing Play/App Store or printing an
+    // unsupported-platform message on every cold start.
+    // See `PlatformCapabilities.storeUpdates`.
+    if (!PlatformCapabilities.storeUpdatesOnThisDevice) return;
+
     try {
       _versionStatus = await NewVersionPlus().getVersionStatus();
     } catch (e) {

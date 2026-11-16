@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/types/path_type.dart';
@@ -34,17 +35,19 @@ class ThrowbackViewModel extends ChangeNotifier with DisposeAwareMixin {
   );
 
   Future<void> goToNewPage(BuildContext context) async {
-    await EditStoryRoute(
+    final addedStory = await EditStoryRoute(
       id: null,
       initialYear: DateTime.now().year,
       initialMonth: month,
       initialDay: day,
     ).push(context);
 
-    refreshList();
+    if (addedStory is StoryDbModel) {
+      refreshList();
 
-    Future.delayed(const Duration(seconds: 1)).then((_) {
-      HomeView.reload(debugSource: '$runtimeType#goToNewPage');
-    });
+      Future.delayed(const Duration(seconds: 1)).then((_) {
+        HomeView.reload(debugSource: '$runtimeType#goToNewPage');
+      });
+    }
   }
 }

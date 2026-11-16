@@ -67,16 +67,18 @@ class ShowTagViewModel extends ChangeNotifier with DisposeAwareMixin {
   }
 
   Future<void> goToNewPage(BuildContext context) async {
-    await EditStoryRoute(
+    final addedStory = await EditStoryRoute(
       id: null,
       initialTagIds: [tag.id],
     ).push(context);
 
-    refreshList();
+    if (addedStory is StoryDbModel) {
+      refreshList();
 
-    Future.delayed(const Duration(seconds: 1)).then((_) {
-      HomeView.reload(debugSource: '$runtimeType#goToNewPage');
-    });
+      Future.delayed(const Duration(seconds: 1)).then((_) {
+        HomeView.reload(debugSource: '$runtimeType#goToNewPage');
+      });
+    }
   }
 
   Future<void> goToSearchPage(BuildContext context) async {

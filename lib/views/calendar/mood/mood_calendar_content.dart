@@ -129,7 +129,7 @@ class _CalendarStoriesContent extends StatelessWidget {
           return SpStoryList.withQuery(
             key: ValueKey(SearchFilterObject.encode(viewModel.searchFilter.toDatabaseFilter())),
             disableMultiEdit: true,
-            watch: viewModel,
+            watch: viewModel.storyFilterNotifier,
             filter: viewModel.searchFilter,
           );
         }
@@ -140,7 +140,7 @@ class _CalendarStoriesContent extends StatelessWidget {
         return SpStoryList.withQuery(
           key: ValueKey(SearchFilterObject.encode(filter.toDatabaseFilter())),
           disableMultiEdit: true,
-          watch: viewModel,
+          watch: viewModel.storyFilterNotifier,
           filter: filter,
         );
       },

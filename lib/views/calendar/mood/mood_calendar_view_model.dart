@@ -19,6 +19,18 @@ import 'package:storypad/widgets/bottom_sheets/sp_daily_score_sheet.dart';
 import 'package:storypad/widgets/calendar/sp_calendar.dart';
 import 'mood_calendar_view.dart';
 
+/// Tells the story lists on screen "the filter changed, reload", and nothing
+/// else.
+///
+/// [SpStoryList.withQuery]'s `watch` used to be the view model itself, so every
+/// `notifyListeners()` — including one that only re-tinted the grid because
+/// [DailyScoreProvider] finished loading its scores — made every mounted list
+/// re-run its queries. On mount that showed up as the same list loading twice
+/// (`initState` then `watch`) for no gain.
+class StoryFilterNotifier extends ChangeNotifier {
+  void notify() => notifyListeners();
+}
+
 class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, DebounchedCallback {
   final MoodCalendarView params;
   late final TagsProvider tagsProvider;
@@ -86,10 +98,16 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   late int month = params.monthYearNotifier.value.month;
   late int year = params.monthYearNotifier.value.year;
 
-  /// [SpStoryList.withQuery] is passed this view model as `watch`, so calling
-  /// this silently reloads the visible story list — without remounting it
-  /// (no loading-spinner flash).
+  /// What [SpStoryList.withQuery] watches (see `watch:` in
+  /// mood_calendar_content.dart). Fires only when the *filter* changes, so a
+  /// UI-only update (a score finishing loading, a feeling refresh) no longer
+  /// reloads every list on screen.
+  final StoryFilterNotifier storyFilterNotifier = StoryFilterNotifier();
+
+  /// A story was added, edited or archived: reload the story lists *and*
+  /// rebuild the calendar around them (the grid shows the new story's feeling).
   void refreshList() {
+    storyFilterNotifier.notify();
     notifyListeners();
   }
 
@@ -115,7 +133,15 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
     // the user switched the add-on off: the tint is keyed off this map, so an
     // empty map is the whole difference between "one calendar with a score layer"
     // and "the calendar as it was before the add-on existed" (D-035 §2).
-    scoresByDay = enableScores ? dailyScoreProvider.scoresOfDisplayMonth(year, month) : const {};
+    final nextScores = enableScores ? dailyScoreProvider.scoresOfDisplayMonth(year, month) : const <int, int>{};
+
+    // [DailyScoreProvider.load] notifies listeners once it finishes reading
+    // storage — which happens right after this calendar is opened, because
+    // reading the provider is what creates it. Nothing is tinted differently
+    // when the map did not change, so skip the rebuild (and the work behind it).
+    if (mapEquals(nextScores, scoresByDay)) return;
+
+    scoresByDay = nextScores;
     notifyListeners();
   }
 
@@ -153,7 +179,8 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   }
 
   // only reload feeling when listen to DB.
-  // story query list already know how to refresh their own list, so we don't have to refresh for them.
+  // story query list already know how to refresh their own list, so we don't have to refresh for them
+  // (that is why this notifies the UI only, never [storyFilterNotifier]).
   Future<void> _reloadFeeling() async {
     feelingsMapByDay = StoryDbModel.db.getStoryFeelingByMonth(
       month: month,
@@ -188,13 +215,13 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
         calendarController.goToMonth(storyYear, storyMonth);
       }
       selectedDay = CalendarDisplay.dayOf(addedStory.displayPathDate);
+
+      refreshList();
+
+      Future.delayed(const Duration(seconds: 1)).then((_) {
+        HomeView.reload(debugSource: '$runtimeType#goToNewPage');
+      });
     }
-
-    refreshList();
-
-    Future.delayed(const Duration(seconds: 1)).then((_) {
-      HomeView.reload(debugSource: '$runtimeType#goToNewPage');
-    });
   }
 
   void onChanged(
@@ -203,7 +230,19 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
     int? selectedDay,
     int? selectedTagId,
   ) async {
-    if (year != this.year || month != this.month || selectedTagId != this.selectedTagId) {
+    final bool monthYearChanged = year != this.year || month != this.month;
+    final bool scopeChanged = monthYearChanged || selectedTagId != this.selectedTagId;
+
+    // A month change drops the selected day; anything else keeps the one passed in.
+    final int? nextSelectedDay = monthYearChanged ? null : selectedDay;
+
+    // The calendar reports its own initial month/day while it mounts, which is
+    // already the state this view model holds. Notifying then re-runs the story
+    // lists that just loaded themselves (initState -> watch), doubling the
+    // queries for nothing.
+    if (!scopeChanged && nextSelectedDay == this.selectedDay) return;
+
+    if (scopeChanged) {
       feelingsMapByDay = StoryDbModel.db.getStoryFeelingByMonth(
         month: month,
         year: year,
@@ -212,9 +251,9 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
       );
     }
 
-    this.selectedDay = year != this.year || month != this.month ? null : selectedDay;
+    this.selectedDay = nextSelectedDay;
 
-    if (year != this.year || month != this.month) {
+    if (monthYearChanged) {
       scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
     }
 
@@ -226,6 +265,7 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
       filters: searchFilter.toDatabaseFilter(),
     );
 
+    if (scopeChanged) storyFilterNotifier.notify();
     notifyListeners();
   }
 
@@ -278,6 +318,7 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
 
   @override
   void dispose() {
+    storyFilterNotifier.dispose();
     params.monthYearNotifier.removeListener(_onParentMonthYearChanged);
     StoryDbModel.db.removeGlobalListener(_reloadFeeling);
     dailyScoreProvider.removeListener(_reloadScores);

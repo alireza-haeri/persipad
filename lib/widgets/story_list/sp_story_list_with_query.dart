@@ -4,6 +4,7 @@ import 'package:storypad/core/databases/models/collection_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/stories/story_content_embed_extractor.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/providers/backup_provider.dart';
@@ -50,7 +51,7 @@ class SpStoryListWithQueryState extends State<SpStoryListWithQuery> {
   Future<void> load({
     required String debugSource,
   }) async {
-    debugPrint("📂 Load SpStoryListWithQuery from $debugSource");
+    AppLogger.d('📂 $runtimeType#load from $debugSource');
 
     stories = await StoryDbModel.db.where(
       filters: widget.filter?.toDatabaseFilter(),
@@ -86,7 +87,7 @@ class SpStoryListWithQueryState extends State<SpStoryListWithQuery> {
         SpStoryListMultiEditWrapper.of(context).stories.clear();
         SpStoryListMultiEditWrapper.of(context).stories.addAll(stories?.items.map((e) => e.id) ?? {});
       } catch (e) {
-        debugPrint(e.toString());
+        AppLogger.error('$runtimeType#load multi-edit sync failed', tag: '$runtimeType', error: e);
       }
     }
   }

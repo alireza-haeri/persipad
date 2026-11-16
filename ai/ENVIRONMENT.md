@@ -53,7 +53,6 @@ Each CMake failure in your run pointed at one missing `-devel` package. Full lis
 sudo dnf install -y \
   clang cmake ninja-build pkgconf-pkg-config \
   gtk3-devel \
-  webkit2gtk4.1-devel \
   libsecret-devel \
   alsa-lib-devel \
   pulseaudio-libs-devel \
@@ -63,7 +62,25 @@ sudo dnf install -y \
 ```
 
 `bin/setup_linux` checks all of these and prints exactly the missing ones (it never
-runs sudo itself).
+runs sudo itself). `webkit2gtk4.1-devel` is **no longer needed** — no Linux plugin in
+`pubspec.lock` links WebKitGTK any more (the check was removed; asking for it only made
+a clean machine look broken).
+
+### 2.2b Desktop voice playback (new in D-050)
+
+`just_audio` has no Linux implementation, so voice notes play through a system CLI
+player. **At least one of these must be installed** or voice notes are silent:
+
+```bash
+sudo dnf install -y ffmpeg-free     # ffplay + ffprobe: seek, speed, and m4a/AAC decoding
+#   or: gstreamer1-plugins-base-tools   (gst-play-1.0: plays, but no seek/speed)
+#   or: mpv / vlc                       (seek + speed)
+#   or: pulseaudio-utils                (paplay: raw PCM only, no m4a)
+```
+
+`bin/setup_linux` reports which one it found (or the `dnf` line when it found none).
+Video attachments have no Linux backend either; the viewer offers to open them in the
+system player instead.
 
 ## 2.3 Package overrides required by the newer SDK
 
@@ -207,7 +224,6 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | `pub get` fails, then Dart compile errors in `super_editor` | old Flutter (3.41 / Dart 3.11) | use `~/development/flutter_stable` (3.50.0) |
 | `build_runner` won't compile, `source_helper` conflict | `json_serializable` 6.14.1 | `^6.15.2` (committed) |
 | objectbox fails to compile | objectbox 5.x vs Dart 3.14 | 6.0.0-preview.6 (committed) |
-| CMake: `webkit2gtk-4.0` not found | package renamed | `webkit2gtk4.1-devel` |
 | CMake: `libsecret-1`, ALSA, `jsoncpp` not found | missing `-devel` | see 2.2 |
 | `flutter pub get` complains about stale lock | `pubspec.yaml` changed | `flutter pub get` (setup script does it) |
 | Install step: `Permission denied` on `/usr/local/storypad` | CMake install prefix cached from an older build | `rm -rf build/linux` and rebuild — granting permissions does **not** help |
@@ -256,3 +272,5 @@ These are expected behaviours on Linux and must not be "fixed" by hacking:
   delete them; the real values are now committed.
 - Any `pubspec_overrides.yaml` you created while testing package pins must be removed,
   or it will silently override what we commit.
+| Voice notes silent / `MissingPluginException(com.ryanheise.just_audio.methods)` | `just_audio` has no Linux backend | install `ffmpeg-free` (or `mpv`/`vlc`); see 2.2b |
+| Video attachment says it cannot play here | `video_player` has no Linux backend | expected — use the **Open** button, which hands the file to `xdg-open` |

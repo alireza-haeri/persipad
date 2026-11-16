@@ -443,6 +443,7 @@
   "page.video_compression.message": "کیفیت حفظ می‌شود و فضا ذخیره می‌شود؛ ویدیوهای بلند کمی وقت می‌برند.",
   "page.video_compression.progress_args": "ویدیو {SP_CURRENT} از {SP_TOTAL}",
   "page.video_compression.title": "فشرده‌سازی ویدیو",
+  "page.video_playback_unsupported.message": "پخش ویدیو در این سیستم پشتیبانی نمی‌شود. آن را با پخش‌کننده‌ی ویدیوی دستگاه باز کنید.",
   "plural.day_ago.one": "۱ روز پیش",
   "plural.day_ago.other": "{} روز پیش",
   "plural.entry.one": "۱ نوشته",
