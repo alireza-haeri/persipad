@@ -68,6 +68,7 @@ jobs:
     outputs:
       mode: ${{ steps.scope.outputs.mode }}
       build: ${{ steps.scope.outputs.build }}
+      packages: ${{ steps.scope.outputs.packages }}
       shards: ${{ steps.scope.outputs.shards }}
       paths: ${{ steps.scope.outputs.paths }}
     steps:
@@ -93,7 +94,7 @@ jobs:
           if [ $status -ne 0 ]; then
             # Never let the scoper's own failure turn into "no tests at all".
             echo "::warning::changed_tests failed; running the full suite"
-            printf 'mode=full\nbuild=false\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
+            printf 'mode=full\nbuild=false\npackages=true\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
           fi
 
   analyze:
@@ -249,6 +250,121 @@ jobs:
               print(f"::error::failing test: {name}")
           PY
           exit $status
+
+  editor-package:
+    # `packages/storypad_editor` owns the persisted content format (Markdown in/out,
+    # Quill import, embeds) and ships 57 test files / ~390 cases of its own that the
+    # root `flutter test` never touches: it is a separate package with its own
+    # pubspec and its own test directory. Leaving them off CI meant the most
+    # dangerous-to-break code in the repo had its suite permanently switched off
+    # (`ai/ANALYSIS.md` §1, `BACKLOG.md` T-9).
+    #
+    # It is its own job on purpose: a scoped run must not spend this time, and a
+    # failure here should name the package instead of hiding among app tests.
+    name: Editor package tests
+    needs: scope
+    if: needs.scope.outputs.packages == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        working-directory: packages/storypad_editor
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: packages/storypad_editor
+        run: |
+          set +e
+          flutter test --reporter json > /tmp/editor-test.json 2>&1
+          status=$?
+          python3 - <<'PY' || true
+          import json
+
+          names = {}
+          failed = []
+          for line in open('/tmp/editor-test.json', errors='replace'):
+              line = line.strip()
+              if not line.startswith('{'):
+                  continue
+              try:
+                  event = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              kind = event.get('type')
+              if kind == 'testStart':
+                  names[event['test']['id']] = event['test']['name']
+              elif kind == 'error':
+                  name = names.get(event.get('testID'), '?')
+                  message = (event.get('error') or '').strip().splitlines()
+                  detail = message[0] if message else 'failed'
+                  print(f"::error::FAILED {name} :: {detail}")
+              elif kind == 'testDone' and event.get('result') != 'success' and not event.get('hidden'):
+                  failed.append(names.get(event.get('testID'), '?'))
+          for name in failed:
+              print(f"::error::failing test: {name}")
+          PY
+          exit $status
+
+  coverage:
+    # `flutter test --coverage` on the full suite only: a scoped run measures a
+    # handful of files, which says nothing about the tree and would tempt someone
+    # to "fix" the number by running more tests in a scoped job.
+    #
+    # Advisory by design (like the formatter): the artifact is for a human to read.
+    # There is no threshold gate, because a threshold chosen today would either be
+    # trivially passed or silently lowered — measure first (`ai/ANALYSIS.md` §6).
+    name: Coverage
+    needs: scope
+    if: |
+      needs.scope.outputs.mode == 'full' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Summarise lcov
+        run: |
+          python3 - <<'PY'
+          lines = 0
+          hit = 0
+          for line in open('coverage/lcov.info', errors='replace'):
+              if line.startswith('DA:'):
+                  parts = line.strip().split(',')
+                  if len(parts) >= 2:
+                      lines += 1
+                      if int(parts[1]) > 0:
+                          hit += 1
+          pct = (100.0 * hit / lines) if lines else 0.0
+          print(f"::notice::line coverage: {hit}/{lines} ({pct:.1f}%)")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          retention-days: 14
 
   build-linux:
     name: Build Linux desktop
