@@ -356,3 +356,12 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   a `0` — when not, one tap opens the sheet, a long title ellipsises instead of overflowing, RTL,
   tint follows the score, out-of-range score is clamped); the chart tests now settle the entrance and
   assert the bars start at zero height and end at their real value.
+- Stumbles, both caught by CI before the user saw anything: the new callout test bound `_borderColor`'s
+  `Color?` to a `Color` (2 analyze errors, `5aa04f5`); everything else in the round — the chart tweens,
+  the record-destructuring bar loop, the promoted `selectedDay` in the mood column — analyzed clean on
+  the first try. Running it scoped (`mode=changed`, 4 test files, 1 shard) meant the failure came back
+  in ~90s instead of ~3.5 minutes.
+- CI `43801222059` green on the fix (`5aa04f5`…): Scope 4s, Analyze ✓, Test (1) ✓ (1m15s, 4 scoped
+  files), 85s total. Formatting stayed advisory and still lists untouched files
+  (`stories_box.dart`, `search_filter_object.dart`, …) — the CI formatter's tall style does not match
+  the repo's existing formatting, so `bin/format` cannot be reproduced without a local SDK.
