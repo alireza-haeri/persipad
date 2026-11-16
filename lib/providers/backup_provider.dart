@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/objects/cloud_service_user.dart';
@@ -302,7 +303,12 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
   Future<String?> _askForRedirectUri(BuildContext context, Future<void> redirectArrived) async {
     if (!context.mounted) return null;
 
+    // The user has just copied the address out of the browser, so most of the time
+    // it is already on the clipboard: prefill it and the dialog is one tap.
     final controller = TextEditingController();
+    controller.text = await _redirectAddressFromClipboard();
+    controller.selection = TextSelection.collapsed(offset: controller.text.length);
+
     try {
       final dialog = showDialog<String>(
         context: context,
@@ -352,6 +358,21 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     } finally {
       controller.dispose();
     }
+  }
+
+  /// What the browser has on its clipboard, if it looks like a loopback redirect.
+  /// Anything else is ignored: pasting a note's text into this field is a mistake,
+  /// not an instruction.
+  Future<String> _redirectAddressFromClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (text.startsWith('http://127.0.0.1') || text.startsWith('http://localhost')) return text;
+    } catch (error) {
+      AppLogger.d('$runtimeType: could not read the clipboard for the sign-in fallback: $error');
+    }
+
+    return '';
   }
 
   /// A sign-in that failed only because the device cannot reach Google gets the

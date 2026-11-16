@@ -857,6 +857,11 @@ device. One line was added at the 12 s mark (`no redirect after 12s — offering
 fallback`) because "the dialog never appeared" and "the dialog appeared and nobody looked" were
 indistinguishable in logcat.
 
+The dialog also prefills from the clipboard when what the user copied is a loopback
+address (`http://127.0.0.1…`), so the step is: copy in the browser → switch back → Confirm.
+Anything else on the clipboard is ignored — pasting a note's text into that field is a
+mistake, not an instruction.
+
 `D-061` came out of the same round: the CI run for `4c03e62` changed the OAuth service and
 selected only two backup tests, because the scoper's mirror rule is a directory rule and the
 OAuth test sits one level above its mirror. A green run that never loaded the relevant test is
