@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:storypad/core/databases/adapters/base_db_adapter.dart';
 import 'package:storypad/core/databases/models/asset_db_model.dart';
 import 'package:storypad/core/databases/models/event_db_model.dart';
@@ -73,7 +75,17 @@ class BackupRepository {
   final StreamController<UserChangeType> _userChangesController = StreamController<UserChangeType>.broadcast();
   Stream<UserChangeType> get userChanges => _userChangesController.stream;
 
-  static final List<BaseDbAdapter> databases = [
+  /// Every table the backup format carries, in a fixed order.
+  ///
+  /// Seeded lazily: reading any `*.db` getter opens the real ObjectBox store, so
+  /// this list must not be materialised at class-load time by a unit test that
+  /// only wants the merge logic. The seeding is attached to the first *read*
+  /// through [databases] (or [overrideDatabases] at test setup).
+  static final List<BaseDbAdapter> _databases = _seedDatabases();
+
+  static List<BaseDbAdapter> _databasesOverride = const [];
+
+  static List<BaseDbAdapter> _seedDatabases() => [
     PreferenceDbModel.db,
     StoryDbModel.db,
     TagDbModel.db,
@@ -83,6 +95,24 @@ class BackupRepository {
     AssetDbModel.db,
     RelaxSoundMixModel.db,
   ];
+
+  /// The tables a backup reads and writes.
+  ///
+  /// Tests that exercise merge logic (no real database, no ObjectBox native code)
+  /// replace this with fakes through [overrideDatabases].
+  static List<BaseDbAdapter> get databases =>
+      _databasesOverride.isEmpty ? _databases : _databasesOverride;
+
+  /// Replaces [databases] for the duration of a test. Pass an empty list to
+  /// restore the real tables.
+  ///
+  /// This exists because the merge decision in `RestoreBackupService` is the one
+  /// piece of backup code that can silently lose notes (D-042), and it can only
+  /// be tested with fake adapters.
+  @visibleForTesting
+  static void overrideDatabases(List<BaseDbAdapter> databases) {
+    _databasesOverride = List.unmodifiable(databases);
+  }
 
   final RestoreBackupService restoreService;
   final BackupCloudService googleDriveService;
