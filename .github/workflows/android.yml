@@ -1,0 +1,205 @@
+name: Android
+
+# Builds the community APK on GitHub's runners and publishes it as a pre-release.
+#
+# Why here and not locally: the sandbox the agent works in has no Flutter SDK and no
+# Android SDK, and `flutter build apk` needs a JDK, the Android SDK, Gradle and a
+# ~1 GB NDK download. All of that is already on ubuntu-latest, so the first APK is a
+# workflow rather than a machine setup (D-038).
+#
+# TRIGGERS
+#   push with `[apk]` in the subject  -> build + publish a pre-release
+#   workflow_dispatch                 -> same, by hand, from the Actions tab
+# A plain push does not build an APK: it costs ~7 minutes and produces an artifact
+# nobody asked for. The marker is read from the subject only, like [test]/[build]
+# (ai/DECISIONS.md D-032).
+#
+# SIGNING
+#   With `ANDROID_KEYSTORE_BASE64` + the three key secrets set, this builds the
+#   release APK signed with that key — the one configuration where every future APK
+#   can update the previous install.
+#   Without them it falls back to a **debug-signed** APK (`--debug`): installable,
+#   but not updatable across builds and not something to put on a store. The release
+#   notes say which one you are looking at, so a debug APK is never mistaken for a
+#   release one.
+#
+# The community flavor is the only one this repo can build: `storypad` needs
+# private_keys/ (dart-defines, keystores). `android/app/src/community/google-services.json`
+# is committed, so Firebase needs no secret here.
+
+on:
+  push:
+    branches:
+      - 'arena/**'
+      - main
+      - develop
+    paths-ignore:
+      - 'ai/**'
+      - '**/*.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+permissions:
+  # `contents: write` is what lets the last step create a release.
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+  FLAVOR: community
+
+jobs:
+  apk:
+    name: Build APK
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Prepare dart-defines
+        # android/app/build.gradle.kts reads APP_NAME and the Maps key out of
+        # --dart-define-from-file with defaults, so an empty file is enough for the
+        # community build. bin/dev creates the same file locally.
+        run: |
+          mkdir -p bin/.tmp/private_keys/dart_defines
+          if [ ! -f bin/.tmp/private_keys/dart_defines/$FLAVOR.json ]; then
+            echo '{}' > bin/.tmp/private_keys/dart_defines/$FLAVOR.json
+          fi
+
+      - name: Decide the signing mode
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            KEYSTORE="$RUNNER_TEMP/release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+            {
+              echo "RELEASE_KEYSTORE_PATH=$KEYSTORE"
+              echo "RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+            echo "note=release-signed" >> "$GITHUB_OUTPUT"
+            echo "::notice::Building a release APK signed with the repository keystore."
+          else
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+            echo "note=debug-signed (no ANDROID_KEYSTORE_BASE64 secret)" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: falling back to a debug-signed APK."
+          fi
+
+      - name: Build APK
+        # Compiler/Gradle errors are re-emitted as annotations: a bare "exit 1" from a
+        # 6 minute Gradle run is useless feedback when the log is not readable.
+        run: |
+          set +e
+          flutter build apk --${{ steps.signing.outputs.mode }} \
+            --flavor=$FLAVOR \
+            --target=lib/main_$FLAVOR.dart \
+            --dart-define-from-file=bin/.tmp/private_keys/dart_defines/$FLAVOR.json \
+            > /tmp/apk.txt 2>&1
+          status=$?
+          tail -80 /tmp/apk.txt
+          if [ $status -ne 0 ]; then
+            echo "::error::flutter build apk failed"
+            grep -E '^e: |error:|FAILURE:|What went wrong|Execution failed|Could not resolve|Unsupported class|> ' /tmp/apk.txt |
+              head -15 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+          fi
+          exit $status
+
+      - name: Locate and check the APK
+        id: apk
+        run: |
+          set -e
+          APK="build/app/outputs/flutter-apk/app-$FLAVOR-${{ steps.signing.outputs.mode }}.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::expected $APK, found:"
+            find build/app/outputs -name '*.apk' || true
+            exit 1
+          fi
+
+          SIZE=$(du -h "$APK" | cut -f1)
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          VERSION=$(grep -m1 '^version: ' pubspec.yaml | cut -d' ' -f2)
+
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "name=storypad-community-${{ steps.signing.outputs.mode }}-${VERSION/\//_}.apk" >> "$GITHUB_OUTPUT"
+
+          echo "APK: $APK ($SIZE)"
+          echo "sha256: $SHA"
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.signing.outputs.mode }}
+          NOTE: ${{ steps.signing.outputs.note }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+          APK_NAME: ${{ steps.apk.outputs.name }}
+          APK_SIZE: ${{ steps.apk.outputs.size }}
+          APK_SHA: ${{ steps.apk.outputs.sha }}
+          VERSION: ${{ steps.apk.outputs.version }}
+        run: |
+          set -e
+          TAG="apk-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+
+          {
+            echo "Community APK built from \`${GITHUB_SHA::7}\` ($(date -u +%Y-%m-%dT%H:%MZ))."
+            echo
+            echo '```'
+            echo "version   $VERSION"
+            echo "build     $MODE"
+            echo "signing   $NOTE"
+            echo "size      $APK_SIZE"
+            echo "sha256    $APK_SHA"
+            echo '```'
+            echo
+            echo "Install with \`adb install -r $APK_NAME\`, or open the file on the device."
+            if [ "$MODE" != "release" ]; then
+              echo
+              echo "> This is a **debug-signed** build: Android treats every new one as a different app,"
+              echo "> so updating requires uninstalling the previous install first. Add the"
+              echo "> \`ANDROID_KEYSTORE_BASE64\`/\`ANDROID_KEYSTORE_PASSWORD\`/\`ANDROID_KEY_ALIAS\`/\`ANDROID_KEY_PASSWORD\`"
+              echo "> secrets to get a release-signed APK instead (ai/DECISIONS.md D-038)."
+            fi
+          } > "$RUNNER_TEMP/notes.md"
+
+          gh release create "$TAG" "$APK_PATH#$APK_NAME" \
+            --title "APK $VERSION ($MODE)" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            || {
+              # A release for this tag already exists (re-runs of the same commit).
+              echo "::warning::release $TAG already exists; uploading the asset to it instead"
+              gh release upload "$TAG" "$APK_PATH#$APK_NAME" --clobber
+            }
+
+          echo "::notice::Published $TAG with $APK_NAME"

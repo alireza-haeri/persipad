@@ -882,3 +882,35 @@ Template:
   the list), and the costs are honest: 42 `Opacity` layers for the 420ms of a grid entrance,
   and one extra mounted segment during a cross-fade. Impulse animations (overshoot, bounce)
   stay limited to the score charts, where a dot landing is the point.
+
+## D-038 — The APK is built on GitHub, and published as a pre-release (2026-11-15)
+- **Status:** accepted (first Android build since D-007 parked it)
+- **Context:** you said: *"let's go toward building an APK, then come back to features. Can you do all of it
+  on CI and publish the APK on GitHub releases?"* The agent sandbox has no Flutter, no Android SDK and no
+  reachable artifact storage, so a locally built APK could not be handed back anyway — but ubuntu-latest
+  has the JDK, the Android SDK, Gradle caches and a `GITHUB_TOKEN` with `contents: write`.
+- **Decision:**
+  1. **A dedicated workflow, not a step in `linux.yml`.** `.github/workflows/android.yml` builds only the
+     `community` flavor — the one whose `google-services.json` is committed and whose dart-defines can be
+     empty. `storypad` needs `private_keys/` (keystores, defines) and stays out of scope.
+  2. **`[apk]` in the subject is the trigger**, same rule as `[test]`/`[build]`: a plain push must not
+     spend seven minutes producing an artifact nobody asked for. `workflow_dispatch` builds it by hand.
+  3. **Signing is a ladder, and the notes always say which rung you are on.** With
+     `ANDROID_KEYSTORE_BASE64` + `ANDROID_KEYSTORE_PASSWORD` + `ANDROID_KEY_ALIAS` +
+     `ANDROID_KEY_PASSWORD` secrets, the APK is release-signed with a stable key and can update previous
+     installs. Without them the workflow falls back to `--debug`: installable, honest, and explicitly
+     labelled — debug-signed builds cannot update each other, and pretending otherwise would produce a
+     "release" that silently requires an uninstall between versions.
+  4. **Every `[apk]` build publishes a pre-release**, tagged `apk-<UTC date>-<sha7>`, with the version,
+     the signing mode, the size and the sha256 in the notes. Pre-release on purpose: these are build
+     artifacts, not versions of the app, and they must never look like `vX.Y.Z`.
+  5. **The build itself is unmodified**: `flutter build apk --<mode> --flavor=community
+     --target=lib/main_community.dart --dart-define-from-file=…`, i.e. exactly what
+     `bin/build_release_android` does locally minus the store upload. No Gradle changes were needed to get
+     Android building again (if one turns out to be needed, it will be a separate, documented change).
+- **Consequences:** "an APK exists" is now a push away, and the same workflow is the path to a
+  release-signed build the moment the keystore secrets are added. The keystore itself is the one thing that
+  cannot be created by a workflow and stored safely by it: it has to be generated once and kept as a
+  secret (or in `private_keys/`) — losing it means a new application ID as far as Android is concerned.
+  Also unchanged: nothing here is verified on a device, so "it installs and runs" remains a manual check
+  until we run it.
