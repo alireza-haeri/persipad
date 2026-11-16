@@ -13,6 +13,7 @@
 #   bin/build_apk --dns-server=8.8.8.8
 #                                    # AVD: hand the guest a resolver (see below)
 #                                    # (also honoured: NOTELY_DNS_SERVER=8.8.8.8)
+#   bin/build_apk --no-dns-server     # ...and never pass one, even on a stub-resolver host
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
 #   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
 #   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
@@ -25,9 +26,12 @@
 # quietly fails on a box using systemd-resolved's stub (127.0.0.53): the guest then
 # cannot resolve anything, and Google sign-in dies with `Failed host lookup:
 # 'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)`
-# — which looks like an OAuth bug but is pure DNS. Passing a real resolver to the
-# emulator (or setting NOTELY_DNS_SERVER) is the fix; the AVD has to be restarted for
-# it to take effect. See ai/ENVIRONMENT.md §2.2c.
+# — which looks like an OAuth bug but is pure DNS. It is now automatic: when the host
+# resolves only through a stub, the AVD is booted with the host's real upstream
+# resolver (or 8.8.8.8,1.1.1.1 when that cannot be read), so nobody has to remember
+# the flag. An explicitly passed `--dns-server` still wins, and `--no-dns-server`
+# turns the behaviour off. The AVD has to be (re)booted for any of it to apply.
+# See ai/ENVIRONMENT.md §2.2c.
 #
 # Why this exists next to .github/workflows/android.yml: CI takes ~15 minutes per
 # attempt and grades you only at the end; a laptop takes ~2 minutes the first time and
@@ -45,6 +49,8 @@ LAUNCH=0
 AVD=""
 VERBOSE=""
 DNS_SERVER="${NOTELY_DNS_SERVER:-}"
+NO_DNS_SERVER=0
+AVD_BOOTED=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -64,7 +70,7 @@ while [ $# -gt 0 ]; do
     --dns-server)
       DNS_SERVER="${2:?--dns-server needs an address like 8.8.8.8}"; shift ;;
     --dns-server=*) DNS_SERVER="${1#*=}" ;;
-    --no-dns-server) DNS_SERVER="" ;;
+    --no-dns-server) NO_DNS_SERVER=1; DNS_SERVER="" ;;
     --flavor)  FLAVOR="${2:?--flavor needs a value}"; shift ;;
     --flavor=*) FLAVOR="${1#*=}" ;;
     --abi)     ABI="${2:?--abi needs a value}"; shift ;;
@@ -167,6 +173,24 @@ host_dns_is_stub() {
   ' /etc/resolv.conf
 }
 
+# The real upstream resolvers this host uses (skipping loopback stubs), because an
+# AVD can reach them through NAT while it cannot follow 127.0.0.53. `resolvectl dns`
+# prints them per link ("Link 2 (enp4s0): 192.168.1.1 1.1.1.1"); older boxes use
+# `systemd-resolve --status`. IPv4 only on purpose: an IPv6 resolver is often not
+# routable from the guest's NAT, and a wrong guess is worse than the fallback.
+host_upstream_dns() {
+  local out=""
+  if command -v resolvectl >/dev/null 2>&1; then
+    out=$(resolvectl dns 2>/dev/null || true)
+  elif command -v systemd-resolve >/dev/null 2>&1; then
+    out=$(systemd-resolve --status 2>/dev/null | sed -n 's/^[[:space:]]*DNS Servers:[[:space:]]*//p' || true)
+  fi
+  printf '%s\n' "$out" | tr ' ,' '\n\n' \
+    | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' \
+    | grep -vE '^(127\.|0\.|255\.)' \
+    | awk '!seen[$0]++' | head -2 | paste -sd, - || true
+}
+
 # Cheap end-to-end proof that the guest can resolve and reach a host. `getprop
 # net.dns1` is empty on modern Android and proves nothing, so ping the name that
 # Google sign-in actually needs. Only called right after booting an AVD (~2s).
@@ -237,29 +261,58 @@ if [ -n "$AVD" ] && [ -z "$(first_online_device)" ]; then
       die "AVD '$AVD' not found. Available AVDs: $(printf '%s' "$AVDS" | tr '\n' ' ')"
     fi
     EMU_ARGS=(-avd "$AVD")
+
+    # A stub-resolver host (systemd-resolved on 127.0.0.53) is the normal Fedora
+    # setup, and it is exactly the state in which the booted AVD cannot resolve
+    # anything. Fix it here instead of hoping the user remembers a flag.
+    if [ -z "$DNS_SERVER" ] && [ "$NO_DNS_SERVER" != 1 ] && host_dns_is_stub; then
+      DNS_SERVER=$(host_upstream_dns)
+      if [ -n "$DNS_SERVER" ]; then
+        say "host DNS is a local stub (systemd-resolved); giving the AVD this host's upstream resolver: $DNS_SERVER"
+      else
+        DNS_SERVER="8.8.8.8,1.1.1.1"
+        say "host DNS is a local stub (systemd-resolved) and its upstream could not be read;"
+        say "giving the AVD a public resolver instead: $DNS_SERVER"
+      fi
+      say "  (override with --dns-server=<ip>, or skip with --no-dns-server)"
+    elif [ "$NO_DNS_SERVER" = 1 ]; then
+      say "not passing -dns-server to the AVD (--no-dns-server)"
+    fi
+
     if [ -n "$DNS_SERVER" ]; then
       case "$DNS_SERVER" in
         *[!0-9a-fA-F:.,]*) die "--dns-server '$DNS_SERVER' is not an address list (e.g. 8.8.8.8 or 8.8.8.8,1.1.1.1)." ;;
       esac
       EMU_ARGS+=(-dns-server "$DNS_SERVER")
-    elif host_dns_is_stub; then
-      warn "this host resolves names through a local stub resolver (/etc/resolv.conf), which an AVD often fails to follow."
-      warn "if Google sign-in fails with 'Failed host lookup: oauth2.googleapis.com', reboot it with:"
-      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
     fi
     say "Starting AVD '$AVD'…${DNS_SERVER:+ (dns: $DNS_SERVER)}"
     nohup "$EMULATOR_BIN" "${EMU_ARGS[@]}" </dev/null >/tmp/notely-avd.log 2>&1 &
     EMU_PID=$!
     wait_for_boot 120 "$EMU_PID" || die "timed out waiting for AVD '$AVD' to boot (see /tmp/notely-avd.log)."
+    AVD_BOOTED=1
     say "AVD '$AVD' is ready."
 
     # Say it now rather than leave it to be discovered as a mysterious
     # "Sign-in failed: ClientException with SocketException" minutes later.
     if ! emulator_can_resolve "$(first_online_device)"; then
-      warn "AVD '$AVD' cannot resolve oauth2.googleapis.com, so Google sign-in will fail."
-      warn "Check the host's internet, or reboot the AVD with a real resolver:"
-      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
+      warn "AVD '$AVD' still cannot resolve oauth2.googleapis.com, so Google sign-in will fail."
+      warn "Check the host's internet first, then try a different resolver:"
+      warn "    bin/build_apk --install --avd=$AVD --dns-server=1.1.1.1"
     fi
+  fi
+fi
+
+# An AVD that was already running when this script started keeps the resolver it
+# booted with, so no boot flag can help it — and its broken DNS would surface much
+# later, as a sign-in failure that looks like an OAuth bug (D-053). Say it here.
+if [ "$INSTALL" = 1 ] && [ "$AVD_BOOTED" != 1 ]; then
+  SERIAL=$(first_online_device)
+  if [ -n "$SERIAL" ] && [ "$(adb -s "$SERIAL" shell getprop ro.kernel.qemu 2>/dev/null | tr -d '\r' | head -1 || true)" = "1" ] \
+     && ! emulator_can_resolve "$SERIAL"; then
+    RUNNING_AVD=$(timeout 10 adb -s "$SERIAL" emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)
+    warn "the running emulator cannot resolve oauth2.googleapis.com, so Google sign-in will fail"
+    warn "with 'Failed host lookup' — it booted without a usable resolver. Reboot it once:"
+    warn "    adb -s $SERIAL emu kill && bin/build_apk --install --avd=${RUNNING_AVD:-<name>}"
   fi
 fi
 
