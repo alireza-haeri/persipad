@@ -813,9 +813,20 @@ a real redirect. A cancelled dialog does not abort anything; the loopback keeps 
 - `Linux` CI on this commit — `[full]`, so Scope/Analyze/Test 1/Test 2/Editor package
   tests/Build Linux desktop/Coverage all run. The run id is appended below once it lands.
 
-**CI (`Linux`, commit `8eddb61`):** run `43879014732` — `Analyze` ✅ (0 errors, *All Dart files
-are formatted*), `Test (1)` ✅ on the scoped 5 files including
-`test/core/services/google_desktop_oauth_service_test.dart`. The two failures before it were the
-same bug seen from two sides — `io.Socket` in a file that imports `dart:io` unprefixed, and a
-`Future<void>` prompt whose value came back as `void` — both fixed in `8eddb61`, and CI is what
-found them (the sandbox has no Dart SDK).
+**CI — the whole suite on the final commit (`962b70a`, dispatched full run `43879483211`):**
+
+| job | result |
+| --- | --- |
+| Scope | ✅ |
+| Analyze | ✅ 0 errors, *All Dart files are formatted* |
+| Test (1) / Test (2) | ✅ 51 + 51 files (full suite, every test file) |
+| Coverage | ✅ 4198/27113 lines (15.5%) |
+| Build Linux desktop | ✅ |
+
+Getting there took two CI rounds, and that is the part worth remembering: the first run
+(`43878322378`) failed with **`Undefined name 'io'`** (the new test called `io.Socket` in a file
+that imports `dart:io` unprefixed) and **`Future<Object>` cannot be assigned to `Future<Uri>`** (a
+`Future<void>` prompt whose value came back as `void` inside `then<Uri>`). Neither could have been
+found in the sandbox — there is no Dart SDK here — which is exactly why the user's "test with CI"
+was the right call. Fixed in `8eddb61`; the scoped run `43879014732` then went green, and the
+full dispatch above is the final word.

@@ -414,8 +414,8 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     if (prompt == null) return loopback;
 
     // A prompt that shows a dialog uses [redirectArrived] to close itself when the
-    // loopback wins the race late, so the user is never left with a modal asking
-    // for an address that is no longer needed.
+    // wait is over — the loopback won late, or it timed out — so the user is never
+    // left with a modal asking for an address that is no longer needed.
     final redirectArrived = Future.any<void>([completer.future.then<void>((_) {}), waitOver]);
 
     final manual = Future<void>.delayed(manualPromptDelay).then<Uri>((_) async {
