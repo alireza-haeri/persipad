@@ -424,3 +424,6 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - Deliberately not animated: nothing loops (a repeating animation would fight the charts'
   data-keyed entrances from D-034 and hang every `pumpAndSettle`), and impulse curves stay
   in the charts where a dot landing is the point.
+- CI for the round: `43803970360` green on `3a08255` (Scope 6s, Analyze ✓, Test 1 1m30s over the
+  two calendar files the scoper picked, 136s total); `43804325119` green on `e96106b` (92s) — a
+  `bin/` + `ai/` change correctly ran Analyze only and skipped the tests entirely (`mode=none`).
