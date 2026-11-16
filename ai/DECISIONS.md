@@ -836,11 +836,14 @@ Template:
 - **Decision:** `bin/dev` grew a second mode. `-t` (or `--test`) is stripped from the
   arguments before the flavor parsing, and instead of `flutter run` it runs the same three
   gates `.github/workflows/linux.yml` runs: analyzer errors only, `bin/changed_tests`'
-  scoped selection (the whole suite when the tree is dirty, since uncommitted edits make the
-  scoper's answer a guess), and `flutter build linux --debug --target=lib/main_community.dart`.
+  scoped selection diffed against the **previous commit** (the whole suite when the tree is
+  dirty, since uncommitted edits make the scoper's answer a guess), and
+  `flutter build linux --debug --target=lib/main_community.dart`.
   It prints one short report — one line per gate, then the analyzer errors, the failing test
   blocks and the compiler errors if any — and leaves the full logs in `bin/.tmp/verify/`.
   `-t full` forces the whole suite.
+  The base is `HEAD~1` and not `origin/main` on purpose: locally the useful question is
+  "what did the commit I just pulled break", while the branch-wide diff is CI's job.
 - **Consequences:** the loop is now local and pasteable, and the flavor argument is ignored
   in this mode because `lib/main_community.dart` is the only target that builds without
   `private_keys/`. The risk is a green local report with a red CI run: CI still runs on every

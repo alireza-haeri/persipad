@@ -165,8 +165,11 @@ run_verify() {
   elif [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
     echo "   (working tree has uncommitted changes — running the whole suite)"
   else
+    # The base is the previous commit, not origin/main: this answers "what does the
+    # commit I just pulled break?", which is the question a local check is for. The
+    # branch-wide diff belongs to CI (where every push is compared to its own parent).
     local base
-    base=$(git merge-base HEAD origin/main 2>/dev/null || true)
+    base=$(git rev-parse HEAD~1 2>/dev/null || true)
     if [ -n "$base" ]; then
       local scoped scoped_mode scoped_paths
       scoped=$(bin/changed_tests --base "$base" --head HEAD --github-output 2>/dev/null || true)

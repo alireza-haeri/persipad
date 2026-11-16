@@ -129,9 +129,9 @@ analyzer errors / failing tests / compiler errors when something broke. It runs 
 same three gates as `.github/workflows/linux.yml`:
 
 1. `flutter analyze --no-fatal-infos --no-fatal-warnings` (only *errors* fail);
-2. `bin/changed_tests`' selection, diffed against `origin/main` — or the whole suite
-   when the working tree is dirty (uncommitted edits make the scoper's answer a
-   guess);
+2. `bin/changed_tests`' selection diffed against the **previous commit** — what the
+   commit you just pulled can break — or the whole suite when the working tree is dirty
+   (uncommitted edits make the scoper's answer a guess);
 3. `flutter build linux --debug --target=lib/main_community.dart`.
 
 Full logs are left in `bin/.tmp/verify/`. The flavor argument is irrelevant here:
