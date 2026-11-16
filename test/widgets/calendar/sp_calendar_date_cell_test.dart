@@ -5,6 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/widgets/calendar/sp_calendar_date_cell.dart';
 
+/// The tile's own background: the score tint lives here, and the widget keeps one
+/// stable key so the colour can fade in rather than snap.
+Decoration? cellDecoration(WidgetTester tester) {
+  return tester.widget<AnimatedContainer>(find.byKey(const ValueKey('calendar-cell-background'))).decoration;
+}
+
 void main() {
   setUpAll(() async => initializeDateFormatting());
   setUp(CalendarConfig.reset);
@@ -71,10 +77,10 @@ void main() {
 
   testWidgets('a rated day is tinted, an unrated one is not', (tester) async {
     await pumpCell(tester, score: 82);
-    expect(find.byKey(const ValueKey('score-tint')), findsOneWidget);
+    expect(cellDecoration(tester), isNotNull);
 
     await pumpCell(tester);
-    expect(find.byKey(const ValueKey('score-tint')), findsNothing);
+    expect(cellDecoration(tester), isNull);
   });
 
   testWidgets('a rated day with a feeling shows all three: emoji, day, tint', (tester) async {
@@ -83,7 +89,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('🥳'), findsOneWidget);
     expect(find.text('15'), findsOneWidget);
-    expect(find.byKey(const ValueKey('score-tint')), findsOneWidget);
+    expect(cellDecoration(tester), isNotNull);
   });
 
   testWidgets('tap selects, long press rates — the two gestures stay separate', (tester) async {

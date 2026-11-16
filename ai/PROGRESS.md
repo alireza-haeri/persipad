@@ -332,3 +332,27 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   as infrastructure and rerun before changing anything.
 - CI `43800211911` green on `af6d2ef`: Scope 5s, Analyze 74s, Test (1) 201s, Test (2) 165s (223s
   total, full suite via `[test]` — the scoped run is for the small follow-ups).
+
+### 2026-11-16 — «قشنگتر»: motion, insets, and a score card over the day's stories (D-034)
+- The calendar worked; it did not look deliberate. Three fixes, all of them the user could see:
+  - **The trend segment was cropped by the sidebar.** `RootPagesMediaQuery` folds the 88pt sidebar
+    into `padding.left/right`, and the segment's `ListView` ignored it, so the charts ran under the
+    rail on a wide window. It now takes those insets (the mood segment already did, via its
+    `SliverPadding`).
+  - **Both charts appeared fully drawn.** Now they draw themselves: the line interpolates every
+    point's height from the baseline (700ms, `easeOutCubic`), its wash fades with the same progress,
+    and the dots land with a small `easeOutBack` overshoot after 45%; the monthly bars grow bottom-up
+    with a stagger (750ms). Each tween is keyed on the *data*, so rating a new day replays the
+    entrance instead of the chart sitting there with stale-looking numbers.
+  - **The score tint snapped in.** `Container` → `AnimatedContainer` (`Durations.medium2`) with one
+    stable key. The lesson is in D-034 §4: keying that container by state (`score == null ? null :
+    ValueKey('score-tint')`) rebuilds it instead of animating it.
+- New: a score card above the story list for the selected day — date, score (or "no score yet") and
+  the day's tint, tapping which opens the same `SpDailyScoreSheet` the long press does. Gated on the
+  add-on being on, absent on the "all stories" page. `SpScoreCallout` is the shared shell, and
+  `TodayScoreTile` in the trend segment is now a thin wrapper around it (`lib/widgets/scores/`), so
+  the two cards cannot drift apart.
+- Tests: `test/widgets/scores/sp_score_callout_test.dart` (the number when rated, an add icon — never
+  a `0` — when not, one tap opens the sheet, a long title ellipsises instead of overflowing, RTL,
+  tint follows the score, out-of-range score is clamped); the chart tests now settle the entrance and
+  assert the bars start at zero height and end at their real value.

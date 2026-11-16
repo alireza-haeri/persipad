@@ -15,8 +15,16 @@ class _ScoreTrendContent extends StatelessWidget {
         automaticallyImplyActions: false,
         toolbarHeight: 12.0,
       ),
+      // The side insets are the *page's*, not the safe area's: on a wide window
+      // `RootPagesMediaQuery` adds the sidebar's 88pt to `padding.left/right`, and
+      // without them the charts slide under the sidebar (the mood segment gets the
+      // same treatment through its SliverPadding).
       body: ListView(
-        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 24.0),
+        padding: EdgeInsets.only(
+          left: MediaQuery.paddingOf(context).left,
+          right: MediaQuery.paddingOf(context).right,
+          bottom: MediaQuery.paddingOf(context).bottom + 24.0,
+        ),
         children: [
           TodayScoreTile(
             score: viewModel.todayScore,

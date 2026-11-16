@@ -744,3 +744,45 @@ Template:
   one grid, one cell, score as a layer rather than a parallel screen. The cost is that the exact
   score number lives one gesture away (the sheet) and in the two charts; the tint answers "how was
   this month" without it.
+
+## D-034 — The calendar's polish: motion, real insets, and the score where the day is (2026-11-15)
+- **Status:** accepted (extends D-033; supersedes nothing)
+- **Context:** after D-033 the calendar said everything the user asked for, and then looked like it had
+  been bolted on: the trend segment was pressed against the sidebar on a wide window, both charts
+  appeared as a finished picture the instant the segment was selected, a score tint snapped in from
+  nothing, and the only way to rate a day was a long press on a 56pt cell — the shortest path to the
+  feature was the least visible one.
+- **Decision:**
+  1. **Charts animate their data, not their container.** `ScoreMonthLineChart` wraps its painter in a
+     700ms `easeOutCubic` `TweenAnimationBuilder` and the painter interpolates each point's *height*
+     from the baseline (`progress`), fades the fill by the same factor, and brings the dots in with a
+     slight `easeOutBack` overshoot after 45%. `ScoreMonthlyAverageChart` grows its bars bottom-up,
+     staggered (the stagger spends 35% of a 750ms timeline, each bar 65%). A chart that fades in as a
+     block still reads as an image; a chart that draws itself reads as data.
+  2. **The tween's key is the data.** Both charts key the builder on the values (`'$daysInMonth|day:score,…'`,
+     the joined month ids), so a newly rated day replays the entrance instead of the tween running once
+     per mount and then lying about fresh numbers. The key is derived from data only, never from
+     identity, so a rebuild with equal data does not replay.
+  3. **Side insets come from `MediaQuery.paddingOf`, not from `EdgeInsets.zero`.** `RootPagesMediaQuery`
+     folds the wide-window sidebar's 88pt into `padding.left/right`; the trend segment's `ListView` and
+     the mood segment's new score card both consume those insets, which is why the charts no longer
+     slide under the sidebar. Any new full-bleed list on this page must do the same.
+  4. **The tint fades, and the cell keeps one key.** The score tint moved from `Container` to
+     `AnimatedContainer` (`Durations.medium2`, `easeOut`) with a *stable* key. Keying the container by
+     state (`score == null ? null : ValueKey('score-tint')`) silently defeats the implicit animation:
+     the key swap rebuilds the box instead of tweening it.
+  5. **The selected day's score sits above its stories.** When a single day is selected and the add-on
+     is on, the story column starts with a card showing that date, its score (or "no score yet") and
+     the same tint, tapping which opens the very same `SpDailyScoreSheet`. The grid's long press stays
+     as the fast path; it is no longer the only one. The "all stories" page (no day selected) shows no
+     card — there is no day to rate.
+  6. **One shell for both callouts.** `SpScoreCallout` is the card; `TodayScoreTile` in the trend
+     segment and the new day card both render it, differing only in wording. Two hand-built copies of
+     the same tint/ink/label would have drifted on the first restyle.
+- **Consequences:** the segment now *feels* like the calendar rather than a report, and rating a day is
+  discoverable from the day's own column. The cost is motion: it is deliberately short (≤750ms), it
+  replays only when the underlying data actually changes, and nothing on the screen waits for it —
+  taps, the sheet and the story list are interactive on the first frame. Implicit animations in
+  Flutter do *not* consult `MediaQuery.disableAnimations` on their own, so this is a bounded, one-shot
+  entrance rather than a decorative loop; if a reduced-motion pass is ever wanted it has to be done
+  explicitly in both builders.

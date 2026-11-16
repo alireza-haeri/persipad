@@ -58,24 +58,38 @@ class ScoreMonthLineChart extends StatelessWidget {
                 ),
               ),
             )
-          : SizedBox(
-              height: _chartHeight,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _ScoreLinePainter(
-                  points: points,
-                  daysInMonth: daysInMonth,
-                  rtl: Directionality.of(context) == TextDirection.rtl,
-                  textDirection: Directionality.of(context),
-                  gridColor: colorScheme.onSurface.withValues(alpha: 0.08),
-                  surfaceColor: colorScheme.surfaceContainerLow,
-                  labelStyle:
-                      theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant) ??
-                      const TextStyle(fontSize: 10.0),
-                  dayLabel: (day) => DateFormatHelper.number(day, locale),
-                  scoreLabel: (score) => DailyScoreScale.label(score, locale),
-                ),
+          : TweenAnimationBuilder<double>(
+              // The key is the data: a new month (or a score being added) replays the
+              // entrance, so the chart visibly redraws itself instead of snapping to
+              // a new shape. Without it the tween would only ever run once per mount.
+              key: ValueKey<String>(
+                '${daysInMonth}|${points.map((point) => '${point.day}:${point.score}').join(',')}',
               ),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
+              builder: (context, progress, child) {
+                return SizedBox(
+                  height: _chartHeight,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _ScoreLinePainter(
+                      points: points,
+                      daysInMonth: daysInMonth,
+                      progress: progress,
+                      rtl: Directionality.of(context) == TextDirection.rtl,
+                      textDirection: Directionality.of(context),
+                      gridColor: colorScheme.onSurface.withValues(alpha: 0.08),
+                      surfaceColor: colorScheme.surfaceContainerLow,
+                      labelStyle:
+                          theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant) ??
+                          const TextStyle(fontSize: 10.0),
+                      dayLabel: (day) => DateFormatHelper.number(day, locale),
+                      scoreLabel: (score) => DailyScoreScale.label(score, locale),
+                    ),
+                  ),
+                );
+              },
             ),
     );
   }
@@ -85,6 +99,7 @@ class _ScoreLinePainter extends CustomPainter {
   _ScoreLinePainter({
     required this.points,
     required this.daysInMonth,
+    required this.progress,
     required this.rtl,
     required this.textDirection,
     required this.gridColor,
@@ -96,6 +111,11 @@ class _ScoreLinePainter extends CustomPainter {
 
   final List<({int day, int score})> points;
   final int daysInMonth;
+
+  /// 0 → the line lies flat on the baseline, 1 → its real values. Driven by a
+  /// [TweenAnimationBuilder] in the widget, which is what makes the chart grow
+  /// instead of appearing.
+  final double progress;
   final bool rtl;
   final TextDirection textDirection;
   final Color gridColor;
@@ -120,7 +140,12 @@ class _ScoreLinePainter extends CustomPainter {
     );
     if (plot.width <= 0 || plot.height <= 0) return;
 
-    double yOf(int score) => plot.bottom - plot.height * DailyScoreScale.clamp(score) / DailyScoreScale.max;
+    // The curve rises from the baseline: every point's height is interpolated,
+    // not just its opacity, which is what makes the entrance read as drawing.
+    double yOf(int score) {
+      final double target = plot.bottom - plot.height * DailyScoreScale.clamp(score) / DailyScoreScale.max;
+      return plot.bottom + (target - plot.bottom) * progress;
+    }
 
     double xOf(int day) {
       final double t = daysInMonth <= 1 ? 0.5 : (day - 1) / (daysInMonth - 1);
@@ -136,10 +161,14 @@ class _ScoreLinePainter extends CustomPainter {
     final int average = (points.map((point) => point.score).reduce((a, b) => a + b) / points.length).round();
     final Color accent = DailyScoreScale.colorOf(average);
 
+    // Dots arrive after the line, with a small overshoot, so the eye follows the
+    // curve and then lands on the values.
+    final double dotScale = Curves.easeOutBack.transform(((progress - 0.45) / 0.55).clamp(0.0, 1.0).toDouble());
+
     if (offsets.length == 1) {
       // One rated day has no line to draw; a single dot still answers "what did
       // I score this month".
-      _paintDot(canvas, offsets.first, points.first.score);
+      _paintDot(canvas, offsets.first, points.first.score, dotScale);
       return;
     }
 
@@ -163,7 +192,7 @@ class _ScoreLinePainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [accent.withValues(alpha: 0.26), accent.withValues(alpha: 0.0)],
+          colors: [accent.withValues(alpha: 0.26 * progress), accent.withValues(alpha: 0.0)],
         ).createShader(plot),
     );
 
@@ -188,7 +217,7 @@ class _ScoreLinePainter extends CustomPainter {
     canvas.restore();
 
     for (int i = 0; i < offsets.length; i++) {
-      _paintDot(canvas, offsets[i], points[i].score);
+      _paintDot(canvas, offsets[i], points[i].score, dotScale);
     }
   }
 
@@ -231,9 +260,10 @@ class _ScoreLinePainter extends CustomPainter {
     }
   }
 
-  void _paintDot(Canvas canvas, Offset offset, int score) {
-    canvas.drawCircle(offset, 5.0, Paint()..color = surfaceColor);
-    canvas.drawCircle(offset, 3.6, Paint()..color = DailyScoreScale.colorOf(score));
+  void _paintDot(Canvas canvas, Offset offset, int score, double scale) {
+    if (scale <= 0) return;
+    canvas.drawCircle(offset, 5.0 * scale, Paint()..color = surfaceColor);
+    canvas.drawCircle(offset, 3.6 * scale, Paint()..color = DailyScoreScale.colorOf(score));
   }
 
   TextPainter _text(String value) {
@@ -294,6 +324,7 @@ class _ScoreLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ScoreLinePainter oldDelegate) {
     return oldDelegate.daysInMonth != daysInMonth ||
+        oldDelegate.progress != progress ||
         oldDelegate.rtl != rtl ||
         oldDelegate.gridColor != gridColor ||
         !listEquals(oldDelegate.points, points);

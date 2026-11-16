@@ -12,14 +12,18 @@ void main() {
   setUp(CalendarConfig.reset);
   tearDown(CalendarConfig.reset);
 
-  Future<void> pump(WidgetTester tester, Widget child) {
-    return tester.pumpWidget(
+  Future<void> pump(WidgetTester tester, Widget child, {bool settle = true}) async {
+    await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(child: child),
         ),
       ),
     );
+
+    // Both charts animate their data in; settle so the assertions read the
+    // finished layout instead of the first frame of the tween.
+    if (settle) await tester.pumpAndSettle();
   }
 
   group('ScoreMonthLineChart', () {
@@ -64,6 +68,7 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
 
@@ -98,10 +103,38 @@ void main() {
       expect(find.text('76'), findsOneWidget, reason: 'a 75.5 average is labelled with its rounded value');
     });
 
+    testWidgets('bars grow in from the baseline instead of appearing at full height', (tester) async {
+      await pump(
+        tester,
+        const ScoreMonthlyAverageChart(
+          months: [MonthlyScoreAverage(year: 2026, month: 10, average: 80.0, days: 4)],
+        ),
+        settle: false,
+      );
+
+      final FractionallySizedBox start = tester.widget<FractionallySizedBox>(
+        _barFinder(),
+      );
+      expect(start.heightFactor, 0.0, reason: 'the first frame is the baseline');
+
+      await tester.pumpAndSettle();
+
+      final FractionallySizedBox grown = tester.widget<FractionallySizedBox>(
+        _barFinder(),
+      );
+      expect(grown.heightFactor, closeTo(0.8, 0.001), reason: '80 out of 100 of the track');
+    });
+
     testWidgets('renders nothing when no month has data', (tester) async {
       await pump(tester, const ScoreMonthlyAverageChart(months: []));
 
       expect(find.text('Monthly averages'), findsNothing);
     });
   });
+}
+
+Finder _barFinder() {
+  return find
+      .descendant(of: find.byType(ScoreMonthlyAverageChart), matching: find.byType(FractionallySizedBox))
+      .first;
 }

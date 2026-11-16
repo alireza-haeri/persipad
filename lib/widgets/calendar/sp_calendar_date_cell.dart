@@ -81,8 +81,13 @@ class SpCalendarDateCell extends StatelessWidget {
                 ),
               ),
             ),
-          Container(
-            key: score == null ? null : const ValueKey('score-tint'),
+          AnimatedContainer(
+            // A stable key even when there is no tint: swapping the key on the way
+            // from "unrated" to "rated" would rebuild the box and snap the colour in
+            // instead of fading it.
+            key: const ValueKey('calendar-cell-background'),
+            duration: Durations.medium2,
+            curve: Curves.easeOut,
             alignment: Alignment.center,
             constraints: const BoxConstraints(minHeight: 56),
             margin: const EdgeInsets.all(2.0),

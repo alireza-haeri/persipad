@@ -82,7 +82,7 @@ class _CalendarStoriesContent extends StatelessWidget {
                 child: buildCalendar(context, showBottomBorder: false, scrollable: true),
               ),
             ),
-            Flexible(child: buildStoryList()),
+            Flexible(child: buildStoryList(context)),
           ],
         ),
       ),
@@ -102,16 +102,17 @@ class _CalendarStoriesContent extends StatelessWidget {
           ),
         ];
       },
-      body: buildStoryList(),
+      body: buildStoryList(context),
     );
   }
 
-  Widget buildStoryList() {
+  Widget buildStoryList(BuildContext context) {
     // Day count in the *display* calendar: a Shamsi month has 29–31 days too, but
     // `DateTime(year, month + 1, 0)` would count a Gregorian month.
     final daysInMonth = CalendarDisplay.daysInMonth(viewModel.year, viewModel.month);
+    final int? selectedDay = viewModel.selectedDay;
 
-    return PageView.builder(
+    final Widget pages = PageView.builder(
       onPageChanged: (index) {
         // Index 0 = show all (selectedDay = null), Index 1+ = specific day
         if (index == 0) {
@@ -143,6 +144,38 @@ class _CalendarStoriesContent extends StatelessWidget {
           filter: filter,
         );
       },
+    );
+
+    return Column(
+      children: [
+        // Above the day's stories: the score for the day the user just picked, so
+        // rating a day does not require leaving the list or remembering to
+        // long-press (D-033 §4 keeps long press as the shortcut, not the only way).
+        if (viewModel.enableScores && selectedDay != null)
+          Padding(
+            padding: EdgeInsets.only(
+              left: MediaQuery.paddingOf(context).left + 16.0,
+              right: MediaQuery.paddingOf(context).right + 16.0,
+              top: 4.0,
+              bottom: 8.0,
+            ),
+            child: SpScoreCallout(
+              title: DateFormatHelper.yMMMd(
+                CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+                Localizations.localeOf(context),
+              ),
+              subtitle: viewModel.scoresByDay[selectedDay] == null
+                  ? tr('general.score_none_yet')
+                  : tr('general.score_of_day'),
+              score: viewModel.scoresByDay[selectedDay],
+              onTap: () => viewModel.openScoreSheet(
+                context,
+                CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+              ),
+            ),
+          ),
+        Expanded(child: pages),
+      ],
     );
   }
 
