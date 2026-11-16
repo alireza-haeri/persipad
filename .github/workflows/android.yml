@@ -60,6 +60,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        # The image ships ~14 GB free on `/`, and Flutter + the Android SDK + Gradle
+        # caches + a first NDK download sit right at that edge: the first run died in
+        # `mergeCommunityDebugNativeLibs` with "Could not update
+        # ~/.gradle/caches/9.3.1/file-changes/last-build.bin", which is what a full
+        # disk looks like from Gradle's side. Nothing Android needs is removed here.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost \
+                      /usr/local/lib/android/sdk/system-images \
+                      /usr/local/lib/android/sdk/emulator || true
+          sudo apt-get clean
+          docker image prune -af || true
+          echo '--- after ---'
+          df -h /
+
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
@@ -125,10 +141,14 @@ jobs:
           tail -80 /tmp/apk.txt
           if [ $status -ne 0 ]; then
             echo "::error::flutter build apk failed"
-            grep -E '^e: |error:|FAILURE:|What went wrong|Execution failed|Could not resolve|Unsupported class|> ' /tmp/apk.txt |
-              head -15 | while IFS= read -r line; do
+            grep -E '^e: |error:|FAILURE:|What went wrong|Execution failed|Could not|Unsupported class|No space|failed|> ' /tmp/apk.txt |
+              grep -vE '^\s*$' | head -25 | while IFS= read -r line; do
                 echo "::error::$line"
               done
+            echo '--- disk at failure ---'
+            df -h / || true
+            df -i / || true
+            du -sh ~/.gradle /usr/local/lib/android/sdk 2>/dev/null || true
           fi
           exit $status
 
