@@ -124,9 +124,30 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     GoogleDesktopOAuthConfig? config,
     Future<bool> Function(String url)? openBrowser,
     http.Client? client,
+    this.manualPromptDelay = defaultManualPromptDelay,
   }) : config = config ?? GoogleDesktopOAuthConfig.fromEnvironment(),
        _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString,
        _client = client ?? http.Client();
+
+  /// How long the loopback redirect gets before the UI is offered a manual way in.
+  /// Long enough that a normal sign-in never asks; short enough that a stuck tab
+  /// does not look like a frozen app.
+  static const Duration defaultManualPromptDelay = Duration(seconds: 12);
+
+  final Duration manualPromptDelay;
+
+  /// Set by the UI layer (the backup screen) before a sign-in starts, cleared when
+  /// it ends. Called when the loopback redirect has not arrived after
+  /// [manualPromptDelay]; it should return the address the user copied out of the
+  /// browser, or null if they choose to keep waiting.
+  ///
+  /// This exists because the loopback redirect is the one step of the flow that
+  /// depends on the browser being able to reach an HTTP server *inside this app*.
+  /// A device that freezes background apps, or a phone-side VPN that owns the
+  /// routing table, can swallow it — and then the tab spins forever with no way
+  /// out. Pasting the address is the fallback that always works (RFC 8252 §7.3
+  /// describes exactly this).
+  static Future<String?> Function(Future<void> redirectArrived)? manualRedirectPrompt;
 
   @override
   bool get isConfigured => config.isConfigured;
@@ -327,13 +348,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         );
       }
 
-      final redirect = await completer.future.timeout(
-        redirectTimeout,
-        onTimeout: () => throw const GoogleOAuthException(
-          'Timed out waiting for the Google sign-in to finish in the browser.',
-          error: 'timeout',
-        ),
-      );
+      final redirect = await _waitForRedirect(completer);
       final code = parseRedirectCode(redirect, expectedState: state);
 
       return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
@@ -366,6 +381,43 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       // Browsers ask for /favicon.ico unprompted; that must not consume the code.
       if ((hasCode || hasError) && !completer.isCompleted) completer.complete(request.uri);
     });
+  }
+
+  /// Waits for the redirect from either place it can come from: the loopback
+  /// server, or the address a stuck user copied out of the browser.
+  ///
+  /// They race, and the loopback wins whenever it arrives — the prompt is only
+  /// offered once [manualPromptDelay] has passed without one, so a normal sign-in
+  /// never sees a dialog. A cancelled prompt does not abort the flow: it simply
+  /// keeps waiting for the loopback until [redirectTimeout].
+  Future<Uri> _waitForRedirect(Completer<Uri> completer) {
+    final loopback = completer.future.timeout(
+      redirectTimeout,
+      onTimeout: () => throw const GoogleOAuthException(
+        'Timed out waiting for the Google sign-in to finish in the browser.',
+        error: 'timeout',
+      ),
+    );
+
+    final prompt = manualRedirectPrompt;
+    if (prompt == null) return loopback;
+
+    // A prompt that shows a dialog uses [redirectArrived] to close itself when the
+    // loopback wins the race late, so the user is never left with a modal asking
+    // for an address that is no longer needed.
+    final redirectArrived = completer.future.then((_) {});
+    final manual = Future.delayed(manualPromptDelay, () => completer.isCompleted ? null : prompt(redirectArrived)).then((pasted) {
+      final trimmed = pasted?.trim() ?? '';
+      if (trimmed.isEmpty) {
+        AppLogger.d('Google sign-in: manual fallback was declined; still waiting for the loopback redirect.');
+        return Completer<Uri>().future; // never completes: the loopback keeps its chance
+      }
+
+      AppLogger.d('Google sign-in: manual fallback received a pasted address.');
+      return Uri.parse(trimmed);
+    });
+
+    return Future.any([loopback, manual]);
   }
 
   /// Shown in the browser tab once the redirect lands. Plain and unbranded on

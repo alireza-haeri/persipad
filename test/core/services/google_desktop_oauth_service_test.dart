@@ -265,6 +265,61 @@ void main() {
     });
   });
 
+  // When the browser cannot reach the app's loopback server at all (a device that
+  // freezes background apps, or a phone-side VPN owning the routing table), the tab
+  // spins forever and the flow is a dead end. Pasting the address must finish it.
+  group('GoogleDesktopOAuthService.authenticate manual fallback', () {
+    const config = GoogleDesktopOAuthConfig(clientId: 'id', clientSecret: 'secret');
+    final tokenBody = jsonEncode({'access_token': 'pasted-token', 'expires_in': 3599});
+
+    tearDown(() => GoogleDesktopOAuthService.manualRedirectPrompt = null);
+
+    GoogleDesktopOAuthService build({required void Function(String state) onOpened}) {
+      return GoogleDesktopOAuthService(
+        config: config,
+        manualPromptDelay: Duration.zero,
+        client: MockClient((request) async => http.Response(tokenBody, 200)),
+        // The loopback is never contacted: this is the "browser could not reach
+        // us" case, which is exactly when the fallback has to carry the flow.
+        openBrowser: (url) async {
+          onOpened(Uri.parse(url).queryParameters['state']!);
+          return true;
+        },
+      );
+    }
+
+    test('a pasted address finishes the sign-in', () async {
+      String? pasted;
+      final service = build(onOpened: (state) => pasted = 'http://127.0.0.1:9/?code=pasted-code&state=$state');
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => pasted;
+
+      final token = await service.authenticate();
+
+      expect(token.accessToken, 'pasted-token');
+    });
+
+    test('a pasted address without a code is refused with a specific error', () async {
+      String? pasted;
+      final service = build(onOpened: (state) => pasted = 'http://127.0.0.1:9/?state=$state');
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => pasted;
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'no_code')),
+      );
+    });
+
+    test('a pasted address from another flow is refused by the state check', () async {
+      final service = build(onOpened: (_) {});
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => 'http://127.0.0.1:9/?code=old&state=another-flow';
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'invalid_state')),
+      );
+    });
+  });
+
   // The emulator bug these cover: with no working DNS the app reported
   // `ClientException with SocketException: Failed host lookup:
   // 'oauth2.googleapis.com' (OS Error: No address associated with hostname,

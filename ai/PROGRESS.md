@@ -1,9 +1,9 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 18)
+**Last updated:** 2026-11-16 (session 19)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 18 — release size measured (**40.5 MB**, from 237 MB) and the leftover ABIs removed (`D-059`); the phone sign-in fix awaits a rebuild (`D-058`)
+**Current session:** session 19 — phone sign-in: loopback ordering fixed (D-058) **and** a paste-the-address fallback added (D-060), so a browser that cannot reach the app is no longer a dead end
 **Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
 **Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
 
@@ -787,3 +787,28 @@ Tree-shaking of the three icon fonts also showed up in the log (99.7% / 99.6% / 
 
 **Open at the time of writing:** the release APK was built from `a7a7def`, i.e. **before**
 `D-058`; the phone sign-in fix still has to be rebuilt and tried on the device.
+
+### Session 19 — Phone sign-in: the fallback that always works (2026-11-16)
+
+The phone still parked Chrome on `http://127.0.0.1:33509/?code=…` after `D-058`. Two facts
+came out of that round, and both are recorded rather than argued:
+
+1. **The retest was not a retest.** `bin/build_apk --install --abi arm64` printed
+   `nothing attached` — the phone was not visible to `adb` — so the build with `D-058` was
+   never installed. (The `--install` message now says how to fix that: USB debugging, the
+   on-device prompt, and `adb devices` showing `device`, not `unauthorized`.)
+2. **Even a correct ordering cannot cover every device.** An OEM that freezes background apps
+   the moment the browser comes forward, or a phone-side VPN owning the routing table, can stop
+   the redirect from ever arriving. The user then holds a valid `code` in an address bar and
+   has nowhere to put it.
+
+So `D-060` adds the escape hatch: after 12 s without a redirect, the app offers a dialog with
+one text field ("paste the address from the browser"). It races the loopback server — whichever
+arrives first wins — and the pasted address goes through the same `state` / `no_code` checks as
+a real redirect. A cancelled dialog does not abort anything; the loopback keeps waiting.
+
+**Verification (this is the round where CI is the judge):**
+- three new tests for the fallback (pasted address succeeds; no code → `no_code`; foreign
+  state → `invalid_state`) plus the two `D-058` tests that redirect from inside `openBrowser`;
+- `Linux` CI on this commit — `[full]`, so Scope/Analyze/Test 1/Test 2/Editor package
+  tests/Build Linux desktop/Coverage all run. The run id is appended below once it lands.

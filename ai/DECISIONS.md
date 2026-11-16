@@ -1476,3 +1476,28 @@ Template:
   attached device (so the x86_64 emulator still gets a build it can run).
 - **Consequences:** a phone release carries one ABI of everything. Expected ~36 MB; the
   measurement is the user's next build. No Dart behaviour changes.
+
+## D-060 — A paste-the-address fallback for the one step the app cannot control (2026-11-16)
+- **Status:** accepted
+- **Context:** The phone kept parking Chrome on `http://127.0.0.1:<port>/?code=…` even after
+  `D-058` moved the listener before the browser opens. That fix is right and tested, but it
+  cannot cover the cases where the redirect never reaches the app at all: an OEM that freezes
+  background apps the moment the browser comes forward, or a phone-side VPN that owns the
+  routing table and refuses loopback. In both, the user has a valid `code` sitting in the
+  address bar and no way to hand it to the app — a dead end that no amount of ordering fixes.
+- **Decision:** the loopback wait races an optional manual prompt.
+  1. `GoogleDesktopOAuthService.manualRedirectPrompt` (static, set by the UI layer) is invoked
+     once `manualPromptDelay` (12 s) passes with no redirect. It receives a
+     `Future<void> redirectArrived` so a dialog can close itself if the loopback wins late.
+  2. Whatever it returns is parsed exactly like a loopback redirect: `parseRedirectCode` — so
+     the `state` check and the `no_code` error still apply, and a stale address from another
+     attempt is refused with `invalid_state` rather than silently accepted.
+  3. A cancelled prompt does **not** abort the flow; it returns to waiting for the loopback
+     until `redirectTimeout`. The normal path never sees a dialog.
+  4. `BackupProvider.signIn` installs the prompt around `repository.signIn` and clears it in a
+     `finally`; the dialog is the app's own `AlertDialog` with one text field (3 translated
+     keys in `en`/`fa`), not a webview, and it never logs the code.
+- **Consequences:** RFC 8252 §7.3's manual redirect, implemented as a fallback rather than the
+  main path. Sign-in now completes on devices where the browser cannot reach the app, at the
+  cost of one dialog that only appears when the page is stuck. Covered by three tests
+  (pasted address succeeds; no code → `no_code`; foreign state → `invalid_state`).

@@ -12,6 +12,7 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/assets/db_asset_loader_service.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
+import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
 import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
@@ -247,10 +248,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       return;
     }
 
-    final result = await SpAppLockWrapper.disableAppLockIfHas(
-      context,
-      callback: () => repository.signIn(serviceType),
-    );
+    final result = await _signInWithFallback(context, serviceType);
 
     if (result.isSuccess == true) {
       AnalyticsService.instance.logSignInWithGoogle();
@@ -277,6 +275,82 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     }
 
     notifyListeners();
+  }
+
+  /// Runs the sign-in with the loopback escape hatch installed: if the browser
+  /// never reaches the app's local server, the user can paste the address from the
+  /// browser instead of being stuck on a page that spins forever (`D-058`, `D-060`).
+  Future<BackupResult<bool>> _signInWithFallback(BuildContext context, BackupServiceType serviceType) async {
+    if (repository.getService(serviceType) is GoogleDriveCloudService) {
+      GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) => _askForRedirectUri(context, redirectArrived);
+    }
+
+    try {
+      return await SpAppLockWrapper.disableAppLockIfHas(
+        context,
+        callback: () => repository.signIn(serviceType),
+      );
+    } finally {
+      GoogleDesktopOAuthService.manualRedirectPrompt = null;
+    }
+  }
+
+  /// The browser tab is stuck on `http://127.0.0.1:<port>/?code=…`: offer to finish
+  /// the sign-in from the address bar. Returns null when the user would rather keep
+  /// waiting, which leaves the loopback server running.
+  Future<String?> _askForRedirectUri(BuildContext context, Future<void> redirectArrived) async {
+    if (!context.mounted) return null;
+
+    final controller = TextEditingController();
+    try {
+      final dialog = showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          // The loopback can still win after the dialog opened; close it then.
+          redirectArrived.then((_) {
+            if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          });
+
+          return AlertDialog(
+            title: Text(tr('dialog.google_drive_redirect.title')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('dialog.google_drive_redirect.description')),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  minLines: 1,
+                  maxLines: 3,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    hintText: tr('dialog.google_drive_redirect.hint'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(tr('button.cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+                child: Text(tr('button.confirm')),
+              ),
+            ],
+          );
+        },
+      );
+
+      return await dialog;
+    } finally {
+      controller.dispose();
+    }
   }
 
   /// A sign-in that failed only because the device cannot reach Google gets the

@@ -626,7 +626,9 @@ or start it manually first:
   $EMU_DISPLAY -avd $FIRST_AVD &"
       fi
     fi
-    die "no device in 'adb devices' — plug the phone in (USB debugging) or start an AVD."
+    die "no device in 'adb devices' — plug the phone in (USB debugging) or start an AVD.
+For a phone: enable Developer options → USB debugging, accept the 'Allow USB debugging'
+prompt on the device, then check that 'adb devices' lists it as 'device' (not 'unauthorized')."
   fi
 
   ADB_TARGET=()
