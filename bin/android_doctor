@@ -4,21 +4,25 @@
 #   bin/android_doctor            # full read-only report
 #   bin/android_doctor --short    # only the verdict lines
 #   bin/android_doctor --fix      # install the missing SDK packages with sdkmanager
+#   bin/android_doctor --mirror   # write ~/.gradle/init.d/notely-google-mirror.gradle.kts
 #
 # Prints one paste-able report: toolchain versions, SDK packages, AVDs and their ABIs,
 # the Gradle/AGP/NDK the repo *and the pinned Flutter SDK* ask for, and whether Google
-# Maven is reachable for the artifacts the Flutter Gradle plugin needs (a 403/404 there
-# explains "Could not find apksig-x.y.z.jar" far better than the Gradle error does).
+# Maven is reachable — probed twice, with and without the environment's HTTP proxy,
+# because "404 for every file on dl.google.com" is a network interception while "404 for
+# two files" is a stale Gradle cache, and the two need opposite fixes.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 SHORT=0
 FIX=0
+MIRROR=0
 for arg in "$@"; do
   case "$arg" in
-    --short) SHORT=1 ;;
-    --fix)   FIX=1 ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --short)  SHORT=1 ;;
+    --fix)    FIX=1 ;;
+    --mirror) MIRROR=1 ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "bin/android_doctor: unknown argument '$arg' (try --help)" >&2; exit 2 ;;
   esac
 done
@@ -63,6 +67,7 @@ row min_sdk "${MIN_SDK:-<unparsed>}"
 
 # ---------------------------------------------------------------- toolchain
 hdr "toolchain"
+FLUTTER_VERSION=""
 FLUTTER_ROOT=""
 if have flutter; then
   FLUTTER_BIN=$(command -v flutter)
@@ -143,7 +148,7 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
     fi
     if [ -n "$FLUTTER_NDK" ]; then
       if printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
-        ok "ndk $FLUTTER_NDK (pinned by Flutter ${FLUTTER_VERSION#Flutter })"
+        ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK)"
       else
         bad "ndk $FLUTTER_NDK (android/app/build.gradle.kts sets ndkVersion = flutter.ndkVersion)"
         MISSING_PKGS+=("ndk;$FLUTTER_NDK")
@@ -191,8 +196,11 @@ if [ -n "$EMULATOR" ]; then
   if [ -n "$AVDS" ]; then
     while IFS= read -r avd; do
       CFG="$HOME/.android/avd/$avd.avd/config.ini"
+      # newer AVDs use abi.type, older ones only record hw.cpu.arch
       ABI=$(sed -n 's/^abi\.type=//p' "$CFG" 2>/dev/null | head -1)
-      row "avd $avd" "${ABI:-abi unknown}"
+      [ -z "$ABI" ] && ABI=$(sed -n 's/^hw\.cpu\.arch=//p' "$CFG" 2>/dev/null | head -1)
+      case "$ABI" in arm64*) ABI=arm64-v8a ;; x86_64|x86) : ;; esac
+      row "avd $avd" "${ABI:-abi unknown — boot it and ask adb}"
     done <<< "$AVDS"
     ok "AVDs present — start one, then bin/build_apk --install"
   else
@@ -204,38 +212,111 @@ fi
 
 # ---------------------------------------------------------------- network
 hdr "google maven reachability"
-NET_BLOCKED=0
+GOOGLE_DIRECT_OK=0
+GOOGLE_PROXYED_OK=0
+GOOGLE_TOTAL=0
+NET_HINT=""
+proxy_env=$(env | grep -iE '^(http|https|all|no)_proxy=' | tr '\n' ' ')
+row proxy_env "${proxy_env:-<none>}"
+if [ -f "$HOME/.gradle/gradle.properties" ] && grep -q 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" 2>/dev/null; then
+  row gradle_proxy "$(grep 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" | tr '\n' ' ')"
+else
+  row gradle_proxy "<none>"
+fi
+
 if have curl; then
-  probe() { curl -s -o /dev/null -m 25 -w '%{http_code}' "$1" 2>/dev/null; }
+  probe() { curl -s -o /dev/null -m 25 -w '%{http_code}' "$@" 2>/dev/null; }
+  printf '  %-52s %s\n' "file" "direct / via-proxy"
   for path in \
+    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.jar" \
     "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.pom" \
     "com/android/tools/build/apksig/9.1.1/apksig-9.1.1.jar" \
-    "com/android/tools/build/apkzlib/9.1.1/apkzlib-9.1.1.jar" \
-    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.jar" ; do
-    code=$(probe "https://dl.google.com/dl/android/maven2/$path")
-    [ "$SHORT" = 1 ] || printf '  %-58s %s\n' "$path" "$code"
-    case "$code" in
-      200) : ;;
-      403|451) bad "dl.google.com returns $code for $(basename "$path") — region/proxy block, not a build bug"; NET_BLOCKED=1 ;;
-      404) bad "dl.google.com returns 404 for $(basename "$path") — stale Gradle metadata cache (see the note below)"; NET_BLOCKED=2 ;;
-      000|"") note "could not reach dl.google.com at all ($(basename "$path"))"; NET_BLOCKED=1 ;;
-    esac
+    "com/android/tools/build/apkzlib/9.1.1/apkzlib-9.1.1.jar" ; do
+    url="https://dl.google.com/dl/android/maven2/$path"
+    d=$(probe --noproxy '*' "$url")
+    p=$(probe "$url")
+    GOOGLE_TOTAL=$((GOOGLE_TOTAL + 1))
+    [ "$d" = "200" ] && GOOGLE_DIRECT_OK=$((GOOGLE_DIRECT_OK + 1))
+    [ "$p" = "200" ] && GOOGLE_PROXYED_OK=$((GOOGLE_PROXYED_OK + 1))
+    [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "$(basename "$path")" "$d / $p"
   done
-  code=$(probe "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/2.4.10/kotlin-gradle-plugin-2.4.10.pom")
-  [ "$SHORT" = 1 ] || printf '  %-58s %s\n' "maven central (kotlin-gradle-plugin 2.4.10)" "$code"
-  [ "$code" = "200" ] || note "maven central unreachable too — a proxy is likely the cause"
+  central=$(probe --noproxy '*' "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/2.4.10/kotlin-gradle-plugin-2.4.10.pom")
+  [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "maven central (direct)" "$central"
+  # sdkmanager reads its package list from this same host, under a different path.
+  # If the maven path 404s but this one does not, the block is path-specific and
+  # `--fix` still works; if both fail, Android Studio is the only way to get packages.
+  sdkrepo=$(probe --noproxy '*' "https://dl.google.com/android/repository/repository2-3.xml")
+  [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "sdk package list (dl.google.com/android/repository)" "$sdkrepo"
+  if [ "$sdkrepo" != "200" ] && [ "$GOOGLE_DIRECT_OK" -eq 0 ]; then
+    note "sdkmanager cannot download either — install packages through Android Studio, or from a network that reaches dl.google.com"
+  fi
+
+  if [ "$GOOGLE_DIRECT_OK" -eq "$GOOGLE_TOTAL" ]; then
+    ok "Google Maven answers 200 for all four files, direct"
+    if [ "$GOOGLE_PROXYED_OK" -lt "$GOOGLE_TOTAL" ]; then
+      note "…but the HTTP proxy in this shell breaks them ($GOOGLE_PROXYED_OK/$GOOGLE_TOTAL via proxy) — do not give Gradle that proxy"
+    fi
+    if grep -q 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" 2>/dev/null; then
+      NET_HINT="cache"
+    else
+      NET_HINT="cache"
+    fi
+  elif [ "$GOOGLE_PROXYED_OK" -eq "$GOOGLE_TOTAL" ] || [ "$GOOGLE_PROXYED_OK" -gt "$GOOGLE_DIRECT_OK" ]; then
+    bad "direct access to dl.google.com fails but the proxy works — configure Gradle's proxy"
+    NET_HINT="proxy"
+  elif [ "$GOOGLE_DIRECT_OK" -gt 0 ]; then
+    bad "some Google Maven files 404 — stale Gradle metadata cache"
+    NET_HINT="cache"
+  else
+    bad "dl.google.com is unreachable for every file ($GOOGLE_TOTAL/$GOOGLE_TOTAL 404 or no answer)"
+    NET_HINT="mirror"
+  fi
+  [ "$central" = "200" ] || note "maven central is also unreachable — suspect the whole network, not Google"
 else
   note "curl not found — reachability checks skipped"
 fi
 
-[ -d "$HOME/.gradle/init.d" ] && {
+for f in "$HOME"/.gradle/init.d/*; do
+  [ -f "$f" ] || continue
   hdr "gradle init scripts (can replace repositories)"
-  for f in "$HOME/.gradle/init.d"/*; do [ -f "$f" ] && row "$(basename "$f")" "$(grep -c . "$f") lines"; done
+  row "$(basename "$f")" "$(grep -c . "$f") lines"
+done
+
+# ---------------------------------------------------------------- mirror / fix
+MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle.kts"
+if [ "$MIRROR" = 1 ]; then
+  mkdir -p "$HOME/.gradle/init.d"
+  cat > "$MIRROR_FILE" <<'EOF'
+// Written by `bin/android_doctor --mirror`.
+// Purpose: this network cannot reach dl.google.com, so Google's Maven repository is
+// served by public mirrors instead. Delete this file to go back to the real thing.
+val mirrors = listOf(
+    "https://maven.aliyun.com/repository/google",
+    "https://repo.huaweicloud.com/repository/maven/google",
+    "https://maven.aliyun.com/repository/public",
+)
+
+beforeSettings { settings ->
+    settings.pluginManagement.repositories.apply {
+        mirrors.forEach { maven { setUrl(it) } }
+    }
+    settings.dependencyResolutionManagement.repositories.apply {
+        mirrors.forEach { maven { setUrl(it) } }
+    }
 }
-[ -f "$HOME/.gradle/gradle.properties" ] && {
-  hdr "user gradle.properties"
-  sed 's/^/  /' "$HOME/.gradle/gradle.properties"
+
+allprojects { project ->
+    project.buildscript.repositories.apply {
+        mirrors.forEach { maven { setUrl(it) } }
+    }
+    project.repositories.apply {
+        mirrors.forEach { maven { setUrl(it) } }
+    }
 }
+EOF
+  printf '\n  \033[32mWrote\033[0m %s\n' "$MIRROR_FILE"
+  printf '  Remove it with: rm %s\n' "$MIRROR_FILE"
+fi
 
 # ---------------------------------------------------------------- verdict
 printf '\n\033[1m== verdict\033[0m\n'
@@ -243,13 +324,14 @@ for v in "${verdict_ok[@]}"; do printf '  \033[32mok\033[0m      %s\n' "$v"; don
 for v in "${verdict_note[@]}"; do printf '  \033[33mnote\033[0m    %s\n' "$v"; done
 for v in "${verdict_bad[@]}"; do printf '  \033[31mMISSING\033[0m %s\n' "$v"; done
 
-case "$NET_BLOCKED" in
-  1) printf '\n  Network: Google Maven is unreachable/blocked. Add a mirror in \033[1m~/.gradle/init.d/google-mirror.gradle.kts\033[0m\n  (maven("https://maven.aliyun.com/repository/google") before google()) or point Gradle at your proxy.\n' ;;
-  2) printf '\n  Network: Google Maven answers but not for these files — most likely a stale Gradle cache.\n  Try: rm -rf ~/.gradle/caches/modules-2 && bin/build_apk\n' ;;
+case "${NET_HINT:-}" in
+  mirror) printf '\n  Google Maven is blocked on this network. Fix: \033[1mbin/android_doctor --mirror\033[0m\n  (writes ~/.gradle/init.d/notely-google-mirror.gradle.kts), then bin/build_apk.\n' ;;
+  cache)  printf '\n  Google Maven is reachable, so the 404s are a stale Gradle cache:\n  rm -rf ~/.gradle/caches/modules-2 && bin/build_apk\n' ;;
+  proxy)  printf '\n  Direct works, the proxy does not (or the other way round). If Gradle needs the proxy, put\n  systemProp.https.proxyHost/port in ~/.gradle/gradle.properties; if it does not, keep it out.\n' ;;
 esac
 
 if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
-  printf '\n  Missing packages: %s\n' "${MISSING_PKGS[*]}"
+  printf '\n  Missing SDK packages: %s\n' "${MISSING_PKGS[*]}"
   if [ "$FIX" = 1 ] && [ -n "$SDKMANAGER" ]; then
     printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${MISSING_PKGS[*]}"
     yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
