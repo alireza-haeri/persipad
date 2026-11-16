@@ -204,20 +204,25 @@ The user's next planned track is a leaner phone APK. Measured reality:
 
 ## 6. Build/CI health (the rules we already have, and where they leak)
 
-- **The Android workflow has no `paths-ignore`** (`linux.yml` has one for `ai/**`, `**/*.md`).
-  Every docs push still evaluates the Android job; it skips, but it costs a run slot and, worse,
-  it is the thing that once cancelled an in-flight `[apk]` build (D-039). Cheap: add the same
-  `paths-ignore` to `android.yml`, keeping the `[apk]` marker as the only real trigger.
-- **`bin/changed_tests` treats `packages/**` as "unmapped"** → any editor-package change forces
-  the *whole* root suite, which is the slowest possible response to the most likely-to-need-tests
-  change. Fixing §1 and this together is one small commit.
+**Measured coverage (2026-11-16, first `Coverage` run): `4 527 / 32 634` lines = 13.9%.**
+That is the number the new job exists for: it is low enough that "we have 167 test files"
+was not telling the whole story, and high enough that it is measuring instrumentation, not a
+broken job. No threshold was set — deliberately, a gate chosen before anyone looked at the
+shape of the gap would just be a number to game.
+
+- ~~**The Android workflow has no `paths-ignore`**~~ ❌ **this claim was wrong.** `android.yml`
+  has ignored `ai/**`, `**/*.md` and `LICENSE` since it was written; checked while implementing
+  T-9 and closed as a non-finding (BACKLOG T-13). The real cancelled-build cause was
+  `cancel-in-progress`, fixed in D-039.
+- ~~**`bin/changed_tests` treats `packages/**` as "unmapped"**~~ ✅ fixed with §1: a
+  `packages/**` change now sets `packages=true` and the app suite is correctly skipped.
+  Verified end to end on CI `43835490383` — `Editor package tests` ran, `Test`/`Build`/`Coverage`
+  skipped, which is exactly the intended graph.
 - **Formatting is still advisory** (`BACKLOG.md` T-7) and the CI formatter disagrees with
   untouched files. That is a real risk of "fix formatting → touch 40 files nobody meant to
   change". Keep it advisory until someone runs `bin/format` once deliberately on a clean tree.
-- **No coverage reporting.** `linux.yml` never collects `--coverage` (only the upstream `ci.yml`
-  does, and that workflow targets `develop` and is effectively dead). We cannot tell whether the
-  110 root test files cover 20% or 60% of `lib/`. Cheap: add `--coverage` and upload the
-  `lcov.info` as an artifact on `[full]`; no new service, no threshold enforcement.
+- ~~**No coverage reporting.**~~ ✅ `Coverage` job added on `[full]`/PRs; first measurement is
+  **13.9%** (see above). The artifact is `coverage-lcov`, 14-day retention.
 
 ## 7. Product ideas that fit *this* code base
 

@@ -192,6 +192,21 @@
   - **T-15 (first surface) — the calendar cell speaks.** One `Semantics` label per cell
     (formatted date, feeling, score) with the inner fragments excluded, plus tests asserting
     through the semantics tree.
+- [x] **Verified the whole thing on CI, and fixed what verifying it exposed**
+      (run `43837873918`: all seven jobs green — Analyze, Scope, Test 1/2, Build Linux
+      desktop, Editor package tests, Coverage).
+  - **My own test bug, caught by CI** (`43832635160`, Test 2): a `DateRangeFilterObject`
+    case asserted a Shamsi conversion while running in Gregorian mode. The test was wrong,
+    not the code — corrected, and the Shamsi path now has an explicit case so the inherited
+    conversion cannot be silently bypassed later.
+  - **`[full]` did not cover the packages** (D-045). The marker that exists to prove a green
+    tree ran both app shards and skipped the editor suite. Also: `.github/workflows/**` was
+    ignored as "cannot affect behaviour", so editing the gate did not run the gate.
+  - **The test job printed a failure annotation on every success** (D-046) — it never got
+    flutter's exit status. Now a green run is silent, a real failure still names the test,
+    and a non-zero exit with no reported test says where to look.
+  - **First measured coverage: 13.9%** (4 527 / 32 634 lines). Recorded in `ANALYSIS.md` §6;
+    no threshold was set, on purpose.
 
 ## 🔄 In progress
 
@@ -265,7 +280,7 @@
 | 2026-11-16 | Local Android APK scripts + `forceNdkDownload`/`36.1` fixes (`d3d534e`) | GitHub Actions + Sandbox | ✅ Linux CI Scope + Analyze + Test ×2 full suite green (`43823502245`); sandbox `bash -n` + stubbed `flutter`/`curl`/`adb`/`emulator` tests pass |
 | 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
 | 2026-11-16 | Analysis items: editor tests, backup merge, search contract, font, coverage, a11y | GitHub Actions | ✅ scoped run `43833412429` green (Scope 6s, Analyze 90s, Test 65s); full-suite run below |
-| 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | 🟡 full-suite verification running |
+| 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | ✅ `43837873918` — all 7 jobs green; editor suite (390 cases) ran for the first time; coverage 13.9% |
 
 > ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
 > blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box

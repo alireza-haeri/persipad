@@ -1097,3 +1097,50 @@ Template:
   moment, and then refresh; that is strictly better than an empty screen, and the refresh
   is keyed on the user having started searching. The scan itself is unchanged and stays
   tracked as `BACKLOG.md` T-11 for a real decision later.
+
+## D-045 — `[full]` covers the packages, and a workflow file counts as code (2026-11-16)
+- **Status:** accepted
+- **Context:** two gaps surfaced only because this session actually ran the CI it
+  had just written:
+  1. `[full]` overrode the *test mode* but not the new `packages` flag. The marker that
+     exists to prove "the whole tree is green" therefore ran both app shards and silently
+     skipped `packages/storypad_editor`'s 390 cases — the exact suite that had already been
+     dark for months (`ANALYSIS.md` §1). Reaching for the strongest verification gave a
+     weaker result than changing a `.dart` file under `packages/`.
+  2. `.github/workflows/**` was inside the blanket `.github/` ignore ("changes that cannot
+     affect behaviour"). A workflow is not a document: a bad `needs:`, a job whose `if:`
+     stops matching, or invalid YAML is *only* observable by running the workflow. Editing
+     the gate and then not running the gate is the one case where "nothing can fail" is
+     backwards.
+- **Decision:** (`bin/changed_tests`)
+  - `touches_packages(paths, message)` returns true for a `[full]` subject.
+  - `CI_DEFINITION_PREFIXES = (".github/workflows/",)` — those files are no longer ignored,
+    so they fall through to the existing "unmapped ⇒ run everything" rule.
+  - Everything else under `.github/` (issue templates, …), `bin/`, `docs/` and `ai/` stays
+    ignored; those genuinely cannot break a test.
+- **Consequences:** a `[full]` run now costs two app shards *plus* the editor suite, which
+  is the honest price of the claim it makes. A workflow-only change runs the suite instead
+  of skipping it — the run that proves the fix is the run the fix affects.
+- **Verified:** CI `43837873918` — all seven jobs green (Analyze, Scope, Test 1/2, Build,
+  Editor package tests, Coverage), which is the first run where the editor job and the app
+  shards executed together.
+
+## D-046 — The test-failure parser must not report failures that did not happen (2026-11-16)
+- **Status:** accepted
+- **Context:** `linux.yml` pipes `flutter test --reporter json` through a Python block that
+  re-emits failures as annotations, because the raw log lands in blob storage the agent
+  cannot read (D-013). That block never received flutter's exit status, so
+  `if not failed:` fired on **every successful run** and printed
+  `::error::flutter test failed but the JSON reporter reported no failing test`.
+  Both shards of run `43834022225` carried it while being green.
+- **Why this mattered more than the noise:** an annotation channel that cries wolf on every
+  green run is an annotation channel people learn to skim. During this session it nearly
+  did exactly that — the real Shamsi failure was found in the same list.
+- **Decision:** pass `status` into the parser:
+  - exit 0 ⇒ no failure annotation at all;
+  - a reported failing test ⇒ name + first error line, as before;
+  - non-zero with no reported test failure (compile error, missing dependency, timeout) ⇒
+    one annotation saying the log is where to look.
+- **Verified** by running the extracted Python block against three fixtures (green, failing
+  test, empty-with-nonzero) before committing, and then by CI `43837873918`, whose Test jobs
+  carry only the `shard N/2: 56 files` notice and no error annotations.

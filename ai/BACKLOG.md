@@ -87,7 +87,7 @@ Generic journaling-app ideas; your preferences set the priority.
 | T-11 | `⏸` Search quality: linear `contains` on an unindexed `searchMetadata` | The cheap half is done (`search_filter_object_test.dart`, and the per-open reindex is now a single `count()` — D-044). Real search quality (prefix/FTS) still needs its own decision |
 | T-12 | `✅` The default family ships with the app | `assets/fonts/Quicksand-Variable.ttf` (OFL, variable) declared in `pubspec.yaml` (D-043). The picker's catalogue stays online on purpose; `allowRuntimeFetching` was **not** disabled, with the reason recorded |
 | T-13 | `✅` ~~Android workflow has no `paths-ignore`~~ — **wrong, it always had one** (`android.yml` ignores `ai/**`, `**/*.md`, `LICENSE`) | Checked while implementing T-9; the cancel-in-progress fix from D-039 was the real issue and is already in |
-| T-14 | `✅` Coverage is reported | Advisory `Coverage` job on `[full]`/PRs: lcov artifact + a percentage notice; no threshold yet (deliberately — measure first) |
+| T-14 | `✅` Coverage is reported | Advisory `Coverage` job on `[full]`/PRs: lcov artifact + a percentage notice. First measurement **13.9%** (4 527/32 634 lines). A threshold is now a real question, but it needs a decision about *which* gap to close first, not a number picked today |
 | T-15 | `🚧` Accessibility on our own widgets | The calendar cell now has one semantic sentence (date + feeling + score) with the fragments excluded. The score bar and the story-list rail still need the same treatment |
 
 ## 3. Open questions

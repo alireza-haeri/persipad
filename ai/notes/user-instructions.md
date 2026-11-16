@@ -214,6 +214,11 @@ already true and was closed as a non-finding.
 **Note:** one CI failure was mine and is recorded rather than hidden — the new
 `SearchFilterObject` test asserted a Shamsi conversion inside a Gregorian group; CI
 (`43832635160`, Test 2) caught it, and the test was corrected, not the code.
+**Verified end to end:** CI `43837873918` — close to 7/7 jobs green (Analyze, Scope,
+Test 1 and 2, Build Linux desktop, Editor package tests, Coverage), the first run where
+the editor package's suite actually executed. Two CI defects surfaced while running it and
+were fixed rather than worked around: `[full]` skipped the packages (D-045) and every
+successful test job printed a failure annotation (D-046).
 
 ---
 
