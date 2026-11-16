@@ -48,6 +48,23 @@ which proxy you run and I will write the exact config block for it.
 
 ---
 
+## 1b. ✅ "Make the final app lighter" — measured, not guessed
+
+`D-057` answers it: 238 MB is a **debug, four-ABI** artifact (`bin/apk_report` shows it), and
+the ladder is debug×4 ABIs → debug×1 ABI (~120 MB) → release×1 ABI (~30–45 MB expected, R8 +
+no Dart symbols). `bin/build_apk --release --sign-debug --abi arm64` produces the last one
+today, with no keystore. What is left is one measurement on your machine:
+
+```bash
+bin/build_apk --release --sign-debug --abi arm64 && bin/apk_report
+```
+
+Send me the two numbers and I will record them; if release fails in `minifyReleaseWithR8`, add
+`-PnotelyMinify=false` and tell me, so the keep rule gets written properly instead of the
+shrinker staying off.
+
+---
+
 ## 2. 👤 Decisions that are yours, not mine
 
 ### 2.1 Release-signed APK instead of a bigger trim

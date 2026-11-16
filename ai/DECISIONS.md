@@ -1395,3 +1395,38 @@ Template:
   suspect in one line instead of leaving "no internet" to guesswork. Covered by the stubbed
   `adb` scenarios (fake / real / no answer → three different messages). Nothing here claims
   sign-in works: the app still cannot reach Google while the guest resolves a fake address.
+
+## D-057 — APK size is a build-type question; make it measurable, then cut it (2026-11-16)
+- **Status:** accepted
+- **Context:** The user built with `--abi all` (the previous arm64 debug APK was useless on a
+  real phone) and got **238 MB**, then asked whether the final app can be lighter. Nothing in
+  that number is a feature: `assets/` is 2.0 MB, `translations/` 920 KB and the committed
+  `.g.dart` 344 KB (`ANALYSIS.md` §4). A debug APK carries four copies of the Flutter engine
+  (one per ABI) plus the Dart VM kernel snapshot and no AOT code, is not minified, and embeds
+  ~40 plugins' Java/Kotlin. `--release` changes all of that at once, but the release path
+  required a keystore the user has not created — a 10-minute detour for a size question.
+- **Decision:**
+  1. **`bin/apk_report`** — a breakdown of any APK by group (`lib/<abi>`, `dex`, `res/`,
+     `assets/`, `META-INF/`) and by file, with the ABI count and a build-type hint. Measuring
+     takes a second and cannot be argued with; guessing has already cost this project
+     sessions (§4 of `ANALYSIS.md`).
+  2. **`bin/build_apk --release --sign-debug`** — a real release build (AOT, tree-shaken)
+     signed with the standard Android debug key that already exists in `~/.android/`, so the
+     size question is answerable *now*, without secrets. The compromise is only the
+     signature, and it is stated loudly: a later build signed with the user's own key cannot
+     update this install in place.
+  3. **R8 + resource shrinking on for release** (`isMinifyEnabled`, `isShrinkResources`,
+     `android/app/proguard-rules.pro`). Dart is already tree-shaken by AOT; this removes
+     unused Java/Kotlin and resources from plugins. Escape hatch if a plugin needs a keep
+     rule and `minifyReleaseWithR8` fails: `-PnotelyMinify=false`, documented in the build
+     file next to the flag.
+  4. **`--split-debug-info=build/symbols`** on release builds: the Dart symbol table is what
+     `flutter symbolize` needs and nothing on a phone reads it, so it lives outside the APK.
+  5. **Fixed while here:** `--abi arm64` / `arm` / `armv7` — the values `--help` and the error
+     message advertise — fell through to `unknown --abi`, because only the device ABI names
+     (`arm64-v8a`, `armeabi-v7a`) were mapped. The aliases now work, which matters because
+     "build one ABI, not four" is the second-largest size lever.
+- **Consequences:** The expected ladder is 238 MB (debug, 4 ABIs) → ~120 MB (debug, one ABI)
+  → roughly 30–45 MB (release, one ABI + R8), and only the last two steps are worth arguing
+  about. No Dart code changed, so behaviour is identical; a release build is **not** verified
+  here (no SDK in the sandbox), which is why the escape hatch exists.

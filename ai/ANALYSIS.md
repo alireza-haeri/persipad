@@ -154,6 +154,11 @@ The user's next planned track is a leaner phone APK. Measured reality:
      pulls `jni` in.
   2. It is further evidence for order-of-operations: measure a release build first, because the
      same rebuild may change which plugins are even present.
+- **Update (2026-11-16, `D-057`):** the measurement this section asked for now exists —
+  `bin/apk_report` breaks an APK into `lib/<abi>` / `dex` / `res/` / `assets/`, and
+  `bin/build_apk --release --sign-debug` produces the release build without the keystore
+  detour that had blocked it. Measured so far: 238 MB (debug, all ABIs) and ~120 MB (debug,
+  arm64). The release number is still an expectation until someone runs it.
 - **Recommendation (a real scope proposal, not a code change):**
   1. **First lever: ship a release-signed APK** (4 GitHub secrets, ~30 min of setup) — do this
      before deleting any feature. Deleting code is irreversible; shrinking a build is not.

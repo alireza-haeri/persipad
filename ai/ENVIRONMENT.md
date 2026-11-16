@@ -167,7 +167,7 @@ The ABI default is `auto`: it follows whatever is attached. An emulator therefor
 the script says so in those words). For a phone:
 
 ```bash
-bin/build_apk --abi arm64          # phone only, smallest
+bin/build_apk --abi arm64          # phone only, smallest (also: arm64-v8a)
 bin/build_apk --abi all            # one file that installs on phone and emulator
 ```
 
@@ -188,6 +188,39 @@ adb -s <serial> push build/app/outputs/flutter-apk/app-community-debug.apk /sdca
 # 3. no local build: Actions → Android → "Run workflow" (or a `[apk]` commit subject)
 #    publishes a pre-release whose asset is the arm64 community APK (D-038)
 ```
+
+### Why the APK is huge, and the ladder down (D-057)
+
+`bin/apk_report` answers "where did 238 MB come from" in one second:
+
+```bash
+bin/apk_report                                     # newest APK under build/app/outputs
+bin/apk_report --files 20 build/app/outputs/flutter-apk/app-community-release.apk
+```
+
+It groups entries by `lib/<abi>`, `dex`, `res/`, `assets/`, `META-INF/`, lists the biggest
+files and counts the ABIs. Expect `lib/*/libflutter.so` and `lib/*/libapp.so` to be ~90% of a
+debug build: the engine is copied once per ABI and debug Dart has no AOT code (it ships a
+kernel snapshot instead).
+
+| Step | Expected | Cost / caveat |
+|---|---|---|
+| debug, `--abi all` | ~238 MB (measured) | none — but four engines in one file |
+| debug, `--abi arm64` | ~120 MB (measured) | one phone needs one ABI |
+| release, `--abi arm64` + R8 | ~30–45 MB (**expectation, not measured here**) | needs a signature |
+| release with your own keystore | same, and it is the real product | create the keystore once and keep it |
+
+The no-secrets shortcut, for measuring and for daily use on your own phone:
+
+```bash
+bin/build_apk --release --sign-debug --abi arm64
+```
+
+It signs with `~/.android/debug.keystore` (created by any earlier debug build) and says so
+loudly. Only the signature is the compromise: a later build signed with your own key cannot
+update this install in place. If `minifyReleaseWithR8` ever fails because a plugin needs a
+keep rule, add `-PnotelyMinify=false` (documented next to the flag in
+`android/app/build.gradle.kts`).
 
 Notes that have cost time before:
 

@@ -1,9 +1,9 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 15)
+**Last updated:** 2026-11-16 (session 16)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 15 — the first real emulator sign-in: DNS now works, but the guest resolves Google to a **fake IP** (`D-056`)
+**Current session:** session 16 — "can the final app be lighter?": size measured, release path unblocked without secrets (`D-057`)
 **Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
 **Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
 
@@ -702,3 +702,31 @@ real phone. The answer is now `ENVIRONMENT.md` §2.2e, because the trap is easy 
 ABI defaults to *whatever is attached*, so a build made next to the emulator is `x86_64` and
 a phone rejects it with `INSTALL_FAILED_NO_MATCHING_ABIS` — the artifact name
 (`app-community-debug.apk`) says nothing about the ABI.
+
+### Session 16 — "Can the final app be lighter?" Measure, then cut the build type (2026-11-16)
+
+`--abi all` produced **238 MB**, and the honest answer is that almost none of it is features:
+`assets/` is 2.0 MB, `translations/` 920 KB, committed `.g.dart` 344 KB. What the number
+contains is four copies of the Flutter engine (one per ABI), a Dart **kernel snapshot** with
+no AOT code, no minification, and ~40 plugins' Java/Kotlin. `ANALYSIS.md` §4 had already
+predicted this; what was missing was a way to *prove* it on this machine without spending an
+afternoon.
+
+| Added | What it answers |
+|---|---|
+| `bin/apk_report [apk]` | where the megabytes are: grouped by `lib/<abi>` / `dex` / `res/` / `assets/` / `META-INF/`, plus the biggest files and the ABI count |
+| `bin/build_apk --release --sign-debug` | a real release build signed with the existing `~/.android/debug.keystore`, so the size question is answerable today without creating a keystore |
+| R8 + `isShrinkResources` for release | removes unused Java/Kotlin + resources that Dart's AOT tree-shaking cannot see (`-PnotelyMinify=false` is the documented escape hatch) |
+| `--split-debug-info=build/symbols` | keeps the Dart symbol table out of the APK (it is only needed by `flutter symbolize`) |
+| `--abi arm64/arm/armv7` | **bug fix:** the values `--help` advertises fell through to `unknown --abi` |
+
+Expected ladder — 238 MB (debug, 4 ABIs) → ~120 MB (debug, 1 ABI, already seen) → roughly
+30–45 MB (release, 1 ABI, R8). The first number is a *measurement*, the last is an
+*expectation* until someone runs it: no SDK here, so `--release` is unverified in the sandbox,
+which is exactly why `-PnotelyMinify=false` exists.
+
+**Verification:** `bash -n` on both scripts; `bin/apk_report` exercised on a synthetic APK with
+four ABIs, `dex`, `assets/` and empty directory entries; `bin/build_apk` against stubbed
+`flutter`/`java`/`adb`/`emulator` for the ABI aliases (7 values + one invalid), the
+release-without-keystore message, `--sign-debug` (debug key exported, warning printed),
+`--split-debug-info` reaching Flutter, and `--target-platform=android-arm64` for `--abi arm64`.
