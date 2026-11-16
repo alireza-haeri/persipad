@@ -44,8 +44,14 @@ permissions:
   contents: write
 
 concurrency:
+  # NOT `cancel-in-progress: true`. A GitHub concurrency group is cancelled by *any* new
+  # run in it — including one whose job is skipped because the subject has no `[apk]`.
+  # That is how a 15-minute build in progress was killed by a docs push: the step got
+  # SIGTERM (exit code 143) with no Gradle error, which looked exactly like a broken
+  # runner until the run list showed `cancelled`. Queue instead of cancel: a second APK
+  # build is worth waiting for, and a killed one is worth nothing.
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.50.0'

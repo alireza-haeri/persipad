@@ -959,10 +959,15 @@ Template:
 - **Not done:** no Kotlin/AGP deprecation sweep beyond what the build rejected, and `android.newDsl` stays
   off — moving to AGP 9's new DSL is its own task, and the placeholders above mean it is no longer
   blocking.
-- **The runner itself was the fifth failure, and it was not a version problem.** Two runs died ~9 minutes
-  in with `exit 143` (SIGTERM) and no Gradle error at all: `/` has ~14 GB on a hosted runner while `/mnt`
-  has ~70 GB, and Gradle + pub caches had filled the former. `GRADLE_USER_HOME` and `PUB_CACHE` now point
-  at `/mnt`, the cleanup step removes more of the image's unused payload, and the APK is arm64-only
-  (`--target-platform=android-arm64`) — which also cut it from 207 MB to 138 MB and the run from
-  "killed at 9 minutes" to a finished build. A killed step leaves no readable log, so the workflow now
-  re-emits disk, memory and the log tail as annotations on failure.
+- **The fifth failure was self-inflicted, and it disguised itself as a broken runner.** Three runs died
+  with `exit 143` (SIGTERM) and *no* Gradle error. The cause was the workflow's own
+  `concurrency: { group: android-<ref>, cancel-in-progress: true }`: a group is cancelled by any new run
+  in it, **including one whose job is skipped** because the subject has no `[apk]` — so every unrelated
+  push (a docs commit, a script commit) killed the build that was running. The fix is
+  `cancel-in-progress: false`: queue a second build, never kill the first.
+  The genuine resource problems found on the way are kept, because they are real: `/` has ~14 GB on a
+  hosted runner while `/mnt` has ~70, so `GRADLE_USER_HOME`/`PUB_CACHE` point at `/mnt` and the job
+  deletes the image's unused payload; the Gradle daemon is capped at `-Xmx4g` (the project asks for 8G);
+  and the APK is arm64-only, which cut it from 207 MB to 138 MB. A killed step leaves no readable log, so
+  the job re-emits disk, memory and the log tail as annotations, and reads them from the check-run API —
+  the log itself comes from a host this workspace cannot reach.
