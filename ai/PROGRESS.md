@@ -696,3 +696,9 @@ all three cases.
 **Open, and it is on the network side, not in Dart:** the guest must resolve Google to a real
 address before a successful sign-in is possible. `NEXT.md` §1 lists the three ways, cheapest
 first.
+
+**Addendum (session 15, after the sign-in attempt):** the user asked how to get the APK onto a
+real phone. The answer is now `ENVIRONMENT.md` §2.2e, because the trap is easy to miss: the
+ABI defaults to *whatever is attached*, so a build made next to the emulator is `x86_64` and
+a phone rejects it with `INSTALL_FAILED_NO_MATCHING_ABIS` — the artifact name
+(`app-community-debug.apk`) says nothing about the ABI.

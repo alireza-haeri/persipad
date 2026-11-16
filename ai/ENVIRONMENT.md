@@ -156,6 +156,52 @@ guest's Private DNS (`settings put global private_dns_mode hostname` +
 address itself: it must read `142.250.*`, `172.217.*`, `216.58.*` or `74.125.*`, not
 `198.18.*`.
 
+### 2.2e Getting the APK onto a real phone
+
+The artifact is always `build/app/outputs/flutter-apk/app-<flavor>-<mode>.apk`
+(`app-community-debug.apk` for the debug loop). **Rebuilding replaces that file** — the name
+does not encode the ABI, so a copy is the only way to keep one.
+
+The ABI default is `auto`: it follows whatever is attached. An emulator therefore builds
+`x86_64`, and that APK **cannot** be installed on a phone (`INSTALL_FAILED_NO_MATCHING_ABIS`;
+the script says so in those words). For a phone:
+
+```bash
+bin/build_apk --abi arm64          # phone only, smallest
+bin/build_apk --abi all            # one file that installs on phone and emulator
+```
+
+Three ways onto the device, cheapest first:
+
+```bash
+# 1. straight over USB (nothing to copy by hand)
+adb devices                                    # phone must show as "device"
+bin/build_apk --abi arm64 --install --launch   # one device attached...
+# ...or pick it explicitly when the emulator is also running:
+ANDROID_SERIAL=<serial> bin/build_apk --abi arm64 --install
+
+# 2. push the file and install it from the phone (no USB debugging needed afterwards)
+adb -s <serial> push build/app/outputs/flutter-apk/app-community-debug.apk /sdcard/Download/
+#    then: Files → Downloads → tap the APK → allow "install unknown apps"
+#    (no cable at all: copy it through MTP, or send the file to yourself)
+
+# 3. no local build: Actions → Android → "Run workflow" (or a `[apk]` commit subject)
+#    publishes a pre-release whose asset is the arm64 community APK (#? D-038)
+```
+
+Notes that have cost time before:
+
+- Package id is **`com.tc.writestory.community`** for this flavor, so it can live next to any
+  other install. `bin/build_apk --install` refuses to guess when two devices are attached and
+  prints both — that is `ANDROID_SERIAL`'s job.
+- A debug APK is ~124 MB and runs on the Dart VM. `--release` is much smaller and faster but
+  needs a keystore (`RELEASE_KEYSTORE_PATH/_PASSWORD`, `RELEASE_KEY_ALIAS`,
+  `RELEASE_KEY_PASSWORD`); `bin/build_apk` prints the `keytool` line when they are missing.
+  **Keep that keystore**: losing it changes the app's identity and no future build can update
+  the installed one in place.
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE` means a differently-signed copy is already installed;
+  uninstalling clears the app's local data too (the script warns before you do it).
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
