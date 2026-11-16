@@ -270,3 +270,37 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   whose `TextDirection` has no `.ltr`/`.rtl` and shadows Material's. Both are now encoded in the
   test's imports (`show AssetLoader, EasyLocalization`) and its in-memory `AssetLoader`.
 - CI `43796471061` green: Analyze 83s, Test (1) 197s, Test (2) 207s.
+
+### Add-on — 2026-11-15: daily score (rating each day 0–100) and a CI that only runs what it must
+- Shipped the requested add-on (D-031): a toggleable `AddOnType.daily_score` that adds a «امتیاز»
+  segment to the calendar. Rating a day is one drag on `SpDailyScoreBar` — a progress-shaped bar
+  whose track *is* the red→orange→green palette, filled to the value, thumb tinted by the value,
+  mirrored in RTL so 0 is on the right — never a number field. A rated day shows its score on a
+  wash of its own colour; an unrated day shows only the day number (no zero). Two charts, both
+  hand-painted (no chart dependency): this month's line (monotone-cubic, x-spanned over the real
+  month so gaps stay put, segments coloured by the values they join) and the monthly averages
+  (one bar per month that has data). `TodayScoreTile` above the grid rates today in one tap.
+- Storage is `yyyy-MM-dd` keyed Gregorian in a `MapStorage` (D-025), with `DailyScoreProvider`
+  loading it once at startup; display-calendar grouping happens at read time.
+- Tests: `test/providers/daily_score_provider_test.dart` (storage keys, tolerant decode, clamping,
+  "unrated is null not 0", monthly grouping/limit, and the Shamsi mapping of 2026-11-15 →
+  1405/8/24), `test/widgets/scores/sp_daily_score_bar_test.dart` (no `TextInput` on screen, ends
+  report 100/0, every reported value inside 0..100, mirrored in RTL),
+  `test/views/calendar/score/...` (a rated cell shows day + score, an unrated one shows one `Text`,
+  gapped/single-point/RTL line charts paint, monthly bars are named in full), and
+  `test/core/services/scores/daily_score_scale_test.dart` (the palette is red→orange→green, stays
+  saturated, is monotone, and clamps).
+- **Mistake, and its cost:** `17e84fe` added `enableDailyScore` to the `@CopyWith` object and used
+  it immediately, but the generated `.g.dart` can only be produced by the Codegen workflow (no Dart
+  in this sandbox). The branch tip was therefore unbuildable for ~10 minutes: CI said so (Analyze,
+  one error, `43797852596`), and the user hit it locally first:
+  `No named parameter with the name 'enableDailyScore'`. The generated file was fetched from
+  `ci/codegen` (`43797852564`, 140s) and landed in `48694a9`. Rule learned: **never leave the tip
+  depending on a generated file that is still in flight** — either push the field-free code, or
+  trigger codegen on an earlier commit and merge the `.g.dart` before any code uses it.
+- CI scoped to the change (D-032 / supersedes half of D-017): `bin/changed_tests` + a `scope` job
+  publish `mode`/`build`/`shards`/`paths`; the test matrix is one shard for a scoped run and two for
+  a full one, and a docs-only change starts no test job at all. Verified green on `48694a9`
+  (`43798528975`): Scope 5s, Analyze 82s, Test (1) 162s, Test (2) 167s, Build 128s — Build only
+  because that commit's *body* mentioned `[build]`, which is why markers are now read from the
+  subject line alone.

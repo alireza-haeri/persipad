@@ -256,7 +256,8 @@ Template:
   file can no longer reach the user silently.
 
 ## D-017 — CI levels are requested per commit, not run always (2026-11-15)
-- **Status:** accepted
+- **Status:** accepted; the "tests only on `[test]`" half is superseded by D-032 (tests now run
+  scoped to the change, and only skip when nothing can fail)
 - **Context:** "The gh runs take way too long. Split the CI, only run what you need. Speed
   matters." Every push ran Test + Build + Analyze regardless of what changed, and I sat
   polling them.
@@ -649,3 +650,64 @@ Template:
 - **Consequence:** direction-dependent layout is decided where it is drawn (`AppTheme.rtl`,
   `SpIcons.previous/next`, `EdgeInsetsDirectional`) instead of being assumed LTR. New UI should
   use those helpers; a literal `left:`/`Icons.keyboard_left` in a directional position is a bug.
+
+## D-031 — The daily-score add-on: a drag bar, an omitting calendar, hand-painted charts (2026-11-15)
+- **Status:** accepted
+- **Context:** "A toggleable add-on that rates each day 0–100 — how my day was. Not a number
+  field: a bar you drag. Red at the bottom, orange in the middle, deep green at 100. Show the
+  score on the day, and nothing on days without one. Two charts: this month's line, and the
+  monthly averages. Days and months without data must not appear at all."
+- **Decision:**
+  1. **The input is a progress bar, not a `Slider`.** `SpDailyScoreBar` paints the whole track as
+     the 0→100 palette, fills it to the value and tints its thumb with the value's colour, so the
+     colour is chosen *while* dragging. A Material `Slider` can only tint a thumb after the fact.
+     Direction comes from `Directionality`: in Persian 0 is on the right.
+  2. **The palette is interpolated in HSV, not RGB** (`DailyScoreScale`). `Color.lerp(red, green,
+     .5)` goes through muddy brown exactly at 50, the value a "how was today" scale is read at
+     most. Every surface (bar, calendar cell, both charts) colours a score through `colorOf`, so a
+     30 is the same orange everywhere.
+  3. **"No score" is absence, not zero.** `DailyScoreProvider` stores only rated days, `0` is a
+     real score, and every reader returns `int?`. An unrated calendar day shows the day number and
+     nothing else; unrated days are skipped by the charts (the line spans the gap over the month's
+     real span) and months with no data produce no bar at all.
+  4. **Storage is Gregorian-keyed `yyyy-MM-dd`** in a `MapStorage` (D-025). Switching to Shamsi
+     must not move a day's score; display-calendar grouping happens only when reading
+     (`scoresOfDisplayMonth`, `monthlyAverages`).
+  5. **Both charts are `CustomPainter`/widgets, no chart dependency.** The line uses monotone
+     cubic (Fritsch–Carlson) tangents: Catmull-Rom can overshoot below 0 or above 100 between two
+     real points, i.e. draw a score nobody entered. Segments take the colour of the two scores
+     they join; the area under the curve is a wash of the month's average.
+  6. **The add-on is wired through the existing add-on machinery**: `AddOnType.daily_score` →
+     `DevicePreferencesObject.enableDailyScore` (opt-in, free, default off) → a
+     `CalendarSegmentId.score` segment, shown only when the preference is on. The add-on tile
+     toggles in place because there are no demo screenshots yet, and `SpDemoImages` reserves 320px
+     even for an empty list.
+  7. **The calendar segment keeps tapping as the edit gesture** (`onTap` → `SpDailyScoreSheet`
+     for that date, which writes through the provider and pops), so the grid never needs a second
+     selection state, and a `TodayScoreTile` above the grid rates today in one tap.
+- **Consequences:** adding a score is one drag and one tap from the calendar; the calendar doubles
+  as a heat map; the charts never invent data points. `SpDailyScoreBar` owns its own geometry, so
+  a future "score" surface reuses the palette rather than re-deriving red/orange/green.
+
+## D-032 — CI runs the tests that can fail, not all of them (2026-11-15)
+- **Status:** accepted (supersedes the "test only on `[test]`" half of D-017)
+- **Context:** the full suite is 106 files / ~1000 cases and costs ~3.5 minutes across two shards,
+  while most changes can only break a handful of files. Paying that for every push — or, worse,
+  skipping it and shipping unverified — is what made CI feel like the task.
+- **Decision:** a new `scope` job (~15s: checkout + Python, no Flutter) runs `bin/changed_tests`,
+  which maps changed files to tests and publishes `mode`/`shards`/`paths`:
+  - a changed `test/**_test.dart` runs itself;
+  - a changed `lib/**` file runs the nearest mirroring `test/**` directory, plus a small
+    cross-cutting table for relations the mirror cannot see (calendar helpers → calendar tests,
+    `translations/**` → the translations test, `sp_icons.dart` → its test);
+  - anything unmapped → the whole suite (never a silent empty selection);
+  - `pubspec.*`, `analysis_options.yaml`, `test/flutter_test_config.dart` → whole suite;
+  - docs/`ai/`/`bin/`/`.github/` only → `mode=none`, and the test job does not even start;
+  - `[test]` / `[full]` in the commit message → whole suite, as before.
+  The test matrix reads `shards` from that output, so a scoped run is one job and a full run is
+  still sharded two ways.
+- **Consequences:** a typical push runs analyze (~80s) plus a few seconds of tests in parallel. The
+  scoper is conservative by construction — over-selecting costs seconds, under-selecting hides a
+  bug — and its reasoning is printed to the job log (`--explain`) so a surprising selection can be
+  debugged from the annotations. Risk accepted: a mapping error can under-select, which is why the
+  full suite still runs for anything unmapped and why `[test]` always wins.

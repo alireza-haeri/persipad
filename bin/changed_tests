@@ -19,7 +19,12 @@ The rule is deliberately conservative — it may over-select, never under-select
     to nothing at all, so a docs push has nothing to run;
   * `pubspec.*`, `analysis_options.yaml` and `test/flutter_test_config.dart`
     affect every test, so they force the full suite;
-  * the commit message wins over all of it: `[test]` / `[full]` forces everything.
+  * the commit **subject** wins over all of it: `[test]` / `[full]` forces everything
+    (`[build]` / `[full]` is reported as `build=true` for the Linux build job).
+
+Only the subject line is consulted for markers. The body is prose: a commit that
+*mentions* `[build]` while explaining the markers must not trigger a 2-minute
+build. That happened on 48694a9, which is why this rule exists.
 
 Usage:
   bin/changed_tests --base HEAD~1 --head HEAD           # human readable
@@ -28,6 +33,7 @@ Usage:
 
 Output keys (always, unless --quiet):
   mode    full | changed | none
+  build   true when the subject asks for the Linux build
   shards  JSON array of shard numbers for the test matrix (`[1]` or `[1, 2]`)
   paths   space-separated test files (empty when mode is full or none)
 """
@@ -110,6 +116,7 @@ CROSS_CUTTING = [
 ]
 
 FULL_MARKERS = ("[test]", "[full]")
+BUILD_MARKERS = ("[build]", "[full]")
 
 
 def explain(message):
@@ -169,9 +176,15 @@ def cross_cutting_tests(path):
     return [test for prefix, tests in CROSS_CUTTING if path.startswith(prefix) for test in tests]
 
 
+def subject_of(message):
+    return message.splitlines()[0] if message else ""
+
+
 def decide(base, head, files, message):
-    if any(marker in message for marker in FULL_MARKERS):
-        explain("commit message asks for the full suite")
+    subject = subject_of(message)
+
+    if any(marker in subject for marker in FULL_MARKERS):
+        explain("commit subject asks for the full suite")
         return "full", []
 
     changed = changed_files(base, head, files)
@@ -233,15 +246,19 @@ def main():
 
     mode, tests = decide(args.base, args.head, args.files, args.message)
     shards = list(range(1, SHARDS + 1)) if mode == "full" else [1]
+    build = any(marker in subject_of(args.message) for marker in BUILD_MARKERS)
 
     explain(f"mode={mode}, {len(tests)} test file(s)" + (f", {SHARDS} shards" if mode == "full" else ""))
+    explain(f"build={build}")
 
     if args.github_output:
         print(f"mode={mode}")
+        print(f"build={'true' if build else 'false'}")
         print(f"shards={json.dumps(shards)}")
         print(f"paths={' '.join(tests)}")
     else:
         print(f"mode: {mode}")
+        print(f"build: {build}")
         print(f"shards: {shards}")
         for path in tests:
             print(f"  {path}")

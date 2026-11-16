@@ -11,7 +11,9 @@ name: Linux
 # is usually a handful of test files instead of 106, i.e. seconds instead of ~3.5
 # minutes.
 #
-# Markers still force work, for changes too broad to scope or too risky to scope:
+# Markers still force work, for changes too broad to scope or too risky to scope.
+# They are read from the commit **subject** only — a body that merely mentions
+# `[build]` must not spend two minutes building (it did once, on 48694a9):
 #
 #   [test]   the whole suite                (~3 min, sharded 2 ways)
 #   [build]  build the Linux binary         (~2.5 min)
@@ -65,6 +67,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.scope.outputs.mode }}
+      build: ${{ steps.scope.outputs.build }}
       shards: ${{ steps.scope.outputs.shards }}
       paths: ${{ steps.scope.outputs.paths }}
     steps:
@@ -90,7 +93,7 @@ jobs:
           if [ $status -ne 0 ]; then
             # Never let the scoper's own failure turn into "no tests at all".
             echo "::warning::changed_tests failed; running the full suite"
-            printf 'mode=full\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
+            printf 'mode=full\nbuild=false\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
           fi
 
   analyze:
@@ -249,10 +252,13 @@ jobs:
 
   build-linux:
     name: Build Linux desktop
+    # `needs.scope` instead of grepping the message here: the scoper only reads the
+    # subject line, so prose in the body cannot trigger a 2-minute build.
+    needs: scope
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event.head_commit && (contains(github.event.head_commit.message, '[build]') || contains(github.event.head_commit.message, '[full]')))
+      needs.scope.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
