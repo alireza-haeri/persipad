@@ -65,9 +65,10 @@ Where the 237 MB actually is (measured, `bin/apk_report`): **142.2 MB `kernel_bl
 **~2 MB of the app's own pictures and fonts** (0.2%). So the release build should land around
 **25–40 MB**, and nothing user-visible has to be removed to get there.
 
-Send me the two numbers and I will record them; if release fails in `minifyReleaseWithR8`, add
-`-PnotelyMinify=false` and tell me, so the keep rule gets written properly instead of the
-shrinker staying off.
+**Measured:** 40.5 MB (`--release --sign-debug --abi arm64`) against 237.3 MB debug — R8
+needed no keep rule. `D-059` now also filters Gradle's `abiFilters` to the chosen ABI, which
+removes the last 4.3 MB of ObjectBox JNI libraries for ABIs the phone cannot load (**~36 MB
+expected on the next build**).
 
 ---
 

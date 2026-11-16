@@ -1460,3 +1460,19 @@ Template:
   loopback request" in the log, and the remedy is a paste-the-redirect-URL fallback — not
   written yet, because guessing which one is happening is exactly what this log line exists
   to stop.
+
+## D-059 — Gradle gets the ABI too, not just Flutter (2026-11-16)
+- **Status:** accepted
+- **Context:** The first real release build measured **40.5 MB** (`--release --sign-debug
+  --abi arm64`), which is inside the 25–40 MB expectation and 5.9x smaller than the 237 MB
+  debug artifact. But `bin/apk_report` showed `lib/x86_64` (2.6 MB) and `lib/armeabi-v7a`
+  (1.7 MB) still inside it — every entry there a `libobjectbox-jni.so`. `--abi arm64` maps to
+  Flutter's `--target-platform=android-arm64`, which only picks the engine and Dart snapshot;
+  plugin `.so` files are packaged for all ABIs unless Gradle's `abiFilters` says otherwise.
+  ~4.3 MB of libraries the phone can never load.
+- **Decision:** `bin/build_apk` derives the ABI from the `--target-platform` it already chose
+  and exports `ORG_GRADLE_PROJECT_notelyAbi`; `android/app/build.gradle.kts` applies it as
+  `ndk { abiFilters }`. `--abi all` leaves it unset on purpose, and `auto` follows the
+  attached device (so the x86_64 emulator still gets a build it can run).
+- **Consequences:** a phone release carries one ABI of everything. Expected ~36 MB; the
+  measurement is the user's next build. No Dart behaviour changes.

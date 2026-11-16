@@ -84,6 +84,15 @@ android {
         // feature is disabled"), and the manifest is the only reader, so it is a
         // manifest placeholder now — the same mechanism `appLogo` below already uses.
         manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "StoryPad C."
+
+        // `--target-platform=android-arm64` only selects Flutter's engine and Dart
+        // snapshot. Plugin .so files are packaged for **every** ABI regardless, which
+        // is why a "phone-only" release still carried ObjectBox's JNI library for
+        // x86_64 and armeabi-v7a (~4.3 MB of libraries that phone can never load).
+        // bin/build_apk passes the chosen ABI here; `--abi all` leaves it unset.
+        (project.findProperty("notelyAbi") as String?)?.trim()?.takeIf { it.isNotEmpty() }?.let { abi ->
+            ndk { abiFilters += abi.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
+        }
     }
 
     signingConfigs {

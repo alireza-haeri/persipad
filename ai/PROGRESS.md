@@ -1,9 +1,9 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 17)
+**Last updated:** 2026-11-16 (session 18)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 17 — phone sign-in stuck on `http://127.0.0.1:<port>/?code=…`: the loopback listener was attached too late (`D-058`)
+**Current session:** session 18 — release size measured (**40.5 MB**, from 237 MB) and the leftover ABIs removed (`D-059`); the phone sign-in fix awaits a rebuild (`D-058`)
 **Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
 **Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
 
@@ -769,3 +769,21 @@ away sends the redirect almost immediately.
 **Honest limits:** if the phone *freezes* the app while the browser is foreground (some OEMs)
 or its VPN refuses loopback, no ordering fix helps — the log line will say no request ever
 arrived, and the remedy is a paste-the-URL fallback that is not written yet.
+
+### Session 18 — Release size measured: 237 MB → 40.5 MB (2026-11-16)
+
+The user's first release build on Fedora, `bin/build_apk --release --sign-debug --abi arm64`:
+
+| Artifact | Size | Note |
+|---|---|---|
+| debug, 3 ABIs (previous) | **237.3 MB** | 168.2 MB of it debug-only payload |
+| release, ≈1 ABI (this build) | **40.5 MB** | 5.9x smaller; `libapp.so` 14.9 MB, engine 10.8 MB, dex 5.6 MB after R8 |
+| release, strictly 1 ABI (expected next) | ~36 MB | the remaining `x86_64` + `armeabi-v7a` ObjectBox JNI libs (`D-059`) |
+
+`bin/apk_report` on the release build also confirmed the tooling works on a real artifact:
+it reported the leftover ABIs, which is what produced `D-059` (Gradle `abiFilters`). R8 did
+not need any keep rule — `proguard-rules.pro` is still just the line-number attributes.
+Tree-shaking of the three icon fonts also showed up in the log (99.7% / 99.6% / 98.9%).
+
+**Open at the time of writing:** the release APK was built from `a7a7def`, i.e. **before**
+`D-058`; the phone sign-in fix still has to be rebuilt and tried on the device.

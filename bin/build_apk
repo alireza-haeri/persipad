@@ -420,6 +420,20 @@ case "$ABI" in
     ;;
 esac
 
+# `--target-platform` selects Flutter's engine and Dart snapshot; the plugins' .so
+# files are still packaged for every ABI unless Gradle is told which ones to keep
+# (`notelyAbi`). A phone-only release measured 40.5 MB with three ABIs of
+# libobjectbox-jni.so inside it — 4.3 MB that device can never load.
+case "$TOOLCHAIN" in
+  *--target-platform=android-arm64) export ORG_GRADLE_PROJECT_notelyAbi="arm64-v8a" ;;
+  *--target-platform=android-arm)   export ORG_GRADLE_PROJECT_notelyAbi="armeabi-v7a" ;;
+  *--target-platform=android-x64)   export ORG_GRADLE_PROJECT_notelyAbi="x86_64" ;;
+  *--target-platform=android-x86)   export ORG_GRADLE_PROJECT_notelyAbi="x86" ;;
+  *)
+    # --abi all: every ABI is wanted on purpose.
+    unset ORG_GRADLE_PROJECT_notelyAbi 2>/dev/null || true ;;
+esac
+
 # ---------------------------------------------------------------- adapt to this SDK
 # CI installs android-37 and the NDK the Flutter SDK pins. A local machine behind a
 # network that cannot reach dl.google.com may have neither, and a build against what it
