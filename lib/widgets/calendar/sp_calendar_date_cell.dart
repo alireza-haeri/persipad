@@ -65,15 +65,15 @@ class SpCalendarDateCell extends StatelessWidget {
   /// label — date, then what the day holds, then the score — says the same thing
   /// a sighted user gets from one glance. The inner texts are excluded so the
   /// number is not announced twice.
+  ///
+  /// The label is deliberately made of **no translated string**: `tr()` throws
+  /// outside an `EasyLocalization` scope and widget tests pump this cell bare,
+  /// so it uses the date formatter the rest of the calendar already uses, the
+  /// feeling keys, and a plain percentage.
   String _semanticsLabel(BuildContext context) {
     final locale = Localizations.localeOf(context);
     final parts = <String>[DateFormatHelper.yMMMd(date, locale)];
 
-    // The feeling *is* the emoji, so it is already language-neutral; a score is
-    // announced as a bare number preceded by the localised label when translations
-    // are loaded. `tr()` throws outside an `EasyLocalization` scope (widget tests
-    // pump this cell bare), hence `CalendarDisplay`-safe lookups instead of a raw
-    // `tr()` for the numbers that do not need words.
     if (hasFeelings) {
       parts.add(feelings!.where((feeling) => feeling != 'exist_but_not_set').join(', '));
     }
@@ -90,6 +90,12 @@ class SpCalendarDateCell extends StatelessWidget {
       scaleActive: 0.9,
       onTap: onTap,
       onLongPressed: onLongPress,
+      // The label is always built rather than gated on
+      // `SemanticsBinding.instance.semanticsEnabled`: that flag can turn true
+      // after this widget has been built (a screen reader enabled mid-session),
+      // and toggling it does not rebuild widgets, so the cell would stay silent
+      // until the month changed. One `intl` format per cell build is a fair price
+      // for a label that is never stale.
       child: Semantics(
         label: _semanticsLabel(context),
         button: onTap != null,
