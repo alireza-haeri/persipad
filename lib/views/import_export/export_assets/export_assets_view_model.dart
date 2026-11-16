@@ -186,14 +186,12 @@ class ExportAssetsViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     try {
       if (Platform.isLinux) {
-        final savedPath = await FilePicker.saveFile(
+        await FilePicker.saveFile(
           fileName: basename(tarFile.path),
           type: FileType.custom,
           allowedExtensions: ['gz'],
+          bytes: await tarFile.readAsBytes(),
         );
-        if (savedPath != null) {
-          await tarFile.copy(savedPath);
-        }
       } else {
         // Share/save the tar.gz file by path (no in-memory copy of the archive).
         // On Android the share sheet still offers "Save to Files/Drive".

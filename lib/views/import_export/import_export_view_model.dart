@@ -213,14 +213,12 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     try {
       if (Platform.isLinux) {
-        final savedPath = await FilePicker.saveFile(
+        await FilePicker.saveFile(
           fileName: basename(tarFile.path),
           type: FileType.custom,
           allowedExtensions: ['gz'],
+          bytes: await tarFile.readAsBytes(),
         );
-        if (savedPath != null) {
-          await tarFile.copy(savedPath);
-        }
       } else {
         RenderBox? box = context.findRenderObject() as RenderBox?;
         await SharePlus.instance.share(
@@ -278,22 +276,13 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
           files: [XFile(result.path)],
         ),
       );
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: basename(result.path),
         type: FileType.custom,
         allowedExtensions: ['txt'],
         bytes: await result.readAsBytes(),
       );
-    } else if (Platform.isLinux) {
-      final savedPath = await FilePicker.saveFile(
-        fileName: basename(result.path),
-        type: FileType.custom,
-        allowedExtensions: ['txt'],
-      );
-      if (savedPath != null) {
-        await result.copy(savedPath);
-      }
     }
 
     await result.delete();
@@ -340,22 +329,13 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
           files: [XFile(result.path)],
         ),
       );
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: basename(result.path),
         type: FileType.custom,
         allowedExtensions: ['csv'],
         bytes: await result.readAsBytes(),
       );
-    } else if (Platform.isLinux) {
-      final savedPath = await FilePicker.saveFile(
-        fileName: basename(result.path),
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-      );
-      if (savedPath != null) {
-        await result.copy(savedPath);
-      }
     }
 
     await result.delete();
@@ -406,22 +386,13 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
       }
 
       await file.delete();
-    } else if (Platform.isAndroid) {
+    } else if (Platform.isAndroid || Platform.isLinux) {
       await FilePicker.saveFile(
         fileName: exportFileName,
         type: FileType.custom,
         allowedExtensions: ['json'],
         bytes: utf8.encode(jsonEncode(backup.toContents())),
       );
-    } else if (Platform.isLinux) {
-      final savedPath = await FilePicker.saveFile(
-        fileName: exportFileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      if (savedPath != null) {
-        await File(savedPath).writeAsString(jsonEncode(backup.toContents()));
-      }
     } else {
       throw UnimplementedError();
     }
