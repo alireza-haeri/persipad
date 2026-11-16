@@ -237,6 +237,19 @@ Notes that have cost time before:
 - `INSTALL_FAILED_UPDATE_INCOMPATIBLE` means a differently-signed copy is already installed;
   uninstalling clears the app's local data too (the script warns before you do it).
 
+### 2.2f Phone sign-in: the loopback address that spins forever
+
+The OAuth flow opens the browser and expects Google to redirect to
+`http://127.0.0.1:<port>/?code=…`, where the app answers with a small "Signed in" page.
+Two things can make that page hang, and they look identical in the UI:
+
+| Log line (`adb logcat -s flutter \| grep "Google sign-in"`) | Meaning | Fix |
+|---|---|---|
+| `waiting for the loopback redirect on 127.0.0.1:<port>` only | the redirect never reached the app: the listener was attached too late (fixed in `D-058`), the OEM froze the app while the browser was foreground, or a phone-side VPN refuses loopback | rebuild first; if it still happens, the paste-the-URL fallback (`NEXT.md` §1c) |
+| `loopback request (code: true …)` then a failure | the app answered the browser; the failure is the token exchange (network/DNS) | `ENVIRONMENT.md` §2.2d |
+
+The code itself is never logged — it is a credential.
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):

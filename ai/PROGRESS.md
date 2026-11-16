@@ -1,9 +1,9 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 16)
+**Last updated:** 2026-11-16 (session 17)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 16 — "can the final app be lighter?": size measured, release path unblocked without secrets (`D-057`)
+**Current session:** session 17 — phone sign-in stuck on `http://127.0.0.1:<port>/?code=…`: the loopback listener was attached too late (`D-058`)
 **Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
 **Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
 
@@ -745,3 +745,27 @@ four ABIs, `dex`, `assets/` and empty directory entries; `bin/build_apk` against
 release-without-keystore message, `--sign-debug` (debug key exported, warning printed),
 `--split-debug-info` reaching Flutter, and `--target-platform=android-arm64` for `--abi arm64`, and `-Pname=value` in both spellings
 (`-Pfoo=1` / `-P foo=1`) with two rejection cases.
+
+### Session 17 — Phone sign-in hangs on the loopback redirect address (2026-11-16)
+
+Reported: on the **phone**, after choosing the Google account, Chrome sat on
+`http://127.0.0.1:44399/?state=…&code=4/0AUn6…&scope=…` and never finished. That URL is the
+app's own loopback server, and it was not answering.
+
+**Cause (a real ordering bug, not a network problem):** `authenticate()` bound the HTTP
+server, opened the browser, and only then called `_awaitRedirect` — which is what attaches
+`server.listen`. A redirect arriving in that window is accepted by the kernel (so Chrome shows
+a spinner rather than an error) and then waits with nobody to serve it. The emulator never
+showed this because its Chrome was cold; a phone with a warm browser and an account one tap
+away sends the redirect almost immediately.
+
+| Change | Why |
+|---|---|
+| listener attached **before** `_openBrowser`, `_awaitRedirect` → `_listenForRedirect` | the redirect can arrive while the tab loads |
+| `redirectTimeout` timer starts only once a browser exists | a failed launch no longer leaves a 5-minute timer running |
+| `AppLogger.d` per loopback request (`code:`, `error:`, `alreadyCompleted:` — never the code) | separates "never reached the app" from "reached it and failed", from a logcat |
+| two tests that redirect from inside `openBrowser`, via a raw socket | the first deadlocks under the old order; `HttpClient` would have been answered by `flutter_test`'s HttpOverrides with 400 and hidden the bug |
+
+**Honest limits:** if the phone *freezes* the app while the browser is foreground (some OEMs)
+or its VPN refuses loopback, no ordering fix helps — the log line will say no request ever
+arrived, and the remedy is a paste-the-URL fallback that is not written yet.

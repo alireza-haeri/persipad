@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
@@ -134,6 +135,12 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// connectivity problem. An unreachable host that black-holes packets would
   /// otherwise hang for minutes with no feedback at all.
   static const Duration requestTimeout = Duration(seconds: 30);
+
+  /// How long the sign-in page may stay open before the flow gives up. The
+  /// browser has to reach Google, the user has to pick an account, and the
+  /// redirect has to come back to 127.0.0.1 — five minutes is generous on
+  /// purpose, and the timer only starts once a browser was actually opened.
+  static const Duration redirectTimeout = Duration(minutes: 5);
 
   /// `package:http` surfaces a dead network as [http.ClientException] (which
   /// carries the underlying `SocketException` text); a host name the device
@@ -290,6 +297,18 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // the port as a wildcard for desktop clients, so this needs no registration
     // and cannot collide with another instance.
     final server = await io.HttpServer.bind(io.InternetAddress.loopbackIPv4, 0);
+
+    // The listener is attached **before** the browser opens, and that order is the
+    // whole point: the redirect can arrive while the tab is still loading (a warm
+    // Chrome, or a Google account that is already signed in and only needs a tap).
+    // When it lands before `listen` is attached, the connection sits in the accept
+    // backlog unanswered — the phone shows a spinner that never finishes while this
+    // method waits for a redirect the browser already sent. Moving the await below
+    // `_openBrowser` also means the 5-minute timer only starts once a browser exists.
+    final completer = Completer<Uri>();
+    final subscription = _listenForRedirect(server, completer);
+    AppLogger.d('Google sign-in: waiting for the loopback redirect on 127.0.0.1:${server.port}');
+
     try {
       final redirectUri = 'http://127.0.0.1:${server.port}';
 
@@ -308,54 +327,45 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         );
       }
 
-      final redirect = await _awaitRedirect(server);
+      final redirect = await completer.future.timeout(
+        redirectTimeout,
+        onTimeout: () => throw const GoogleOAuthException(
+          'Timed out waiting for the Google sign-in to finish in the browser.',
+          error: 'timeout',
+        ),
+      );
       final code = parseRedirectCode(redirect, expectedState: state);
 
       return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
     } finally {
+      await subscription.cancel();
       await server.close(force: true);
     }
   }
 
-  Future<Uri> _awaitRedirect(io.HttpServer server) async {
-    final completer = Completer<Uri>();
-
-    final subscription = server.listen((request) async {
-      if (completer.isCompleted) {
-        request.response.statusCode = io.HttpStatus.notFound;
-        await request.response.close();
-        return;
-      }
-
-      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
-      if (request.uri.queryParameters.containsKey('code') || request.uri.queryParameters.containsKey('error')) {
-        request.response
-          ..statusCode = io.HttpStatus.ok
-          ..headers.contentType = io.ContentType.html
-          ..write(_completionPage());
-        await request.response.close();
-        if (!completer.isCompleted) completer.complete(request.uri);
-        return;
-      }
+  /// Answers every loopback request until the redirect with a `code` (or an
+  /// `error`) arrives, then completes [completer].
+  ///
+  /// Nothing secret is logged: whether the query had a code is useful when the
+  /// flow appears stuck, the code itself is a credential (RULES §2).
+  StreamSubscription<io.HttpRequest> _listenForRedirect(io.HttpServer server, Completer<Uri> completer) {
+    return server.listen((request) async {
+      final hasCode = request.uri.queryParameters.containsKey('code');
+      final hasError = request.uri.queryParameters.containsKey('error');
+      AppLogger.d(
+        'Google sign-in: loopback request (code: $hasCode, error: $hasError, '
+        'alreadyCompleted: ${completer.isCompleted})',
+      );
 
       request.response
         ..statusCode = io.HttpStatus.ok
         ..headers.contentType = io.ContentType.html
         ..write(_completionPage());
       await request.response.close();
-    });
 
-    try {
-      return await completer.future.timeout(
-        const Duration(minutes: 5),
-        onTimeout: () => throw const GoogleOAuthException(
-          'Timed out waiting for the Google sign-in to finish in the browser.',
-          error: 'timeout',
-        ),
-      );
-    } finally {
-      await subscription.cancel();
-    }
+      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
+      if ((hasCode || hasError) && !completer.isCompleted) completer.complete(request.uri);
+    });
   }
 
   /// Shown in the browser tab once the redirect lands. Plain and unbranded on

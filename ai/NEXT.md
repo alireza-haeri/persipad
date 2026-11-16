@@ -71,6 +71,31 @@ shrinker staying off.
 
 ---
 
+## 1c. 📱 Phone sign-in — retest with D-058, then one logcat line if it still hangs
+
+The first phone attempt stopped at `http://127.0.0.1:44399/?code=…` (a spinner). The loopback
+listener is now attached **before** the browser opens (`D-058`), which is a real bug fix and
+not a network workaround — but it has only been proven by tests here, not on a device.
+
+```bash
+bin/build_apk --install --abi arm64 --launch        # rebuild: the fix is in Dart, not in the APK you had
+```
+
+Then sign in on the phone, and if it hangs again send me **one** line from:
+
+```bash
+adb logcat -d -s flutter | grep -i "Google sign-in"
+```
+
+- `waiting for the loopback redirect on 127.0.0.1:<port>` but **no** `loopback request` →
+  the browser never reached the app (OEM process freezing, or a phone-side VPN blocking
+  loopback). Next step is a paste-the-redirect-URL fallback, which I will write once that is
+  confirmed.
+- `loopback request (code: …)` → the app answered; the remaining failure is the token
+  exchange, i.e. the same fake-IP DNS story as §1, now on the phone.
+
+---
+
 ## 2. 👤 Decisions that are yours, not mine
 
 ### 2.1 Release-signed APK instead of a bigger trim

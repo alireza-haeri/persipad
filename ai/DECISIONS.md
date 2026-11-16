@@ -1430,3 +1430,33 @@ Template:
   → roughly 30–45 MB (release, one ABI + R8), and only the last two steps are worth arguing
   about. No Dart code changed, so behaviour is identical; a release build is **not** verified
   here (no SDK in the sandbox), which is why the escape hatch exists.
+
+## D-058 — The loopback listener is attached before the browser opens (2026-11-16)
+- **Status:** accepted
+- **Context:** On the **phone**, signing in ended with Chrome parked on
+  `http://127.0.0.1:44399/?state=…&code=4/0AUn6…` — a page that spun forever. The redirect
+  had arrived; nothing answered it. In `authenticate()` the order was *bind the server →
+  open the browser → await the redirect*, and `_awaitRedirect` was what called
+  `server.listen`. A connection that lands in that window is accepted by the kernel
+  (so the browser does not error) and then sits unanswered until the listener attaches. On
+  the emulator Chrome was cold and slow, so the order never mattered; on a phone with a warm
+  browser and an account that only needs a tap, the redirect can beat the listener.
+- **Decision:** listen **first**, then open the browser, then await the redirect. The
+  completer is created before `_openBrowser`, the subscription is cancelled and the server
+  closed in `finally`, and the 5-minute `redirectTimeout` timer only starts once a browser
+  actually exists (it used to start before, so a failed launch still left a timer behind).
+  `_awaitRedirect` became `_listenForRedirect` for that reason.
+- **Diagnostics:** one `AppLogger.d` line per loopback request — `code: true/false`,
+  `error: true/false`, `alreadyCompleted: …`. Never the code itself: it is a credential
+  (RULES §2). With that line in a logcat, "the browser never reached the app" and "it reached
+  the app and the app failed afterwards" stop looking the same.
+- **Consequences:** the tab shows "Signed in / you can close this" *while it is open*, which
+  is what the user is waiting for. Covered by two new tests that perform the redirect from
+  inside the `openBrowser` call — the first would deadlock under the old order — using a raw
+  socket rather than `HttpClient`, because `flutter_test`'s HttpOverrides answers every
+  request with 400 and would hide the very bug being tested.
+- **Still possible after this:** a device that *freezes* the app while the browser is in the
+  foreground (some OEMs), or a phone-side VPN that refuses loopback. Those would show as "no
+  loopback request" in the log, and the remedy is a paste-the-redirect-URL fallback — not
+  written yet, because guessing which one is happening is exactly what this log line exists
+  to stop.
