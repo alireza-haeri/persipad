@@ -146,38 +146,57 @@ class _CalendarStoriesContent extends StatelessWidget {
       },
     );
 
-    return Column(
-      children: [
-        // Above the day's stories: the score for the day the user just picked, so
-        // rating a day does not require leaving the list or remembering to
-        // long-press (D-033 §4 keeps long press as the shortcut, not the only way).
-        if (viewModel.enableScores && selectedDay != null)
-          Padding(
-            padding: EdgeInsets.only(
-              left: MediaQuery.paddingOf(context).left + 16.0,
-              right: MediaQuery.paddingOf(context).right + 16.0,
-              top: 4.0,
-              bottom: 8.0,
-            ),
-            child: SpScoreCallout(
-              title: DateFormatHelper.yMMMd(
-                CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
-                Localizations.localeOf(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The card is a fixed-height sibling of the story list, and the list cannot
+        // go below zero: in a short window the body shrinks to almost nothing the
+        // moment the calendar is scrolled, so the card was handed less room than it
+        // needs and painted a yellow-and-black overflow strip through itself. Below
+        // this threshold the card would be the only thing on screen anyway, so it
+        // is dropped — the day is still in the grid and the trend segment still
+        // rates today (D-035 §4).
+        final bool showScoreCard =
+            viewModel.enableScores && selectedDay != null && constraints.maxHeight >= _minHeightWithScoreCard;
+
+        return Column(
+          children: [
+            // Above the day's stories: the score for the day the user just picked,
+            // so rating a day does not require leaving the list or remembering to
+            // long-press (D-033 §4 keeps long press as the shortcut, not the only
+            // way).
+            if (showScoreCard)
+              Padding(
+                padding: EdgeInsets.only(
+                  left: MediaQuery.paddingOf(context).left + 16.0,
+                  right: MediaQuery.paddingOf(context).right + 16.0,
+                  top: 4.0,
+                  bottom: 8.0,
+                ),
+                child: SpScoreCallout(
+                  title: DateFormatHelper.yMMMd(
+                    CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+                    Localizations.localeOf(context),
+                  ),
+                  subtitle: viewModel.scoresByDay[selectedDay] == null
+                      ? tr('general.score_none_yet')
+                      : tr('general.score_of_day'),
+                  score: viewModel.scoresByDay[selectedDay],
+                  onTap: () => viewModel.openScoreSheet(
+                    context,
+                    CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
+                  ),
+                ),
               ),
-              subtitle: viewModel.scoresByDay[selectedDay] == null
-                  ? tr('general.score_none_yet')
-                  : tr('general.score_of_day'),
-              score: viewModel.scoresByDay[selectedDay],
-              onTap: () => viewModel.openScoreSheet(
-                context,
-                CalendarDisplay.dateOf(viewModel.year, viewModel.month, selectedDay),
-              ),
-            ),
-          ),
-        Expanded(child: pages),
-      ],
+            Expanded(child: pages),
+          ],
+        );
+      },
     );
   }
+
+  /// The card plus a couple of story rows. Under this it is not a shortcut any
+  /// more, it is the whole screen.
+  static const double _minHeightWithScoreCard = 140.0;
 
   Widget buildCalendar(
     BuildContext context, {

@@ -42,10 +42,23 @@ class DailyScoreScale {
   /// [hsvOf] exists to avoid. `LinearGradient` resolves left→right through the
   /// ambient [TextDirection], so in Persian the ramp runs red-on-the-right to
   /// green-on-the-left, matching the bar's own direction.
-  static LinearGradient gradient({double opacity = 1.0, bool vertical = false}) {
+  ///
+  /// [rtl] swaps the two ends *here*, instead of letting the framework do it:
+  /// `LinearGradient` resolves `Alignment` through the ambient [TextDirection], so
+  /// in Persian the ramp flipped while the bar's own value mapping did not — 100
+  /// came out red and 0 green. Callers pass their direction and draw the ramp
+  /// under an explicit LTR `Directionality` (`SpDailyScoreBar` does exactly that),
+  /// which makes the colour at each end a fact of this method rather than of the
+  /// widget tree above it.
+  static LinearGradient gradient({double opacity = 1.0, bool vertical = false, bool rtl = false}) {
+    final Alignment start = vertical ? Alignment.topCenter : (rtl ? Alignment.centerRight : Alignment.centerLeft);
+    final Alignment finish = vertical
+        ? Alignment.bottomCenter
+        : (rtl ? Alignment.centerLeft : Alignment.centerRight);
+
     return LinearGradient(
-      begin: vertical ? Alignment.topCenter : Alignment.centerLeft,
-      end: vertical ? Alignment.bottomCenter : Alignment.centerRight,
+      begin: start,
+      end: finish,
       colors: [
         for (int i = 0; i <= 20; i++) colorOf(i * 5).withValues(alpha: opacity),
       ],

@@ -21,6 +21,15 @@ class _SettingsContent extends StatelessWidget {
               onTap: () => const AppearanceRoute().push(context),
             ),
             buildAppLockTile(context, weekday: 2),
+            // Only where a sidebar exists: on a phone this setting would configure
+            // something the user cannot see.
+            if (WindowedDetectorService.isBigWindow(context))
+              ListTile(
+                leading: const SpSettingIconBadge(weekday: 5, icon: SpIcons.reorder),
+                title: Text(context.tr('page.sidebar_order.title')),
+                subtitle: Text(context.tr('page.sidebar_order.subtitle')),
+                onTap: () => const SidebarOrderRoute().push(context),
+              ),
             if (LocalNotificationService.instance.supported) ...[
               ListTile(
                 leading: const SpSettingIconBadge(weekday: 3, icon: SpIcons.alarm),

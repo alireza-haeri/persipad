@@ -19,6 +19,10 @@ abstract class _$DevicePreferencesObjectCWProxy {
 
   DevicePreferencesObject enableDailyScore(bool? enableDailyScore);
 
+  DevicePreferencesObject enableMap(bool? enableMap);
+
+  DevicePreferencesObject sidebarOrder(List<String>? sidebarOrder);
+
   DevicePreferencesObject reminders(List<ReminderObject>? reminders);
 
   DevicePreferencesObject themeMode(ThemeMode? themeMode);
@@ -81,6 +85,8 @@ abstract class _$DevicePreferencesObjectCWProxy {
     bool? enableRelaxSounds,
     bool? enablePeriodCalendar,
     bool? enableDailyScore,
+    bool? enableMap,
+    List<String>? sidebarOrder,
     List<ReminderObject>? reminders,
     ThemeMode? themeMode,
     TimeFormatOption? timeFormat,
@@ -134,6 +140,14 @@ class _$DevicePreferencesObjectCWProxyImpl
   @override
   DevicePreferencesObject enableDailyScore(bool? enableDailyScore) =>
       call(enableDailyScore: enableDailyScore);
+
+  @override
+  DevicePreferencesObject enableMap(bool? enableMap) =>
+      call(enableMap: enableMap);
+
+  @override
+  DevicePreferencesObject sidebarOrder(List<String>? sidebarOrder) =>
+      call(sidebarOrder: sidebarOrder);
 
   @override
   DevicePreferencesObject reminders(List<ReminderObject>? reminders) =>
@@ -233,6 +247,8 @@ class _$DevicePreferencesObjectCWProxyImpl
     Object? enableRelaxSounds = const $CopyWithPlaceholder(),
     Object? enablePeriodCalendar = const $CopyWithPlaceholder(),
     Object? enableDailyScore = const $CopyWithPlaceholder(),
+    Object? enableMap = const $CopyWithPlaceholder(),
+    Object? sidebarOrder = const $CopyWithPlaceholder(),
     Object? reminders = const $CopyWithPlaceholder(),
     Object? themeMode = const $CopyWithPlaceholder(),
     Object? timeFormat = const $CopyWithPlaceholder(),
@@ -278,6 +294,14 @@ class _$DevicePreferencesObjectCWProxyImpl
           ? _value.enableDailyScore
           // ignore: cast_nullable_to_non_nullable
           : enableDailyScore as bool?,
+      enableMap: enableMap == const $CopyWithPlaceholder()
+          ? _value.enableMap
+          // ignore: cast_nullable_to_non_nullable
+          : enableMap as bool?,
+      sidebarOrder: sidebarOrder == const $CopyWithPlaceholder()
+          ? _value.sidebarOrder
+          // ignore: cast_nullable_to_non_nullable
+          : sidebarOrder as List<String>?,
       reminders: reminders == const $CopyWithPlaceholder()
           ? _value.reminders
           // ignore: cast_nullable_to_non_nullable
@@ -380,6 +404,10 @@ DevicePreferencesObject _$DevicePreferencesObjectFromJson(
   enableRelaxSounds: json['enable_relax_sounds'] as bool?,
   enablePeriodCalendar: json['enable_period_calendar'] as bool?,
   enableDailyScore: json['enable_daily_score'] as bool?,
+  enableMap: json['enable_map'] as bool?,
+  sidebarOrder: (json['sidebar_order'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   reminders: (json['reminders'] as List<dynamic>?)
       ?.map((e) => ReminderObject.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -464,6 +492,8 @@ Map<String, dynamic> _$DevicePreferencesObjectToJson(
   'enable_relax_sounds': instance.enableRelaxSounds,
   'enable_period_calendar': instance.enablePeriodCalendar,
   'enable_daily_score': instance.enableDailyScore,
+  'enable_map': instance.enableMap,
+  'sidebar_order': instance.sidebarOrder,
   'reminders': instance.reminders?.map((e) => e.toJson()).toList(),
 };
 

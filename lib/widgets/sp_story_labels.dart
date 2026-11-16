@@ -231,7 +231,14 @@ class SpStoryLabels extends StatelessWidget {
       );
     }
 
-    if (onAddCurrentLocation != null && !story.hasLocation) {
+    // The map add-on owns everything location-shaped, including the pin for a story
+    // that already has one: "off" has to mean the note looks like it did before the
+    // map existed, not "the map is gone but your places are still on screen"
+    // (D-035 §3). The stored place is untouched, so turning the add-on back on
+    // brings the pins straight back.
+    final bool showMapLabels = context.read<DevicePreferencesProvider>().enableMap;
+
+    if (showMapLabels && onAddCurrentLocation != null && !story.hasLocation) {
       children.add(
         _buildIconButton(
           context: context,
@@ -243,7 +250,7 @@ class SpStoryLabels extends StatelessWidget {
     }
 
     bool showLocation = preferences.showLocation || !fromStoryTile;
-    if (story.hasLocation && showLocation) {
+    if (showMapLabels && story.hasLocation && showLocation) {
       children.add(
         buildPin(
           context: context,

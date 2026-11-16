@@ -80,8 +80,19 @@ class SpDailyScoreBar extends StatelessWidget {
                       child: Stack(
                         children: [
                           // The full palette, always visible: it is the legend.
+                          //
+                          // Painted under an explicit LTR direction because the
+                          // gradient's ends are already resolved for [rtl] above;
+                          // leaving it to the ambient direction is what used to
+                          // flip the ramp a second time in Persian, so 100 showed
+                          // red and 0 green (D-035 §1).
                           Positioned.fill(
-                            child: DecoratedBox(decoration: BoxDecoration(gradient: DailyScoreScale.gradient())),
+                            child: Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(gradient: DailyScoreScale.gradient(rtl: rtl)),
+                              ),
+                            ),
                           ),
                           // Everything beyond the value is washed out towards the
                           // surface colour, so the filled part reads as the value

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/services/app_store_opener_service.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
+import 'package:storypad/core/types/sidebar_item_id.dart';
 import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/views/add_ons/add_ons_view.dart';
@@ -34,58 +35,91 @@ part 'side_item.dart';
 const double _leadingPaddedSize = 12.0;
 
 class SideItems {
-  static List<IconButtonSideItem> getSideMenuItems({
+  /// Whether [item] can appear at all right now.
+  ///
+  /// One rule for the sidebar and for the reorder screen, so the "why is this
+  /// item greyed out?" answer cannot differ between them.
+  static bool isAvailable(
+    SidebarItemId item, {
+    required bool enableMap,
     required bool enableRelaxSounds,
   }) {
-    return [
-      IconButtonSideItem(
+    switch (item) {
+      case SidebarItemId.home:
+      case SidebarItemId.search:
+      case SidebarItemId.calendar:
+      case SidebarItemId.tags:
+        return true;
+      case SidebarItemId.map:
+        return enableMap;
+      case SidebarItemId.relaxSounds:
+        return kProFeaturesAvailable && enableRelaxSounds;
+    }
+  }
+
+  /// The sidebar's items, in [order], with the unavailable ones left out.
+  ///
+  /// [order] is the user's preference (`DevicePreferencesProvider.sidebarOrder`),
+  /// already repaired by `SidebarItemId.parse`, so this only has to respect it:
+  /// the hard-coded sequence that used to live here is now just the default.
+  static List<IconButtonSideItem> getSideMenuItems({
+    required bool enableRelaxSounds,
+    required bool enableMap,
+    required List<SidebarItemId> order,
+  }) {
+    final Map<SidebarItemId, IconButtonSideItem> items = {
+      SidebarItemId.home: IconButtonSideItem(
         route: const HomeRoute(),
-        title: tr('page.home.title'),
-        iconData: SpIcons.home,
-        selectedIconData: SpIcons.home,
+        title: SidebarItemId.home.displayName,
+        iconData: SidebarItemId.home.icon,
+        selectedIconData: SidebarItemId.home.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      IconButtonSideItem(
+      SidebarItemId.search: IconButtonSideItem(
         route: SearchRoute(),
-        title: tr('page.search.title'),
-        iconData: SpIcons.search,
-        selectedIconData: SpIcons.search,
+        title: SidebarItemId.search.displayName,
+        iconData: SidebarItemId.search.icon,
+        selectedIconData: SidebarItemId.search.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      IconButtonSideItem(
+      SidebarItemId.map: IconButtonSideItem(
         route: const MapRoute(),
-        title: tr('page.map.title'),
-        iconData: SpIcons.map,
-        selectedIconData: SpIcons.map,
+        title: SidebarItemId.map.displayName,
+        iconData: SidebarItemId.map.icon,
+        selectedIconData: SidebarItemId.map.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      IconButtonSideItem(
+      SidebarItemId.calendar: IconButtonSideItem(
         route: CalendarRoute(
           // Display-calendar month today falls in.
           initialMonth: CalendarDisplay.monthOf(DateTime.now()),
           initialYear: CalendarDisplay.yearOf(DateTime.now()),
           initialSegment: .mood,
         ),
-        title: tr('page.calendar.title'),
-        iconData: SpIcons.calendar,
-        selectedIconData: SpIcons.calendar,
+        title: SidebarItemId.calendar.displayName,
+        iconData: SidebarItemId.calendar.icon,
+        selectedIconData: SidebarItemId.calendar.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      IconButtonSideItem(
+      SidebarItemId.tags: IconButtonSideItem(
         route: TagsRoute(),
-        title: tr('page.tags.title'),
-        iconData: SpIcons.tag,
-        selectedIconData: SpIcons.tag,
+        title: SidebarItemId.tags.displayName,
+        iconData: SidebarItemId.tags.icon,
+        selectedIconData: SidebarItemId.tags.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      if (kProFeaturesAvailable && enableRelaxSounds)
-        IconButtonSideItem(
-          route: const RelaxSoundsRoute(),
-          title: tr('general.sounds'),
-          iconData: SpIcons.musicNote,
-          selectedIconData: SpIcons.musicNote,
-          onTap: (context, route) => context.read<RootProvider>().navigate(route),
-        ),
+      SidebarItemId.relaxSounds: IconButtonSideItem(
+        route: const RelaxSoundsRoute(),
+        title: SidebarItemId.relaxSounds.displayName,
+        iconData: SidebarItemId.relaxSounds.icon,
+        selectedIconData: SidebarItemId.relaxSounds.icon,
+        onTap: (context, route) => context.read<RootProvider>().navigate(route),
+      ),
+    };
+
+    return [
+      for (final SidebarItemId id in order)
+        if (isAvailable(id, enableMap: enableMap, enableRelaxSounds: enableRelaxSounds)) items[id]!,
     ];
   }
 
@@ -184,6 +218,7 @@ class SideItems {
     required InAppPurchaseProvider iapProvider,
     required ValueNotifier<bool> showBadgeNotifer,
     required bool enableRelaxSounds,
+    required bool enableMap,
   }) {
     return [
       if (kProFeaturesAvailable && enableRelaxSounds)
@@ -203,12 +238,13 @@ class SideItems {
         wrap: (context, child) => SpFadeIn.bound(child: child),
         onTap: (context) => SearchRoute().push(context),
       ),
-      TimelineSideBarItem(
-        icon: SpIcons.map,
-        tooltip: tr('page.map.title'),
-        wrap: (context, child) => SpFadeIn.bound(child: child),
-        onTap: (context) => const MapRoute().push(context),
-      ),
+      if (enableMap)
+        TimelineSideBarItem(
+          icon: SpIcons.map,
+          tooltip: tr('page.map.title'),
+          wrap: (context, child) => SpFadeIn.bound(child: child),
+          onTap: (context) => const MapRoute().push(context),
+        ),
       TimelineSideBarItem(
         icon: SpIcons.calendar,
         tooltip: tr('page.calendar.title'),

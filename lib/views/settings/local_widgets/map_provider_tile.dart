@@ -32,6 +32,9 @@ class MapProviderTile extends StatelessWidget {
         // Shown where Google Maps can't load — but also to anyone who has
         // already switched, wherever they are now. Hiding it the moment they
         // travel out of the region would be a one-way door.
+        // No map add-on, no map engine to choose.
+        if (!provider.enableMap) return const SizedBox.shrink();
+
         final bool visible =
             SpMapRenderer.selectable(kLocalTimezone) || provider.preferences.mapRenderer != null || kDebugMode;
         if (!visible) return const SizedBox.shrink();

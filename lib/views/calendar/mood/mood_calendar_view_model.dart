@@ -52,7 +52,7 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
     enableScores = context.read<DevicePreferencesProvider>().enableDailyScore;
     dailyScoreProvider = context.read<DailyScoreProvider>();
     dailyScoreProvider.addListener(_reloadScores);
-    scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
+    scoresByDay = enableScores ? dailyScoreProvider.scoresOfDisplayMonth(year, month) : const {};
 
     _tags = [...context.read<TagsProvider>().tags?.items ?? []];
     if (_tags?.isNotEmpty == true) _tags?.insert(0, TagDbModel.fromIDTitle(0, tr('general.all')));
@@ -111,7 +111,11 @@ class MoodCalendarViewModel extends ChangeNotifier with DisposeAwareMixin, Debou
   Map<int, int> scoresByDay = {};
 
   void _reloadScores() {
-    scoresByDay = dailyScoreProvider.scoresOfDisplayMonth(year, month);
+    // No add-on, no scores. Reading them anyway is what left the grid tinted after
+    // the user switched the add-on off: the tint is keyed off this map, so an
+    // empty map is the whole difference between "one calendar with a score layer"
+    // and "the calendar as it was before the add-on existed" (D-035 §2).
+    scoresByDay = enableScores ? dailyScoreProvider.scoresOfDisplayMonth(year, month) : const {};
     notifyListeners();
   }
 

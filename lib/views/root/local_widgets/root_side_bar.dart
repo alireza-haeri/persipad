@@ -58,6 +58,8 @@ class _RootSideBarState extends State<RootSideBar> {
 
     final List<IconButtonSideItem> sideItems = SideItems.getSideMenuItems(
       enableRelaxSounds: devicePreferencesProvider.enableRelaxSounds,
+      enableMap: devicePreferencesProvider.enableMap,
+      order: devicePreferencesProvider.sidebarOrder,
     );
 
     return Visibility(

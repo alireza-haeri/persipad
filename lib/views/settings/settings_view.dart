@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/services/notifications/local_notification_service.dart';
+import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/providers/app_lock_provider.dart';
 import 'package:storypad/views/app_locks/app_locks_view.dart';
 import 'package:storypad/views/reminders/reminders_view.dart';
@@ -13,6 +14,7 @@ import 'package:storypad/views/settings/local_widgets/map_provider_tile.dart';
 import 'package:storypad/views/settings/local_widgets/my_templates_tile.dart';
 import 'package:storypad/views/settings/local_widgets/time_format_tile.dart';
 import 'package:storypad/views/settings/local_widgets/weekend_days_tile.dart';
+import 'package:storypad/views/sidebar_order/sidebar_order_view.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';
 import 'package:storypad/views/settings/local_widgets/default_story_preferences_tile.dart';

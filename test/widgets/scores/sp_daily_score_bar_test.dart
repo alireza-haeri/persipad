@@ -69,6 +69,21 @@ void main() {
     expect(reported.every((value) => value >= 0 && value <= 100), isTrue);
   });
 
+  testWidgets('the palette is painted LTR under an explicit direction, never flipped by the tree', (
+    tester,
+  ) async {
+    await pumpBar(tester, onChanged: (_) {}, textDirection: TextDirection.rtl);
+
+    // The ramp's own ends are resolved for RTL in `DailyScoreScale.gradient`; this
+    // inner Directionality is what keeps the framework from flipping them a second
+    // time (that double flip is the bug where 100 looked red in Persian).
+    final Directionality inner = tester.widget<Directionality>(
+      find.descendant(of: find.byType(SpDailyScoreBar), matching: find.byType(Directionality)).first,
+    );
+
+    expect(inner.textDirection, TextDirection.ltr);
+  });
+
   testWidgets('in RTL the scale starts on the right', (tester) async {
     int? reported;
     final Rect rect = await pumpBar(

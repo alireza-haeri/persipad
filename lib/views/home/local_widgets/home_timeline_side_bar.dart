@@ -58,6 +58,10 @@ class _HomeTimelineSideBarState extends State<_HomeTimelineSideBar> {
           iapProvider: provider,
           showBadgeNotifer: showProBadgeNotifier,
           enableRelaxSounds: context.read<DevicePreferencesProvider>().enableRelaxSounds,
+          // The mobile timeline is the same feature list as the sidebar, so the map
+          // add-on has to hide it here too — otherwise "turn the map off" would only
+          // mean "on a wide window".
+          enableMap: context.read<DevicePreferencesProvider>().enableMap,
         );
 
         return Container(

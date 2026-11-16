@@ -300,10 +300,26 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
       case .daily_score:
         _preferences = _preferences.copyWith(enableDailyScore: enabled);
         break;
+      case .map:
+        _preferences = _preferences.copyWith(enableMap: enabled);
+        break;
     }
 
     storage.writeObject(_preferences);
     AnalyticsUserProperyService.instance.logToggleAddOn(addOn: addOn, enabled: enabled);
+    _listeners['add_on']?.forEach((listener) => listener());
+  }
+
+  /// Reorders the sidebar. Stored as the item *names*, so the preference stays
+  /// readable and a future item can be appended without a migration.
+  void setSidebarOrder(List<SidebarItemId> order) {
+    _preferences = _preferences.copyWith(sidebarOrder: SidebarItemId.encode(order));
+    storage.writeObject(_preferences);
+
+    // The sidebar listens on the scoped add-on channel already (it needs it for the
+    // items add-ons can remove), so a reorder rides the same notification instead of
+    // adding a second, subtly different one.
+    notifyListeners();
     _listeners['add_on']?.forEach((listener) => listener());
   }
 

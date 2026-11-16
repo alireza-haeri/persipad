@@ -99,7 +99,16 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     return stored.map((name) => byName[name]).whereType<StatsSection>().toSet();
   }
 
-  bool isSectionVisible(StatsSection section) => !_hiddenSections.contains(section);
+  /// `places` and `countries` are both derived from story locations, so they belong
+  /// to the map add-on. With it off the stats screen does not mention a place at
+  /// all — not even as a hidden checkbox in the filter sheet (D-035 §3).
+  static bool _isMapSection(StatsSection section) =>
+      section == StatsSection.places || section == StatsSection.countries;
+
+  bool isSectionVisible(StatsSection section) {
+    if (!devicePreferencesProvider.enableMap && _isMapSection(section)) return false;
+    return !_hiddenSections.contains(section);
+  }
 
   void toggleSection(StatsSection section) {
     if (!_hiddenSections.remove(section)) _hiddenSections.add(section);
@@ -120,7 +129,10 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   }
 
   /// Sections of the visible tab, listed in the section filter sheet.
-  List<StatsSection> sectionsForCurrentTab() => sectionsForTab(_tabController.index);
+  List<StatsSection> sectionsForCurrentTab() => [
+    for (final section in sectionsForTab(_tabController.index))
+      if (devicePreferencesProvider.enableMap || !_isMapSection(section)) section,
+  ];
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return; // wait until the tab settles

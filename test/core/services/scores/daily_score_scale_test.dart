@@ -1,5 +1,6 @@
 import 'dart:ui' show Locale;
 
+import 'package:flutter/material.dart' show Alignment;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/services/scores/daily_score_scale.dart';
 
@@ -55,6 +56,34 @@ void main() {
     // A two-stop RGB gradient would put a different colour in the middle; the
     // sampled one must still match `colorOf`.
     expect(colors[10], DailyScoreScale.colorOf(50));
+  });
+
+  group('the gradient runs from 0 to 100 in reading order', () {
+    test('left to right in LTR', () {
+      final gradient = DailyScoreScale.gradient();
+
+      expect(gradient.begin, Alignment.centerLeft);
+      expect(gradient.end, Alignment.centerRight);
+      expect(gradient.colors.first, DailyScoreScale.colorOf(0));
+      expect(gradient.colors.last, DailyScoreScale.colorOf(100));
+    });
+
+    test('right to left in RTL, so 0 is red on the right like the bar reads it', () {
+      final gradient = DailyScoreScale.gradient(rtl: true);
+
+      // The bar puts 0 at the right edge in Persian; the palette has to agree, or
+      // 100 comes out red and 0 green. The ends are swapped here rather than left
+      // to the ambient TextDirection, which is what caused that bug.
+      expect(gradient.begin, Alignment.centerRight);
+      expect(gradient.end, Alignment.centerLeft);
+      expect(gradient.colors.first, DailyScoreScale.colorOf(0));
+      expect(gradient.colors.last, DailyScoreScale.colorOf(100));
+    });
+
+    test('vertical keeps its top-to-bottom ends whatever the direction', () {
+      expect(DailyScoreScale.gradient(vertical: true, rtl: true).begin, Alignment.topCenter);
+      expect(DailyScoreScale.gradient(vertical: true, rtl: true).end, Alignment.bottomCenter);
+    });
   });
 
   test('labels follow the language digits', () {

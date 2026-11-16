@@ -786,3 +786,43 @@ Template:
   Flutter do *not* consult `MediaQuery.disableAnimations` on their own, so this is a bounded, one-shot
   entrance rather than a decorative loop; if a reduced-motion pass is ever wanted it has to be done
   explicitly in both builders.
+
+## D-035 — Directions, surfaces and an honest switch: the calendar's second polish round (2026-11-15)
+- **Status:** accepted (extends D-033/D-034; supersedes nothing)
+- **Context:** four things the calendar got wrong once it was in daily use. In Persian the score bar's
+  palette read backwards (100 red, 0 green) while the thumb and the labels read forwards. Turning the
+  score add-on off left the grid tinted. The map could not be turned off at all, although most people
+  never use it. And in a short window the new score card painted a yellow-and-black overflow strip
+  through itself while the calendar was scrolled.
+- **Decision:**
+  1. **A gradient's direction is the caller's decision.** `DailyScoreScale.gradient(rtl:)` swaps its own
+     ends, and `SpDailyScoreBar` paints the ramp under an explicit LTR `Directionality`. The old code
+     passed `Alignment.centerLeft → centerRight` and trusted the ambient `TextDirection`; the bar's
+     *value* mapping (0 on the right in Persian) and the ramp's *resolved* ends disagreed, so the two
+     halves of the same widget described different scales. Nothing direction-sensitive is left implicit
+     now: the ends are a fact of `gradient()`, and the widget that draws them says which direction it
+     means. The tests pin both ends and the inner `Directionality`.
+  2. **An add-on that is off leaves no trace on the grid.** The mood calendar's `scoresByDay` is empty
+     unless `enableScores` is on, so the tint, the long press and the day card all disappear together —
+     one gate instead of three. Half-off states (a tint with no way to change it) were the bug.
+  3. **The map is an add-on, and it defaults to on.** `AddOnType.map` / `DevicePreferencesObject.enableMap`
+     hides every map surface: the sidebar item, the mobile timeline item, the map provider setting, the
+     `places`/`countries` stats sections and — the one the user named — the location pin and the "add
+     current location" button in a note. `null` means *on*: the map shipped before it was optional, so a
+     default of *off* would quietly remove a feature from everyone who never asked. Stored places are
+     never deleted, so turning it back on restores every pin.
+  4. **The sidebar order is a preference, stored as names.** `SidebarItemId` + `sidebarOrder` in device
+     preferences; `SidebarItemId.parse` repairs it on read (unknown names dropped, missing items appended
+     in shipped order, duplicates removed), which is why adding a sidebar item later needs no migration.
+     The reorder screen lists *every* item, greying out the ones an add-on currently hides, because an
+     item that is off today still deserves to keep the slot the user chose for it.
+  5. **Do not put a fixed-height sibling above a list that may be squeezed.** The body of the mood
+     segment can shrink to almost nothing while the calendar is being scrolled in a short window; the
+     score card then overflowed by 12px. It is now skipped below 140pt of body height, where it would be
+     the only thing on screen anyway. A `LayoutBuilder` threshold is uglier than a `Column` that just
+     fits, but it is honest about the constraint instead of painting a warning over the user's data.
+- **Consequences:** the palette, the switch and the sidebar all now describe the same thing the user sees.
+  The costs are accepted and named: the map's default is on (the least surprising choice for existing
+  users, not the smallest app), the stats lose `places`/`countries` when the map is off (they are
+  location data), and the score card is absent in a window too short to show stories — with the score
+  still reachable from the trend segment and the grid.
