@@ -47,9 +47,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
+    // jvmTarget lives in the Kotlin compilerOptions DSL from Kotlin 2.x on; the old
+    // `kotlinOptions { jvmTarget = ... }` form is an *error* under AGP 9, not a warning.
 
     defaultConfig {
         // You can update the following values to match your application needs.
@@ -123,6 +122,12 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
