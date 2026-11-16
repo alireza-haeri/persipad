@@ -309,46 +309,30 @@ if [ "$MIRROR" = 1 ]; then
   cat > "$MIRROR_FILE" <<'EOF'
 // Written by `bin/android_doctor --mirror`.
 // Purpose: this network cannot reach dl.google.com, so Google's Maven repository is
-// served by public mirrors instead. Delete this file to go back to the real thing.
+// redirected in-place to a public mirror without adding extra repositories (which
+// would trip RepositoriesMode.FAIL_ON_PROJECT_REPOS / PREFER_SETTINGS in Flutter's
+// included gradle build). Delete this file to go back to dl.google.com.
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 
-def googleMirror = "https://maven.aliyun.com/repository/google"
-def mirrorUrls = [
-    "https://maven.aliyun.com/repository/google",
-    "https://maven.aliyun.com/repository/public",
-    "https://repo.huaweicloud.com/repository/maven/",
-]
-
-beforeSettings { settings ->
-    [settings.pluginManagement.repositories, settings.dependencyResolutionManagement.repositories].each { repos ->
-        repos.all { repo ->
-            if (repo instanceof MavenArtifactRepository) {
-                def u = repo.url?.toString() ?: ""
-                if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
-                    repo.setUrl(googleMirror)
-                }
+def redirectGoogle = { repos ->
+    repos.all { repo ->
+        if (repo instanceof MavenArtifactRepository) {
+            def u = repo.url?.toString() ?: ""
+            if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
+                repo.setUrl("https://maven.aliyun.com/repository/google")
             }
         }
-    }
-    mirrorUrls.each { mirrorUrl ->
-        settings.pluginManagement.repositories.maven { setUrl(mirrorUrl) }
     }
 }
 
+beforeSettings { settings ->
+    redirectGoogle(settings.pluginManagement.repositories)
+    redirectGoogle(settings.dependencyResolutionManagement.repositories)
+}
+
 allprojects { project ->
-    [project.buildscript.repositories, project.repositories].each { repos ->
-        repos.all { repo ->
-            if (repo instanceof MavenArtifactRepository) {
-                def u = repo.url?.toString() ?: ""
-                if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
-                    repo.setUrl(googleMirror)
-                }
-            }
-        }
-        mirrorUrls.each { mirrorUrl ->
-            repos.maven { setUrl(mirrorUrl) }
-        }
-    }
+    redirectGoogle(project.buildscript.repositories)
+    redirectGoogle(project.repositories)
 }
 EOF
   printf '\n  \033[32mWrote\033[0m %s\n' "$MIRROR_FILE"

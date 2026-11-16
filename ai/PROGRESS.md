@@ -470,8 +470,9 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - Fixed the Gradle 9.3.1 init-script compile error from `notely-google-mirror.gradle.kts` (which
   used Groovy-style `{ settings -> }` / `{ project -> }` lambdas in Kotlin DSL):
   - `bin/android_doctor --mirror` now writes Groovy `~/.gradle/init.d/notely-google-mirror.gradle`
-    (rewriting `dl.google.com` in-place via `repositories.all` and adding mirrors), removes the old
-    `.gradle.kts`, and `bin/build_apk` fails fast if the broken `.gradle.kts` is still present.
+    that rewrites `dl.google.com` in-place via `repositories.all` without adding new `maven {}`
+    entries (adding repositories tripped Flutter's `flutter_tools/gradle` `RepositoriesMode` check),
+    removes the old `.gradle.kts`, and `bin/build_apk` fails fast if `.gradle.kts` is still present.
   - `bin/android_doctor --fix` resolves missing `platforms`/`build-tools` against `sdkmanager --list`
     (so missing `android-37` on a mirror falls back to `android-36`), skips the optional 1 GB NDK,
     and `bin/build_apk` warns when the local platform is below 36 (required by plugin subprojects).
