@@ -1,0 +1,429 @@
+#!/usr/bin/env bash
+# build_apk — build the Android APK for this checkout, and install it if asked.
+#
+#   bin/build_apk                    # community flavor, debug, ABI chosen for you
+#   bin/build_apk --install          # ...and `adb install -r` it on the device/AVD
+#   bin/build_apk --install --avd    # boot an AVD if nothing is attached, then install
+#   bin/build_apk --install --avd=storypad_dev
+#   bin/build_apk --release          # release build (needs the RELEASE_KEYSTORE_* env vars)
+#   bin/build_apk --abi all          # every ABI (biggest, slowest, always installable)
+#   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
+#   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
+#   bin/build_apk --compile-sdk=36   # build against the platform this machine has
+#   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
+#   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
+#
+# The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
+# mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
+# emulator, and a universal one wastes a minute on every build.
+#
+# Why this exists next to .github/workflows/android.yml: CI takes ~15 minutes per
+# attempt and grades you only at the end; a laptop takes ~2 minutes the first time and
+# under a minute after that, with the APK and `adb` on the same machine. CI is for
+# artifacts you want to keep, this is for the loop you are in now (D-038).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+source "$(dirname "$0")/helpers"
+
+FLAVOR=community
+MODE=debug
+ABI=auto
+INSTALL=0
+AVD=""
+VERBOSE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --install) INSTALL=1 ;;
+    --release) MODE=release ;;
+    --debug)   MODE=debug ;;
+    -v|--verbose) VERBOSE="-v" ;;
+    --avd)
+      if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then
+        AVD="$2"; shift
+      else
+        AVD="auto"
+      fi
+      ;;
+    --avd=*)   AVD="${1#*=}"; [ -n "$AVD" ] || AVD="auto" ;;
+    --flavor)  FLAVOR="${2:?--flavor needs a value}"; shift ;;
+    --flavor=*) FLAVOR="${1#*=}" ;;
+    --abi)     ABI="${2:?--abi needs a value}"; shift ;;
+    --abi=*)   ABI="${1#*=}" ;;
+    --compile-sdk)
+      CSDK="${2:?--compile-sdk needs a value}"; shift
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="${CSDK%%.*}"
+      if [ "$CSDK" != "${CSDK%%.*}" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="${CSDK#*.}"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+      fi
+      ;;
+    --compile-sdk=*)
+      CSDK="${1#*=}"
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="${CSDK%%.*}"
+      if [ "$CSDK" != "${CSDK%%.*}" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="${CSDK#*.}"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+      fi
+      ;;
+    --ndk)     export ORG_GRADLE_PROJECT_notelyNdkVersion="${2:?--ndk needs a value}"; shift ;;
+    --ndk=*)   export ORG_GRADLE_PROJECT_notelyNdkVersion="${1#*=}" ;;
+    --no-ndk)  export ORG_GRADLE_PROJECT_notelyNdkVersion=none ;;
+    -h|--help) awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "$0"; exit 0 ;;
+    *) echo "bin/build_apk: unknown argument '$1' (try --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+warn() { printf '\033[33m%s\033[0m\n' "$*" >&2; }
+
+# ---------------------------------------------------------------- prerequisites
+FLUTTER="${FLUTTER_BIN:-}"
+if [ -z "$FLUTTER" ]; then
+  if command -v flutter >/dev/null 2>&1; then
+    FLUTTER=$(command -v flutter)
+  elif [ -x "$HOME/development/flutter_stable/bin/flutter" ]; then
+    FLUTTER="$HOME/development/flutter_stable/bin/flutter"
+  fi
+fi
+[ -n "$FLUTTER" ] && [ -x "$FLUTTER" ] || die "flutter is not on PATH — install Flutter 3.50.0+ (ai/ENVIRONMENT.md §2.1)."
+
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+  for guess in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" /usr/lib/android-sdk /opt/android-sdk; do
+    [ -d "$guess" ] && { SDK="$guess"; break; }
+  done
+fi
+[ -n "$SDK" ] && [ -d "$SDK" ] || die "no Android SDK found — set ANDROID_HOME (Android Studio installs it under ~/Android/Sdk).
+
+Run bin/android_doctor for a full report of what is installed."
+export ANDROID_HOME="$SDK"
+export ANDROID_SDK_ROOT="$SDK"
+
+# Android Studio does not put platform-tools/ or emulator/ on PATH by default.
+if ! command -v adb >/dev/null 2>&1 && [ -x "$SDK/platform-tools/adb" ]; then
+  export PATH="$SDK/platform-tools:$PATH"
+fi
+
+EMULATOR_BIN=""
+if command -v emulator >/dev/null 2>&1; then
+  EMULATOR_BIN=$(command -v emulator)
+elif [ -x "$SDK/emulator/emulator" ]; then
+  EMULATOR_BIN="$SDK/emulator/emulator"
+fi
+
+command -v java >/dev/null || die "no java — the Android build needs a JDK 17+ (bin/android_doctor shows what you have)."
+JAVA_MAJOR=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1 || true)
+[ "${JAVA_MAJOR:-0}" -ge 17 ] 2>/dev/null || die "JDK ${JAVA_MAJOR:-unknown} is too old — the Android build needs 17+."
+
+if [ "$FLAVOR" != "community" ] && [ ! -d bin/.tmp/private_keys ]; then
+  die "flavor '$FLAVOR' needs bin/.tmp/private_keys (keystores, dart-defines). Only 'community' builds without them."
+fi
+
+if [ -f "$HOME/.gradle/init.d/notely-google-mirror.gradle.kts" ]; then
+  die "found old broken mirror script ~/.gradle/init.d/notely-google-mirror.gradle.kts — run 'bin/android_doctor --mirror' to replace it with the working .gradle script."
+fi
+
+# ---------------------------------------------------------------- device & AVD helpers
+first_online_device() {
+  command -v adb >/dev/null 2>&1 || return 0
+  adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && $2=="device" {print $1; exit}' || true
+}
+
+has_pending_device() {
+  command -v adb >/dev/null 2>&1 || return 1
+  adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && ($2=="offline" || $2=="authorizing") {found=1; exit} END {exit !found}'
+}
+
+wait_for_boot() {
+  local timeout="${1:-120}" pid="${2:-}" elapsed=0 serial boot=""
+  while [ "$elapsed" -lt "$timeout" ]; do
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      echo "" >&2
+      warn "emulator exited before booting. Last lines of /tmp/notely-avd.log:"
+      tail -20 /tmp/notely-avd.log >&2 || true
+      die "emulator failed to start."
+    fi
+    serial=$(first_online_device)
+    if [ -n "$serial" ]; then
+      boot=$(adb -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | head -1 || true)
+      if [ "$boot" = "1" ]; then
+        return 0
+      fi
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
+device_abi() {
+  local serial
+  serial=$(first_online_device)
+  [ -n "$serial" ] || return 0
+  adb -s "$serial" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r' | sed '/^$/d' | head -1 || true
+}
+
+# Flutter target platforms: android-arm, android-arm64, android-x64, android-x86.
+to_flutter_platform() {
+  case "$1" in
+    arm64-v8a)           echo android-arm64 ;;
+    armeabi-v7a|armeabi) echo android-arm ;;
+    x86_64)              echo android-x64 ;;
+    x86)                 echo android-x86 ;;
+    *)                   echo "" ;;
+  esac
+}
+
+# Boot an AVD first when asked so `abi auto` inspects the real emulator ABI.
+if [ -n "$AVD" ] && [ -z "$(first_online_device)" ]; then
+  command -v adb >/dev/null 2>&1 || die "adb is not available (install Android SDK platform-tools) — needed to wait for the AVD."
+  if has_pending_device; then
+    say "Waiting for the booting device/emulator…"
+    wait_for_boot 120 "" || die "timed out waiting for the attached device/emulator to finish booting."
+  else
+    [ -n "$EMULATOR_BIN" ] || die "emulator binary not found under $SDK/emulator — install it via Android Studio or sdkmanager."
+    AVDS=$("$EMULATOR_BIN" -list-avds 2>/dev/null | sed '/^$/d' || true)
+    [ -n "$AVDS" ] || die "no AVDs configured — create one in Android Studio (Device Manager) first."
+    if [ "$AVD" = "auto" ]; then
+      AVD=$(printf '%s\n' "$AVDS" | head -1)
+    elif ! printf '%s\n' "$AVDS" | grep -qx "$AVD"; then
+      die "AVD '$AVD' not found. Available AVDs: $(printf '%s' "$AVDS" | tr '\n' ' ')"
+    fi
+    say "Starting AVD '$AVD'…"
+    nohup "$EMULATOR_BIN" -avd "$AVD" </dev/null >/tmp/notely-avd.log 2>&1 &
+    EMU_PID=$!
+    wait_for_boot 120 "$EMU_PID" || die "timed out waiting for AVD '$AVD' to boot (see /tmp/notely-avd.log)."
+    say "AVD '$AVD' is ready."
+  fi
+fi
+
+# ---------------------------------------------------------------- device ABI
+TOOLCHAIN=""
+CHOSEN=""
+case "$ABI" in
+  all)  CHOSEN="all ABIs" ;;
+  auto)
+    DEV=$(device_abi)
+    if [ -n "$DEV" ]; then
+      P=$(to_flutter_platform "$DEV")
+      [ -n "$P" ] || die "unknown device ABI '$DEV'; pass --abi all"
+      TOOLCHAIN="--target-platform=$P"
+      CHOSEN="$DEV (attached device)"
+    else
+      case "$(uname -m)" in
+        x86_64|amd64) HOST=x86_64 ;;
+        aarch64|arm64) HOST=arm64-v8a ;;
+        *) HOST=arm64-v8a ;;
+      esac
+      P=$(to_flutter_platform "$HOST")
+      TOOLCHAIN="--target-platform=$P"
+      CHOSEN="$HOST (host arch; nothing attached — pass --avd or start the AVD before --install for an exact match)"
+    fi
+    ;;
+  *)
+    P=$(to_flutter_platform "$ABI")
+    [ -n "$P" ] || die "unknown --abi '$ABI' (use auto, all, arm64, x86_64, arm or x86)"
+    TOOLCHAIN="--target-platform=$P"
+    CHOSEN="$ABI"
+    ;;
+esac
+
+# ---------------------------------------------------------------- adapt to this SDK
+# CI installs android-37 and the NDK the Flutter SDK pins. A local machine behind a
+# network that cannot reach dl.google.com may have neither, and a build against what it
+# does have is far more useful than a download error. Explicit flags win over this.
+if [ -z "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && [ -d "$SDK/platforms" ]; then
+  if [ ! -d "$SDK/platforms/android-37" ]; then
+    BEST_PAIR=$(ls -1 "$SDK/platforms" 2>/dev/null |
+      sed -n 's/^android-\([0-9][0-9]*\)\.\([0-9][0-9]*\)$/\1 \2/p; s/^android-\([0-9][0-9]*\)$/\1 -1/p' |
+      sort -t' ' -k1,1n -k2,2n | tail -1 || true)
+    if [ -n "$BEST_PAIR" ]; then
+      BEST_MAJOR=${BEST_PAIR%% *}
+      BEST_MINOR=${BEST_PAIR#* }
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="$BEST_MAJOR"
+      if [ "$BEST_MINOR" != "-1" ]; then
+        export ORG_GRADLE_PROJECT_notelyCompileSdkMinor="$BEST_MINOR"
+        BEST_LABEL="$BEST_MAJOR.$BEST_MINOR"
+      else
+        unset ORG_GRADLE_PROJECT_notelyCompileSdkMinor
+        BEST_LABEL="$BEST_MAJOR"
+      fi
+      warn "android-37 is not installed → building against android-$BEST_LABEL (CI uses 37; pass --compile-sdk=37 when you have it)."
+      if [ "$BEST_MAJOR" -lt 36 ] 2>/dev/null; then
+        warn "note: plugin subprojects in android/build.gradle.kts require Android 36+ — if Gradle fails on platform 36, run: bin/android_doctor --fix"
+      fi
+    else
+      FOUND_DIRS=$(ls "$SDK/platforms" 2>/dev/null | tr '\n' ' ' || true)
+      warn "no android-<n> platform under $SDK/platforms (found: ${FOUND_DIRS:-none}) — run bin/android_doctor --fix first."
+    fi
+  fi
+fi
+
+valid_ndks() {
+  [ -d "$SDK/ndk" ] || return 0
+  for d in "$SDK"/ndk/*; do
+    if [ -f "$d/source.properties" ]; then
+      basename "$d"
+    fi
+  done | sort -V
+}
+
+valid_cmakes() {
+  [ -d "$SDK/cmake" ] || return 0
+  for d in "$SDK"/cmake/*; do
+    if [ -x "$d/bin/cmake" ]; then
+      basename "$d"
+    fi
+  done | sort -V
+}
+
+NEEDS_NDK=0
+if [ -f pubspec.lock ] && grep -qE '^  jni(_flutter)?:$' pubspec.lock 2>/dev/null; then
+  NEEDS_NDK=1
+fi
+
+FLUTTER_ROOT=$(cd "$(dirname "$(readlink -f "$FLUTTER")")/.." && pwd)
+PINNED_NDK="28.2.13676358"
+if [ -f "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" ]; then
+  _pinned=$(sed -n "s/.*const ndkVersion = '\([^']*\)';.*/\1/p" "$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart" | head -1 || true)
+  [ -n "$_pinned" ] && PINNED_NDK="$_pinned"
+fi
+
+INSTALLED_NDKS=$(valid_ndks)
+INSTALLED_CMAKES=$(valid_cmakes)
+
+if [ -z "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ]; then
+  if [ -z "$INSTALLED_NDKS" ]; then
+    if [ "$NEEDS_NDK" = 1 ]; then
+      die "no NDK installed under $SDK/ndk — transitive plugin :jni (from path_provider_android) compiles C code with CMake + NDK.
+
+Install NDK + CMake from the SDK mirror with:
+  bin/android_doctor --fix
+(or via Android Studio → SDK Manager → SDK Tools → NDK (Side by side) & CMake)."
+    else
+      export ORG_GRADLE_PROJECT_notelyNdkVersion=none
+      warn "no NDK installed → building without one (pass --ndk=<version> to force one)."
+    fi
+  else
+    if ! printf '%s\n' "$INSTALLED_NDKS" | grep -qx "$PINNED_NDK"; then
+      BEST_NDK=$(printf '%s\n' "$INSTALLED_NDKS" | tail -1)
+      export ORG_GRADLE_PROJECT_notelyNdkVersion="$BEST_NDK"
+      warn "ndk $PINNED_NDK is not installed → building with ndk $BEST_NDK (CI uses $PINNED_NDK)."
+    fi
+    if [ "$NEEDS_NDK" = 1 ] && [ -z "$INSTALLED_CMAKES" ]; then
+      die "no CMake installed under $SDK/cmake — transitive plugin :jni builds C code with CMake.
+
+Install CMake from the SDK mirror with:
+  bin/android_doctor --fix
+(or via Android Studio → SDK Manager → SDK Tools → CMake)."
+    fi
+  fi
+elif [ "$ORG_GRADLE_PROJECT_notelyNdkVersion" = "none" ] && [ "$NEEDS_NDK" = 1 ]; then
+  warn "--no-ndk requested, but transitive plugin :jni in pubspec.lock compiles CMake/NDK code — Gradle will fail on :jni unless NDK + CMake are installed or :jni is removed."
+fi
+
+# ---------------------------------------------------------------- dart-defines
+sync_private_keys
+DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
+
+# ---------------------------------------------------------------- signing
+if [ "$MODE" = "release" ] && [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then
+  cat >&2 <<'EOF'
+release builds need a keystore. Either export the four variables
+
+  RELEASE_KEYSTORE_PATH=/abs/path/release.jks
+  RELEASE_KEYSTORE_PASSWORD=...
+  RELEASE_KEY_ALIAS=upload
+  RELEASE_KEY_PASSWORD=...
+
+or create one once (and keep it — losing it changes your app's identity):
+
+  keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
+          -validity 10000 -alias upload
+
+Use --debug if you just want something to install right now.
+EOF
+  exit 1
+fi
+
+# ---------------------------------------------------------------- build
+if [ -n "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ]; then
+  if [ -n "${ORG_GRADLE_PROJECT_notelyCompileSdkMinor:-}" ]; then
+    say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk.$ORG_GRADLE_PROJECT_notelyCompileSdkMinor"
+  else
+    say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk"
+  fi
+fi
+[ -n "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ] && say "ndkVersion override: $ORG_GRADLE_PROJECT_notelyNdkVersion"
+
+say "Building $FLAVOR ($MODE, $CHOSEN)…"
+# shellcheck disable=SC2086 # $TOOLCHAIN and $VERBOSE are deliberately word-split (empty when unset)
+"$FLUTTER" build apk --"$MODE" \
+  --flavor="$FLAVOR" \
+  --target="lib/main_$FLAVOR.dart" \
+  --dart-define-from-file="$DEFINES" \
+  $TOOLCHAIN $VERBOSE
+
+APK="build/app/outputs/flutter-apk/app-$FLAVOR-$MODE.apk"
+[ -f "$APK" ] || die "the build finished but $APK is missing — check the output above."
+
+say "APK"
+printf '  file    %s\n' "$APK"
+printf '  size    %s\n' "$(du -h "$APK" | cut -f1)"
+printf '  abi     %s\n' "$CHOSEN"
+printf '  sha256  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)"
+
+# ---------------------------------------------------------------- install
+if [ "$INSTALL" = 1 ]; then
+  command -v adb >/dev/null 2>&1 || die "adb is not on PATH and missing from $SDK/platform-tools."
+  if [ -z "$(first_online_device)" ] && has_pending_device; then
+    say "Waiting for device/emulator to finish booting…"
+    wait_for_boot 90 "" || true
+  fi
+  DEVICES=$(adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && $2=="device"' | wc -l | tr -d ' ')
+  if [ "$DEVICES" -lt 1 ]; then
+    if [ -n "$EMULATOR_BIN" ]; then
+      AVDS=$("$EMULATOR_BIN" -list-avds 2>/dev/null | sed '/^$/d' || true)
+      if [ -n "$AVDS" ]; then
+        FIRST_AVD=$(printf '%s\n' "$AVDS" | head -1)
+        EMU_DISPLAY="${EMULATOR_BIN/#$HOME/\~}"
+        die "nothing attached. Boot the AVD and install in one step:
+  bin/build_apk --install --avd=$FIRST_AVD
+or start it manually first:
+  $EMU_DISPLAY -avd $FIRST_AVD &"
+      fi
+    fi
+    die "no device in 'adb devices' — plug the phone in (USB debugging) or start an AVD."
+  fi
+
+  ADB_TARGET=()
+  if [ -n "${ANDROID_SERIAL:-}" ]; then
+    ADB_TARGET=(-s "$ANDROID_SERIAL")
+  elif [ "$DEVICES" -eq 1 ]; then
+    ADB_TARGET=(-s "$(first_online_device)")
+  else
+    die "multiple devices attached — set ANDROID_SERIAL to choose one:
+$(adb devices)"
+  fi
+
+  say "Installing on ${ADB_TARGET[1]}…"
+  # A debug-signed APK cannot replace a differently-signed install: say that in a
+  # sentence instead of letting `adb install -r` fail with an error code.
+  if ! adb "${ADB_TARGET[@]}" install -r "$APK" 2>&1 | tee /tmp/adb-install.log | grep -q Success; then
+    if grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' /tmp/adb-install.log; then
+      die "the device has this app installed from a different signing key — run 'adb ${ADB_TARGET[*]} uninstall com.tc.writestory.$FLAVOR' first (it deletes the app's data too)."
+    fi
+    if grep -q 'INSTALL_FAILED_NO_MATCHING_ABIS' /tmp/adb-install.log; then
+      die "the APK's ABI does not match the device — rebuild with --abi all (or --abi x86_64 for an x86_64 AVD)."
+    fi
+    die "adb install failed — see the lines above."
+  fi
+  say "Installed. Launch it from the app drawer."
+else
+  printf '\n  install with: adb install -r %s\n' "$APK"
+fi

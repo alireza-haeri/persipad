@@ -1,0 +1,104 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/services/email_hasher_service.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
+import 'package:storypad/providers/backup_provider.dart';
+import 'package:storypad/widgets/bottom_sheets/base_bottom_sheet.dart';
+import 'package:storypad/widgets/sp_icons.dart';
+import 'package:storypad/widgets/sp_single_state_widget.dart';
+
+class SpShareLogsBottomSheet extends BaseBottomSheet {
+  static String? backupEmail;
+  static String? emailHash;
+
+  SpShareLogsBottomSheet();
+
+  @override
+  Future<T?> show<T>({
+    required BuildContext context,
+    bool useRootNavigator = false,
+  }) async {
+    backupEmail = context.read<BackupProvider>().currentGoogleUser?.email;
+    emailHash = EmailHasherService(secretKey: kEmailHasherSecreyKey).hmacEmail(backupEmail ?? "");
+
+    if (context.mounted) {
+      return super.show(
+        context: context,
+        useRootNavigator: useRootNavigator,
+      );
+    }
+
+    return null;
+  }
+
+  @override
+  bool get fullScreen => false;
+
+  @override
+  Widget build(BuildContext context, double bottomPadding) {
+    return SpSingleStateWidget(
+      initialValue: [
+        "=== StoryPad Debug Information ===",
+        "App Name: $kAppName",
+        "Cupertino Mode: $kIsCupertino",
+        "",
+        "=== Backup ===",
+        "Backup Email: $backupEmail",
+        "Email Hash: $emailHash",
+        "",
+        "=== Package Info ===",
+        "Package: ${kPackageInfo.data}",
+        "",
+        "=== Device Info ===",
+        "Device ID: ${kDeviceInfo.id}",
+        "Device Model: ${kDeviceInfo.model}",
+        "",
+        "=== Application Logs ===",
+        ...AppLogger.logs,
+        "",
+        "=== End Debug Info ===",
+      ].join("\n"),
+      builder: (context, notifier) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                maxLength: null,
+                maxLines: null,
+                decoration: const InputDecoration(hintText: "..."),
+                initialValue: notifier.value,
+                onChanged: (value) => notifier.value = value,
+              ),
+              const SizedBox(height: 16.0),
+              Builder(
+                builder: (context) {
+                  return FilledButton.icon(
+                    icon: const Icon(SpIcons.share),
+                    label: Text(tr("button.share")),
+                    onPressed: () => shareLog(context, notifier),
+                  );
+                },
+              ),
+              buildBottomPadding(bottomPadding),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> shareLog(BuildContext context, ValueNotifier<String> notifier) async {
+    RenderBox? box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: notifier.value.trim(),
+        sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
+      ),
+    );
+  }
+}

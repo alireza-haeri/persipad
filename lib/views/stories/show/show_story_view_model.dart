@@ -1,0 +1,171 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:storypad/core/databases/models/story_content_db_model.dart';
+import 'package:storypad/core/databases/models/story_db_model.dart';
+import 'package:storypad/core/services/stories/story_convert_legacy_pages_service.dart';
+import 'package:storypad/core/databases/models/story_page_db_model.dart';
+import 'package:storypad/core/initializers/database_initializer.dart';
+import 'package:storypad/core/objects/story_page_objects_map.dart';
+import 'package:storypad/core/services/messenger_service.dart';
+import 'package:storypad/core/services/stories/story_content_embed_extractor.dart';
+import 'package:storypad/core/types/page_layout_type.dart';
+import 'package:storypad/views/stories/edit/edit_story_view.dart';
+import 'package:storypad/views/stories/local_widgets/base_story_view_model.dart';
+import 'show_story_view.dart';
+
+class ShowStoryViewModel extends BaseStoryViewModel {
+  final ShowStoryRoute params;
+
+  @override
+  bool get readOnly => true;
+
+  ShowStoryViewModel({
+    required this.params,
+  }) {
+    load(initialStory: params.story);
+  }
+
+  Future<void> load({
+    StoryDbModel? initialStory,
+  }) async {
+    story = initialStory ?? await StoryDbModel.db.find(params.id);
+    story = await _migrateEmbedAssetsToRelativeFilePathIfExists(story);
+    story = await StoryConvertLegacyPagesService.call(story);
+    if (story?.draftContent != null) lastSavedAtNotifier.value = story?.updatedAt;
+
+    StoryContentDbModel content = story!.generateDraftContent();
+    bool alreadyHasPage = content.richPages?.isNotEmpty == true;
+    if (!alreadyHasPage) content = content.addRichPage();
+
+    pagesManager.pagesMap = await StoryPageObjectsMap.fromContent(
+      content: content,
+      readOnly: readOnly,
+    );
+
+    // The pages as the editors hold them (their counts computed), and the title worked out from them: a content built
+    // elsewhere may lack it (e.g. a story made from a template before titles were set there).
+    final pages = [
+      for (final page in content.richPages ?? <StoryPageDbModel>[]) pagesManager.pagesMap[page.id]?.page ?? page,
+    ];
+    draftContent = content.copyWith(title: pages.firstOrNull?.title, richPages: pages);
+
+    // Save if detect data is invalid: counts from before 2.23.0, or a story made from a template saved without its
+    // title. No need to do following in edit story view.
+    // Never for a story with a page from a newer app version: it's kept exactly as stored.
+    if (draftContent?.hasUnsupportedPages != true &&
+        (draftContent?.title != content.title ||
+            draftContent?.characterCount != content.characterCount ||
+            draftContent?.wordCount != content.wordCount)) {
+      // Keep updatedAt same as before since this is just a silent fix. User didn't explicitly make change.
+      draftContent = draftContent!.withPages(pages);
+      story = buildStory(draft: story?.draftStory == true, updatedAt: story?.updatedAt);
+      StoryDbModel.db.set(story!, runCallbacks: false);
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> goToEditPage(BuildContext context) async {
+    if (draftContent == null || draftContent?.richPages == null) return;
+    if (draftContent!.hasUnsupportedPages) {
+      MessengerService.of(context).showSnackBar(tr('page.newer_version_notice'), success: false);
+      return;
+    }
+
+    int? nearestPageIndex;
+    double? initialPageScrollOffet;
+
+    switch (story?.preferences.layoutType) {
+      case PageLayoutType.grid:
+      case PageLayoutType.list:
+        if (pagesManager.canReadScrollOffset) initialPageScrollOffet = pagesManager.pageScrollController.offset;
+
+        for (int index = 0; index < (draftContent?.richPages?.length ?? 0); index++) {
+          int pageId = draftContent!.richPages![index].id;
+          if (pagesManager.pagesMap[pageId]?.titleVisibleFraction == 1) {
+            nearestPageIndex = index;
+            break;
+          }
+        }
+
+        // if no title visible on page, it most likely an last page.
+        nearestPageIndex ??= draftContent!.richPages!.length - 1;
+        break;
+      case PageLayoutType.pages:
+        nearestPageIndex = pagesManager.pageController.page?.toInt();
+        break;
+      case null:
+        break;
+    }
+
+    await EditStoryRoute(
+      id: story!.id,
+      story: story,
+      initialPageIndex: nearestPageIndex,
+      initialPageScrollOffet: initialPageScrollOffet ?? 0,
+      pagesMap: pagesManager.pagesMap,
+    ).push(context);
+
+    await load();
+  }
+
+  Future<void> done(BuildContext context) async {
+    story = buildStory(draft: false);
+    await StoryDbModel.db.set(story!);
+    lastSavedAtNotifier.value = story?.updatedAt;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> onPageChanged() async {
+    // unlike edit view, we can notify UI on each change, and won't need to use debounce callback here.
+    await saveDraft(debugSource: '$runtimeType#onPageChanged');
+    notifyListeners();
+  }
+
+  Future<void> onPopInvokedWithResult(bool didPop, Object? result, BuildContext context) async {
+    if (pagesManager.managingPage) return pagesManager.toggleManagingPage();
+  }
+
+  void handleKeyEvent(KeyEvent event, BuildContext context) {
+    if (event is KeyDownEvent) {
+      final isE = event.logicalKey == LogicalKeyboardKey.enter;
+
+      if (isE) {
+        goToEditPage(context);
+      }
+    }
+  }
+
+  // Migrate legacy embed asset paths (storypad://assets/xxx) to the new relative file paths if they still exist.
+  //
+  // This migration was originally performed in database_initializer.dart#migrateEmbedAssetsToUseRelativeFilePaths.
+  // However, some edge cases may leave certain stories with the old embed
+  // asset paths (for example, stories that were missed during the initial migration).
+  //
+  // This function acts as a safety net to ensure those remaining stories
+  // are migrated properly when they are accessed.
+  Future<StoryDbModel?> _migrateEmbedAssetsToRelativeFilePathIfExists(StoryDbModel? story) async {
+    if (story == null) return null;
+
+    List<String>? assetPaths = story.draftContent != null || story.latestContent != null
+        ? StoryContentEmbedExtractor.media(story.draftContent ?? story.latestContent)
+        : null;
+
+    const String legacyPrefix = 'storypad://assets/';
+    Set<int>? needMigrationAssetIds = assetPaths
+        ?.where((a) => a.contains(legacyPrefix))
+        .map((a) => int.tryParse(a.replaceAll(legacyPrefix, '')))
+        .whereType<int>()
+        .toSet();
+
+    if (needMigrationAssetIds != null && needMigrationAssetIds.isNotEmpty) {
+      await DatabaseInitializer.migrateEmbedAssetsToUseRelativeFilePaths(assetIds: needMigrationAssetIds.toList());
+      debugPrint('Migrated ${needMigrationAssetIds.length} to latest for story: ${story.id}');
+      return StoryDbModel.db.find(params.id);
+    }
+
+    return story;
+  }
+}

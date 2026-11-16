@@ -1,0 +1,30 @@
+#!/bin/bash -e
+
+# Generate story backgrounds
+echo "Generating story backgrounds..."
+dart bin/backgrounds_generation/generate.dart
+
+echo ""
+echo "Running build_runner..."
+
+CMD="dart run build_runner build"
+
+# Check if --delete flag is provided
+if echo "$@" | grep -q -- "--delete"; then
+  CMD="$CMD --delete-conflicting-outputs"
+fi
+
+echo "Executing: $CMD"
+$CMD
+
+# Record which dependency set this generated code belongs to. `bin/dev` compares this
+# stamp with the current pubspec/pubspec.lock and stops early with a clear message
+# instead of letting a stale *.g.dart blow up four minutes into a build — the
+# `loadObjectBoxLibraryAndroidCompat` incident (ai/DECISIONS.md D-016).
+mkdir -p bin/.tmp
+if command -v sha256sum >/dev/null 2>&1; then
+  cat pubspec.yaml pubspec.lock 2>/dev/null | sha256sum | cut -d' ' -f1 > bin/.tmp/codegen.stamp
+else
+  cat pubspec.yaml pubspec.lock 2>/dev/null | shasum -a 256 | cut -d' ' -f1 > bin/.tmp/codegen.stamp
+fi
+echo "Recorded codegen stamp (bin/.tmp/codegen.stamp)"

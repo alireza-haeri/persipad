@@ -1,0 +1,180 @@
+#!/bin/bash -e
+
+# Use this [bin/setup_sync] to give this build the OAuth credentials that Google
+# Drive sync needs across Linux and Android, without hand-editing JSON.
+#
+# These are *application* credentials, not account credentials:
+#   - GOOGLE_DESKTOP_CLIENT_ID / _SECRET identify this app to Google. Every user
+#     still signs in with their own Google account, and backups go to their own
+#     Drive (appDataFolder). They are not a way into anybody's data.
+#
+# They are written to the private_keys/ checkout *next to* this repo, which is
+# gitignored and copied into bin/.tmp/private_keys by bin/dev and bin/build_apk.
+# Nothing here ever lands in the repository.
+#
+# Commands:
+#   bin/setup_sync --google-json ~/Downloads/client_secret_xxx.json
+#   bin/setup_sync --google-id xxx.apps.googleusercontent.com --google-secret yyy
+#   bin/setup_sync --show          # list which keys are set (secrets masked)
+#   bin/setup_sync --remove        # forget all of them
+#
+# Google side (one time, ~5 min):
+#   1. console.cloud.google.com -> New project
+#   2. APIs & Services -> Library -> "Google Drive API" -> Enable
+#   3. Google Auth Platform -> Branding: app name + support email;
+#      Audience: External; add your own account under Test users
+#   4. Data access -> Add or remove scopes: add
+#      .../auth/drive.appdata, openid, .../auth/userinfo.email,
+#      .../auth/userinfo.profile  (Google rejects scopes it was not told about)
+#   5. Credentials -> Create credentials -> OAuth client ID -> Desktop app
+#      (this hands you a client_secret_*.json to pass to --google-json)
+#   6. Publish the app when you are done testing: while it stays in "Testing",
+#      Google expires the refresh token after 7 days. The scopes used here
+#      (drive.appdata, email, profile) are non-sensitive, so publishing does not
+#      require a Google security review.
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DART_DEFINES="$ROOT/../private_keys/dart_defines"
+DEST="$DART_DEFINES/community.json"
+
+GOOGLE_JSON=""
+GOOGLE_ID=""
+GOOGLE_SECRET=""
+MODE="write"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --google-json)
+    GOOGLE_JSON="$2"
+    shift 2
+    ;;
+  --google-id)
+    GOOGLE_ID="$2"
+    shift 2
+    ;;
+  --google-secret)
+    GOOGLE_SECRET="$2"
+    shift 2
+    ;;
+  --show)
+    MODE="show"
+    shift
+    ;;
+  --remove)
+    MODE="remove"
+    shift
+    ;;
+  -h | --help)
+    sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1"
+    echo "Run bin/setup_sync --help"
+    exit 1
+    ;;
+  esac
+done
+
+if [ "$MODE" = "show" ]; then
+  MODE="$MODE" DEST="$DEST" python3 - <<'PY'
+import json, os
+
+dest = os.environ["DEST"]
+if not os.path.exists(dest):
+    print(f"No credentials yet ({dest} does not exist).")
+    raise SystemExit(0)
+
+with open(dest) as handle:
+    data = json.load(handle)
+
+if not data:
+    print(f"{dest} exists but holds no keys.")
+    raise SystemExit(0)
+
+print(dest)
+for key in sorted(data):
+    value = str(data[key])
+    masked = value[:6] + "…" + value[-4:] if len(value) > 12 else "…"
+    print(f"  {key}: {masked}")
+PY
+  exit 0
+fi
+
+if [ "$MODE" = "remove" ]; then
+  rm -f "$DEST"
+  echo "Removed $DEST"
+  exit 0
+fi
+
+if [ -n "$GOOGLE_JSON" ]; then
+  if [ ! -f "$GOOGLE_JSON" ]; then
+    echo "No such file: $GOOGLE_JSON"
+    exit 1
+  fi
+  # Google's download is {"installed": {"client_id": ..., "client_secret": ...}}
+  # (older exports nest it under the same key). Read it, never echo it.
+  GOOGLE_ID=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d=d.get("installed", d); print(d.get("client_id",""))' "$GOOGLE_JSON")
+  GOOGLE_SECRET=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d=d.get("installed", d); print(d.get("client_secret",""))' "$GOOGLE_JSON")
+  if [ -z "$GOOGLE_ID" ] || [ -z "$GOOGLE_SECRET" ]; then
+    echo "Could not find client_id / client_secret in $GOOGLE_JSON."
+    echo "Download it again from Credentials -> your OAuth 2.0 Client ID (type: Desktop app)."
+    exit 1
+  fi
+fi
+
+if [ -z "$GOOGLE_ID" ] && [ -z "$GOOGLE_SECRET" ]; then
+  echo "Nothing to do. Pass --google-json or --google-id/--google-secret."
+  echo "Run bin/setup_sync --help for the details."
+  exit 1
+fi
+
+if [ -n "$GOOGLE_ID" ] && [ -n "$GOOGLE_SECRET" ]; then
+  case "$GOOGLE_ID" in
+  *.apps.googleusercontent.com) ;;
+  *)
+    echo "warning: the client id does not look like a Google desktop client id"
+    echo "         (expected something ending in .apps.googleusercontent.com)."
+    ;;
+  esac
+fi
+
+mkdir -p "$DART_DEFINES"
+
+GOOGLE_ID="$GOOGLE_ID" GOOGLE_SECRET="$GOOGLE_SECRET" DEST="$DEST" python3 - <<'PY'
+import json, os
+
+dest = os.environ["DEST"]
+try:
+    with open(dest) as handle:
+        data = json.load(handle)
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+
+for env, key in [
+    ("GOOGLE_ID", "GOOGLE_DESKTOP_CLIENT_ID"),
+    ("GOOGLE_SECRET", "GOOGLE_DESKTOP_CLIENT_SECRET"),
+]:
+    value = os.environ.get(env, "").strip()
+    if value:
+        data[key] = value
+
+with open(dest, "w") as handle:
+    json.dump(data, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+
+print(dest)
+for key in sorted(data):
+    print(f"  {key}: set")
+PY
+
+chmod 600 "$DEST"
+
+echo ""
+echo "Next:"
+echo "  1. bin/dev --community-linux  (or bin/build_apk)"
+echo "  2. Settings -> Data & backup -> Google Drive -> Connect"
+echo ""
+echo "The browser will open once, you approve, and the token is stored in the"
+echo "OS secure storage — never in this file."
+echo "Check anytime with: bin/setup_sync --show"
