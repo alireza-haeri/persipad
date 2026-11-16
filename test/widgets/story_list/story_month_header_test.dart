@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
@@ -7,6 +8,20 @@ import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/path_type.dart';
 import 'package:storypad/widgets/story_list/local_widgets/story_month_header.dart';
+
+/// Translations from memory: the test only needs `context.locale` to resolve,
+/// and reading `translations/*.json` through the asset bundle is not something
+/// the other tests rely on either (see `flutter_test_config.dart`).
+class _MemoryAssetLoader extends AssetLoader {
+  const _MemoryAssetLoader()
+    : super(
+        linkedFileResolver: const JsonLinkedFileResolver(fileLoader: RootBundleFileLoader()),
+        fileLoader: const RootBundleFileLoader(),
+      );
+
+  @override
+  Future<Map<String, dynamic>> load(String fullPath, Locale locale) async => const <String, dynamic>{};
+}
 
 /// The month header is the first thing every story list draws — on the home
 /// screen, in the calendar's notes, in archives — and it is drawn inside a list,
@@ -22,6 +37,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    await EasyLocalization.ensureInitialized();
     await initializeDateFormatting();
   });
 
@@ -55,44 +71,57 @@ void main() {
 
   Future<void> pump(WidgetTester tester, {required TextDirection direction}) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: direction,
-          child: Scaffold(
-            body: SingleChildScrollView(
-              // Unbounded height, as in a real story list.
-              child: Column(
-                children: [
-                  StoryMonthHeader(story: story, isFirstOfRun: true, showYear: true),
-                  StoryMonthHeader(story: story, isFirstOfRun: false, showYear: false),
-                ],
+      EasyLocalization(
+        path: 'translations',
+        assetLoader: const _MemoryAssetLoader(),
+        supportedLocales: const [Locale('fa')],
+        fallbackLocale: const Locale('fa'),
+        child: MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: Scaffold(
+              body: SingleChildScrollView(
+                // Unbounded height, as in a real story list.
+                child: Column(
+                  children: [
+                    StoryMonthHeader(story: story, isFirstOfRun: true, showYear: true),
+                    StoryMonthHeader(story: story, isFirstOfRun: false, showYear: false),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // The locale loads in a microtask, then the tree builds once more.
+    await tester.pump();
+    await tester.pump();
   }
 
   testWidgets('lays out in an unbounded list, in LTR and RTL', (tester) async {
-    await pump(tester, direction: TextDirection.ltr);
-    expect(tester.takeException(), isNull);
-    // One header for the first story of a run, one for a continuation.
-    expect(find.byType(StoryMonthHeader), findsNWidgets(2));
+    await tester.runAsync(() async {
+      await pump(tester, direction: TextDirection.ltr);
+      expect(tester.takeException(), isNull);
+      // One header for the first story of a run, one for a continuation.
+      expect(find.byType(StoryMonthHeader), findsNWidgets(2));
 
-    await pump(tester, direction: TextDirection.rtl);
-    expect(tester.takeException(), isNull);
-    expect(find.byType(StoryMonthHeader), findsNWidgets(2));
+      await pump(tester, direction: TextDirection.rtl);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(StoryMonthHeader), findsNWidgets(2));
+    });
   });
 
   testWidgets('the Shamsi chip spells the month out', (tester) async {
     CalendarConfig.apply(system: CalendarSystemOption.persian);
-    await pump(tester, direction: TextDirection.rtl);
 
-    expect(tester.takeException(), isNull);
-    // 15 Nov 2026 is 24 Aban 1405; the chip must not print "آبا".
-    expect(find.text('آبان'), findsWidgets);
-    expect(find.text('آبا'), findsNothing);
+    await tester.runAsync(() async {
+      await pump(tester, direction: TextDirection.rtl);
+
+      expect(tester.takeException(), isNull);
+      // 15 Nov 2026 is 24 Aban 1405; the chip must not print "آبا".
+      expect(find.text('آبان'), findsWidgets);
+      expect(find.text('آبا'), findsNothing);
+    });
   });
 }
