@@ -9,6 +9,9 @@ import '../document/heading.dart';
 ///
 /// A title given on its own (a Quill page's separate title, a template's) is written as a [level] heading (see
 /// [node]).
+/// Verified by `test/codec/page_title_test.dart`; the package's suite runs as
+/// its own CI job (`Editor package tests`), because the root `flutter test` never
+/// reaches this package (ai/ANALYSIS.md §1).
 class PageTitle {
   const PageTitle._();
 
