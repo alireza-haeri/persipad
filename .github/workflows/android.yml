@@ -50,6 +50,11 @@ concurrency:
 env:
   FLUTTER_VERSION: '3.50.0'
   FLAVOR: community
+  # Hosted runners keep ~14 GB free on `/` and ~70 GB on `/mnt`. Gradle and pub write
+  # several GB of caches, so they live on /mnt; the second run died of a full `/`
+  # (SIGTERM, exit 143) even after the image was cleaned.
+  GRADLE_USER_HOME: /mnt/gradle-home
+  PUB_CACHE: /mnt/pub-cache
 
 jobs:
   apk:
@@ -70,9 +75,14 @@ jobs:
           df -h /
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost \
                       /usr/local/lib/android/sdk/system-images \
-                      /usr/local/lib/android/sdk/emulator || true
+                      /usr/local/lib/android/sdk/emulator \
+                      /opt/microsoft /usr/share/swift /usr/local/graalvm \
+                      /opt/hostedtoolcache/CodeQL /usr/lib/mono || true
           sudo apt-get clean
           docker image prune -af || true
+          # /mnt holds ~70 GB; the caches are pointed there by `env:` above.
+          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE"
+          sudo chown -R "$(id -u):$(id -g)" /mnt || true
           echo '--- after ---'
           df -h /
 
@@ -135,6 +145,7 @@ jobs:
           flutter build apk --${{ steps.signing.outputs.mode }} \
             --flavor=$FLAVOR \
             --target=lib/main_$FLAVOR.dart \
+            --target-platform=android-arm64 \
             --dart-define-from-file=bin/.tmp/private_keys/dart_defines/$FLAVOR.json \
             > /tmp/apk.txt 2>&1
           status=$?
@@ -151,6 +162,18 @@ jobs:
             du -sh ~/.gradle /usr/local/lib/android/sdk 2>/dev/null || true
           fi
           exit $status
+
+      - name: Diagnose a failed build
+        # When the runner kills the step (exit 143 = SIGTERM, which is what a full disk
+        # or a dead VM looks like) the log is the only witness, and it is not always
+        # readable after the fact. These annotations are.
+        if: failure()
+        run: |
+          echo "::error::disk, memory and the last lines of the build log"
+          echo "::notice::disk $(df -h / | tail -1) | mem $(free -m | sed -n 2p) | gradle $(du -sh "$GRADLE_USER_HOME" 2>/dev/null | cut -f1)"
+          grep -inE 'error|fail|space|killed|exception|what went wrong|no such|cannot' /tmp/apk.txt 2>/dev/null |
+            tail -12 | while IFS= read -r line; do echo "::error::$line"; done
+          tail -25 /tmp/apk.txt 2>/dev/null | while IFS= read -r line; do echo "::warning::$line"; done
 
       - name: Locate and check the APK
         id: apk
@@ -198,6 +221,7 @@ jobs:
             echo "version   $VERSION"
             echo "build     $MODE"
             echo "signing   $NOTE"
+            echo "abi       arm64-v8a"
             echo "size      $APK_SIZE"
             echo "sha256    $APK_SHA"
             echo '```'
