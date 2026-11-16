@@ -62,36 +62,37 @@ class _MonthChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // The month in full, never abbreviated: Persian months have no short form
-    // ("آبا" is a stem of آبان, آذر and اردیبهشت alike). The box stays one
+    // ("آبا" is a stem of آبان, آذر and اردیبهشت alike). The chip stays one
     // monogram wide so the timeline rail keeps running through its centre, and
-    // the label is allowed to grow symmetrically around that centre instead of
-    // being shrunk into illegibility.
+    // the label scales down to fit it.
+    //
+    // Deliberately the tile's plain box-with-a-FittedBox and *not* a box that
+    // lets the label overflow sideways (an `OverflowBox`): a story list gives its
+    // rows unbounded height, and `OverflowBox` sizes itself to the biggest
+    // constraint it gets — Size(32, infinity) — which fails layout and blanked
+    // the whole home list and the calendar's notes.
     final String label = DateFormatHelper.monthName(
       CalendarDisplay.monthOf(story.displayPathDate),
       context.locale,
     );
 
-    return SizedBox(
+    return Container(
       width: SpStoryTile.monogramSize,
-      child: OverflowBox(
-        alignment: Alignment.center,
-        maxWidth: 140.0,
-        child: CustomPaint(
-          painter: _MonthChipBoxPainter(
-            fillColor: Theme.of(context).colorScheme.surface,
-            borderRadius: 8.0,
-            borderWidth: 1,
-            borderColor: Theme.of(context).dividerColor,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.0),
-            child: Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              style: TextTheme.of(context).labelSmall,
-            ),
+      alignment: Alignment.center,
+      child: CustomPaint(
+        painter: _MonthChipBoxPainter(
+          fillColor: Theme.of(context).colorScheme.surface,
+          borderRadius: 8.0,
+          borderWidth: 1,
+          borderColor: Theme.of(context).dividerColor,
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextTheme.of(context).labelSmall,
           ),
         ),
       ),
