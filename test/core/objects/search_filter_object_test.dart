@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/calendar_system_option.dart';
 import 'package:storypad/core/types/path_type.dart';
 
@@ -83,8 +84,10 @@ void main() {
     });
 
     test('a query searches the whole database and drops every date scope', () {
+      // Gregorian on purpose: this test is about the query-clearing rule, and a
+      // display year here would pull the calendar conversion into it as well.
       final filter = SearchFilterObject(
-        years: {1405},
+        years: {2026},
         types: {PathType.docs},
         assetId: null,
         query: '  آبان  ',
@@ -123,6 +126,22 @@ void main() {
       final ranges = filters['date_ranges'] as List;
       expect(ranges, hasLength(1));
       expect(ranges.single, [DateTime(2026, 3, 21), DateTime(2027, 3, 20)]);
+    });
+
+    test('a DateRangeFilterObject still converts its display years', () {
+      final start = CalendarDisplay.firstDayOfMonth(1405, 8);
+      final end = CalendarDisplay.lastDayOfMonth(1405, 8);
+      final filter = DateRangeFilterObject(
+        start: start,
+        end: end,
+        types: {PathType.docs},
+        years: {1405},
+      );
+
+      final filters = filter.toDatabaseFilter()!;
+
+      expect(filters['years'], [2026, 2027], reason: 'the inherited conversion must not be bypassed');
+      expect(filters['date_range'], [start, end]);
     });
 
     test('two display years produce two ranges, in input-independent order', () {
@@ -164,15 +183,15 @@ void main() {
   });
 
   group('DateRangeFilterObject', () {
-    test('appends its own range after the inherited filters', () {
-      final start = DateTime(2026, 10, 23);
-      final end = DateTime(2026, 11, 21);
+    test('appends its own range after the inherited filters (Gregorian)', () {
+      final start = DateTime(2026, 10, 1);
+      final end = DateTime(2026, 10, 31);
       final filter = DateRangeFilterObject(
         start: start,
         end: end,
         types: {PathType.docs},
-        years: {1405},
-        month: 11,
+        years: {2026},
+        month: 10,
         day: 15,
         tagIds: {2},
       );
@@ -180,9 +199,9 @@ void main() {
       final filters = filter.toDatabaseFilter()!;
 
       expect(filters['date_range'], [start, end]);
-      expect(filters['years'], [2026, 2027]);
+      expect(filters['years'], [2026], reason: 'Gregorian years pass through untouched');
       expect(filters['types'], ['docs']);
-      expect(filters['month'], 11, reason: 'kept so "on this day in another year" still works');
+      expect(filters['month'], 10, reason: 'kept so "on this day in another year" still works');
       expect(filters['day'], 15);
       expect(filters['tags'], [2]);
     });
