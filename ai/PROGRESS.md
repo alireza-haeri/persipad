@@ -427,3 +427,27 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - CI for the round: `43803970360` green on `3a08255` (Scope 6s, Analyze ✓, Test 1 1m30s over the
   two calendar files the scoper picked, 136s total); `43804325119` green on `e96106b` (92s) — a
   `bin/` + `ai/` change correctly ran Analyze only and skipped the tests entirely (`mode=none`).
+
+### 2026-11-16 — The first APK on GitHub Actions (D-038, D-039)
+- `.github/workflows/android.yml` builds the `community` flavor when the commit subject carries
+  `[apk]` (or by hand from the Actions tab) and publishes an `apk-<UTC date>-<sha7>` pre-release.
+  Every secret-free build says so in its notes.
+- Getting there took five failures, all recorded in D-039 because each one is a rule now:
+  the wrapper was below Flutter 3.50.0's minimum (Gradle 9.2.0 → 9.3.1), AGP was below it too
+  (8.11.1 → 9.1.1), AGP 9 makes `kotlinOptions { jvmTarget }` a compile *error*, AGP 9's legacy
+  DSL rejects `resValue` (both strings are manifest placeholders now), and two runs were SIGTERMed
+  at ~9 minutes because the Gradle/pub caches filled the runner's 14 GB `/` — they live on `/mnt`
+  (70 GB) now.
+- Measured: `43808298535` green, 18 minutes, 207 MB multi-ABI debug APK. After pointing the caches
+  at `/mnt` and restricting to arm64: `43812916947` green, 17 minutes, **138 MB**, asset
+  `storypad-community-debug-2.34.0+834.apk`, package `com.tc.writestory.community`, minSdk 24,
+  targetSdk 36, `lib/arm64-v8a/libapp.so` present.
+- Two papercuts found by reading the published release rather than the build: `gh release create
+  <file>#<label>` keeps the *file's* name (the notes promised a name the asset did not have), and
+  `gh release list --json` is not a flag this `gh` understands — the "superseded by" note on the
+  older release was written twice because of it.
+- Added a verification step: `aapt2 dump badging` + `apksigner verify` on the runner, asserted and
+  re-emitted as annotations, since the artifact cannot be downloaded from this workspace to check
+  it locally.
+- Still manual, by nature: the release keystore (four `ANDROID_KEYSTORE_*` secrets) and installing
+  the APK on a phone.

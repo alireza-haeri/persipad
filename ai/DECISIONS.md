@@ -915,7 +915,13 @@ Template:
      disk, reported by Gradle. The job now deletes the image's unused payload (dotnet, ghc, boost, emulator
      and system images) first, and prints `df -h` / `df -i` when a build fails, so the next disk failure
      says so instead of hinting at it.
-  7. **The asset is published under the name the notes promise.** `gh release create <file>#<label>` keeps
+  7. **The APK is checked on the runner, not trusted.** `aapt2 dump badging` and
+     `apksigner verify --print-certs` run after the build; package id, min/target SDK, ABI,
+     signer DN and the presence of `lib/arm64-v8a/libapp.so` are asserted (a wrong package id fails
+     the job) and re-emitted as annotations, because the artifact itself is not something this
+     workspace can download. Measured on the first good build: `com.tc.writestory.community
+     2.34.0 (834)`, minSdk 24, targetSdk 36, arm64-v8a, 138 MB.
+  8. **The asset is published under the name the notes promise.** `gh release create <file>#<label>` keeps
      the *file's* name and only uses the label as a label; the first release therefore attached
      `app-community-debug.apk` while its notes told you to install
      `storypad-community-debug-<version>.apk`. The APK is copied to the promised name before upload.
@@ -923,9 +929,10 @@ Template:
   release-signed build the moment the keystore secrets are added. The keystore itself is the one thing that
   cannot be created by a workflow and stored safely by it: it has to be generated once and kept as a
   secret (or in `private_keys/`) — losing it means a new application ID as far as Android is concerned.
-  Two honest limits: the fallback APK is **debug-built and debug-signed** (207 MB, slow, not updatable
-  across builds) — the release path only runs once the four secrets exist; and nothing here is verified on
-  a device, so "it installs and runs" remains a manual check until someone installs it.
+  Two honest limits: the fallback APK is **debug-built and debug-signed** (138 MB arm64, slow, not
+  updatable across builds) — the release path only runs once the four secrets exist; and nothing here is
+  verified on a device, so "it installs and runs" remains a manual check until someone installs it.
+  Cost: ~17 minutes cold per `[apk]` push (Flutter SDK, pub, Gradle, NDK, AOT-free debug build).
 
 ## D-039 — The Android toolchain was nine months behind the pinned Flutter SDK (2026-11-15)
 - **Status:** accepted (forced by D-038; no product behaviour changed)
@@ -952,3 +959,10 @@ Template:
 - **Not done:** no Kotlin/AGP deprecation sweep beyond what the build rejected, and `android.newDsl` stays
   off — moving to AGP 9's new DSL is its own task, and the placeholders above mean it is no longer
   blocking.
+- **The runner itself was the fifth failure, and it was not a version problem.** Two runs died ~9 minutes
+  in with `exit 143` (SIGTERM) and no Gradle error at all: `/` has ~14 GB on a hosted runner while `/mnt`
+  has ~70 GB, and Gradle + pub caches had filled the former. `GRADLE_USER_HOME` and `PUB_CACHE` now point
+  at `/mnt`, the cleanup step removes more of the image's unused payload, and the APK is arm64-only
+  (`--target-platform=android-arm64`) — which also cut it from 207 MB to 138 MB and the run from
+  "killed at 9 minutes" to a finished build. A killed step leaves no readable log, so the workflow now
+  re-emits disk, memory and the log tail as annotations on failure.
