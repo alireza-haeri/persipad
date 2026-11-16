@@ -9,6 +9,7 @@ name: Android
 #
 # TRIGGERS
 #   push with `[apk]` in the subject  -> build + publish a pre-release
+#   push with `[apk-test]`             -> build + verify only (no release)
 #   workflow_dispatch                 -> same, by hand, from the Actions tab
 # A plain push does not build an APK: it costs ~7 minutes and produces an artifact
 # nobody asked for. The marker is read from the subject only, like [test]/[build]
@@ -66,11 +67,14 @@ env:
 jobs:
   apk:
     name: Build APK
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]') || contains(github.event.head_commit.message, '[apk-test]')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+
+      - name: Test APK verification rules
+        run: python3 -m unittest discover -s test/ci -p '*_test.py' -v
 
       - name: Free disk space
         # The image ships ~14 GB free on `/`, and Flutter + the Android SDK + Gradle
@@ -285,7 +289,10 @@ jobs:
           TGT=$(field "s/^targetSdkVersion:'([^']*)'.*/\1/p")
           ABI=$(field "s/^native-code: //p")
 
-          APKSIGNER_OUT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1 || true)
+          if ! APKSIGNER_OUT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1); then
+            echo "::error::APK signature verification failed: $APKSIGNER_OUT"
+            exit 1
+          fi
           SIGNER=$(printf '%s\n' "$APKSIGNER_OUT" | sed -nE 's/^.*certificate DN: //p' | head -1)
           if [ -z "$SIGNER" ]; then
             SIGNER=$(keytool -printcert -jarfile "$APK" 2>/dev/null | sed -n 's/^Owner: //p' | head -1 || true)
@@ -314,6 +321,7 @@ jobs:
           [ -n "$SIGNER" ] || { echo "::error::the APK has no signer (apksigner: $APKSIGNER_OUT)"; exit 1; }
 
       - name: Publish the pre-release
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
         env:
           GH_TOKEN: ${{ github.token }}
           MODE: ${{ steps.signing.outputs.mode }}

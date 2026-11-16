@@ -41,3 +41,9 @@ Run full Linux analyze, app and editor tests, coverage and Linux build on the
 integration commit. Android build and real-device OAuth/Fedora validation remain
 separate checks. Do not delete source branches or merge into main until the
 integration is reviewed and verification succeeds.
+
+The integration review also found that the APK verification step ignored a
+nonzero `apksigner verify` exit status. The workflow now fails closed on an
+invalid signature. A `[apk-test]` subject builds and verifies without creating a
+GitHub pre-release; `[apk]` and manual dispatch retain their existing release
+behavior. Python regression tests in `test/ci/` run as part of that workflow.
