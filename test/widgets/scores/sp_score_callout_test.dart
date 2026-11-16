@@ -90,10 +90,10 @@ void main() {
 
   testWidgets('the tint follows the score, so the card reads at a glance', (tester) async {
     await pumpCallout(tester, title: 'today', subtitle: 'score', score: 100);
-    final Color best = _borderColor(tester);
+    final Color? best = _borderColor(tester);
 
     await pumpCallout(tester, title: 'today', subtitle: 'score', score: 0);
-    final Color worst = _borderColor(tester);
+    final Color? worst = _borderColor(tester);
 
     expect(best, isNot(worst));
     expect(best, DailyScoreScale.colorOf(100).withValues(alpha: 0.3));
