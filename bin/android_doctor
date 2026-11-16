@@ -303,7 +303,7 @@ if have curl; then
       c_cr=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/firebase/firebase-crashlytics-gradle/3.0.6/firebase-crashlytics-gradle-3.0.6.pom")
       label="${m#https://}"; label="${label%%/*}"
       [ "$SHORT" = 1 ] || printf '  %-48s %s / %s / %s / %s\n' "$label" "$c_agp" "$c_gs" "$c_gsp" "$c_cr"
-      if [ -z "$BEST_MIRROR" ] && [ "$c_agp" = "200" ] && [ "$c_gs" = "200" ] && [ "$c_cr" = "200" ]; then
+      if [ -z "$BEST_MIRROR" ] && [ "$c_agp" = "200" ] && [ "$c_gs" = "200" ] && [ "$c_gsp" = "200" ] && [ "$c_cr" = "200" ]; then
         BEST_MIRROR="$m"
       elif [ -z "$FALLBACK_MIRROR" ] && [ "$c_agp" = "200" ] && { [ "$c_gs" = "200" ] || [ "$c_gsp" = "200" ]; }; then
         FALLBACK_MIRROR="$m"

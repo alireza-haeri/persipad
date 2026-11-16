@@ -11,6 +11,7 @@
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
 #   bin/build_apk --no-ndk           # nothing here compiles C/C++; skip the NDK requirement
+#   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
 #
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
 # mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
@@ -28,12 +29,14 @@ MODE=debug
 ABI=auto
 INSTALL=0
 AVD=""
+VERBOSE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) INSTALL=1 ;;
     --release) MODE=release ;;
     --debug)   MODE=debug ;;
+    -v|--verbose) VERBOSE="-v" ;;
     --avd)
       if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then
         AVD="$2"; shift
@@ -270,12 +273,12 @@ fi
 [ -n "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ] && say "ndkVersion override: $ORG_GRADLE_PROJECT_notelyNdkVersion"
 
 say "Building $FLAVOR ($MODE, $CHOSEN)…"
-# shellcheck disable=SC2086 # $TOOLCHAIN is deliberately word-split (empty for --abi all)
+# shellcheck disable=SC2086 # $TOOLCHAIN and $VERBOSE are deliberately word-split (empty when unset)
 "$FLUTTER" build apk --"$MODE" \
   --flavor="$FLAVOR" \
   --target="lib/main_$FLAVOR.dart" \
   --dart-define-from-file="$DEFINES" \
-  $TOOLCHAIN
+  $TOOLCHAIN $VERBOSE
 
 APK="build/app/outputs/flutter-apk/app-$FLAVOR-$MODE.apk"
 [ -f "$APK" ] || die "the build finished but $APK is missing — check the output above."
