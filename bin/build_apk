@@ -104,6 +104,10 @@ if [ "$FLAVOR" != "community" ] && [ ! -d bin/.tmp/private_keys ]; then
   die "flavor '$FLAVOR' needs bin/.tmp/private_keys (keystores, dart-defines). Only 'community' builds without them."
 fi
 
+if [ -f "$HOME/.gradle/init.d/notely-google-mirror.gradle.kts" ]; then
+  die "found old broken mirror script ~/.gradle/init.d/notely-google-mirror.gradle.kts — run 'bin/android_doctor --mirror' to replace it with the working .gradle script."
+fi
+
 # ---------------------------------------------------------------- device & AVD helpers
 first_online_device() {
   command -v adb >/dev/null 2>&1 || return 0
@@ -219,6 +223,9 @@ if [ -z "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && [ -d "$SDK/platforms" ];
     if [ -n "$BEST" ]; then
       export ORG_GRADLE_PROJECT_notelyCompileSdk="$BEST"
       warn "android-37 is not installed → building against android-$BEST (CI uses 37; pass --compile-sdk=37 when you have it)."
+      if [ "$BEST" -lt 36 ] 2>/dev/null; then
+        warn "note: plugin subprojects in android/build.gradle.kts require Android 36+ — if Gradle fails on platform 36, run: bin/android_doctor --fix"
+      fi
     else
       FOUND_DIRS=$(ls "$SDK/platforms" 2>/dev/null | tr '\n' ' ' || true)
       warn "no android-<n> platform under $SDK/platforms (found: ${FOUND_DIRS:-none}) — run bin/android_doctor --fix first."

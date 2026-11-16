@@ -467,6 +467,15 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
     detection, and waits on `offline` devices before `--install`.
   - `bin/android_doctor` now resolves `$SDK/platform-tools/adb` too and parses `compileSdk` from
     the `?: 37` expression added in `67bac3c`.
-- Verified against stubbed `flutter`/`java`/`adb`/`emulator` in the sandbox (`bash -n`, `--help`,
-  0-device `--abi auto`, missing `PATH` tools, `--avd --install` boot + install, immediate emulator
-  failure log dump). Real device/AVD build on Fedora is pending your run.
+- Fixed the Gradle 9.3.1 init-script compile error from `notely-google-mirror.gradle.kts` (which
+  used Groovy-style `{ settings -> }` / `{ project -> }` lambdas in Kotlin DSL):
+  - `bin/android_doctor --mirror` now writes Groovy `~/.gradle/init.d/notely-google-mirror.gradle`
+    (rewriting `dl.google.com` in-place via `repositories.all` and adding mirrors), removes the old
+    `.gradle.kts`, and `bin/build_apk` fails fast if the broken `.gradle.kts` is still present.
+  - `bin/android_doctor --fix` resolves missing `platforms`/`build-tools` against `sdkmanager --list`
+    (so missing `android-37` on a mirror falls back to `android-36`), skips the optional 1 GB NDK,
+    and `bin/build_apk` warns when the local platform is below 36 (required by plugin subprojects).
+- Verified against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager` in the sandbox (`bash -n`,
+  `--help`, 0-device `--abi auto`, missing `PATH` tools, `--avd --install` boot + install, old
+  `.gradle.kts` guard, `--mirror --fix` replacement & catalogue fallback). Real device/AVD build on
+  Fedora is pending your run.

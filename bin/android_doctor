@@ -4,7 +4,7 @@
 #   bin/android_doctor            # full read-only report
 #   bin/android_doctor --short    # only the verdict lines
 #   bin/android_doctor --fix      # install the missing SDK packages with sdkmanager
-#   bin/android_doctor --mirror   # write ~/.gradle/init.d/notely-google-mirror.gradle.kts
+#   bin/android_doctor --mirror   # write ~/.gradle/init.d/notely-google-mirror.gradle
 #   bin/android_doctor --fix --sdk-mirror=<url>   # SDK packages from a mirror of Google's repo
 #
 # Prints one paste-able report: toolchain versions, SDK packages, AVDs and their ABIs,
@@ -144,8 +144,10 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
     if [ -n "$COMPILE_SDK" ]; then
       if printf '%s\n' "$INSTALLED" | grep -qx "platforms;android-$COMPILE_SDK"; then
         ok "platform android-$COMPILE_SDK"
+      elif printf '%s\n' "$INSTALLED" | grep -q '^platforms;android-36'; then
+        ok "platform android-36 (local fallback; CI uses $COMPILE_SDK)"
       else
-        bad "platform android-$COMPILE_SDK (compileSdk in android/app/build.gradle.kts)"
+        bad "platform android-36+ (subprojects require >=36; CI uses $COMPILE_SDK)"
         MISSING_PKGS+=("platforms;android-$COMPILE_SDK")
       fi
     fi
@@ -153,8 +155,7 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
       if printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
         ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK)"
       else
-        bad "ndk $FLUTTER_NDK (android/app/build.gradle.kts sets ndkVersion = flutter.ndkVersion)"
-        MISSING_PKGS+=("ndk;$FLUTTER_NDK")
+        note "ndk $FLUTTER_NDK not installed (optional — bin/build_apk builds with --no-ndk)"
       fi
     fi
     if ! printf '%s\n' "$INSTALLED" | grep -q '^build-tools;'; then
@@ -297,39 +298,63 @@ for f in "$HOME"/.gradle/init.d/*; do
 done
 
 # ---------------------------------------------------------------- mirror / fix
-MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle.kts"
+MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle"
+OLD_MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle.kts"
 if [ "$MIRROR" = 1 ]; then
   mkdir -p "$HOME/.gradle/init.d"
+  if [ -f "$OLD_MIRROR_FILE" ]; then
+    rm -f "$OLD_MIRROR_FILE"
+    printf '\n  \033[33mRemoved\033[0m old %s\n' "$OLD_MIRROR_FILE"
+  fi
   cat > "$MIRROR_FILE" <<'EOF'
 // Written by `bin/android_doctor --mirror`.
 // Purpose: this network cannot reach dl.google.com, so Google's Maven repository is
 // served by public mirrors instead. Delete this file to go back to the real thing.
-val mirrors = listOf(
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+
+def googleMirror = "https://maven.aliyun.com/repository/google"
+def mirrorUrls = [
     "https://maven.aliyun.com/repository/google",
-    "https://repo.huaweicloud.com/repository/maven/google",
     "https://maven.aliyun.com/repository/public",
-)
+    "https://repo.huaweicloud.com/repository/maven/",
+]
 
 beforeSettings { settings ->
-    settings.pluginManagement.repositories.apply {
-        mirrors.forEach { maven { setUrl(it) } }
+    [settings.pluginManagement.repositories, settings.dependencyResolutionManagement.repositories].each { repos ->
+        repos.all { repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def u = repo.url?.toString() ?: ""
+                if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
+                    repo.setUrl(googleMirror)
+                }
+            }
+        }
     }
-    settings.dependencyResolutionManagement.repositories.apply {
-        mirrors.forEach { maven { setUrl(it) } }
+    mirrorUrls.each { mirrorUrl ->
+        settings.pluginManagement.repositories.maven { setUrl(mirrorUrl) }
     }
 }
 
 allprojects { project ->
-    project.buildscript.repositories.apply {
-        mirrors.forEach { maven { setUrl(it) } }
-    }
-    project.repositories.apply {
-        mirrors.forEach { maven { setUrl(it) } }
+    [project.buildscript.repositories, project.repositories].each { repos ->
+        repos.all { repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def u = repo.url?.toString() ?: ""
+                if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
+                    repo.setUrl(googleMirror)
+                }
+            }
+        }
+        mirrorUrls.each { mirrorUrl ->
+            repos.maven { setUrl(mirrorUrl) }
+        }
     }
 }
 EOF
   printf '\n  \033[32mWrote\033[0m %s\n' "$MIRROR_FILE"
   printf '  Remove it with: rm %s\n' "$MIRROR_FILE"
+elif [ -f "$OLD_MIRROR_FILE" ]; then
+  bad "old broken mirror script ${OLD_MIRROR_FILE/#$HOME/\~} — run bin/android_doctor --mirror to replace it"
 fi
 
 # ---------------------------------------------------------------- verdict
@@ -339,7 +364,7 @@ for v in "${verdict_note[@]}"; do printf '  \033[33mnote\033[0m    %s\n' "$v"; d
 for v in "${verdict_bad[@]}"; do printf '  \033[31mMISSING\033[0m %s\n' "$v"; done
 
 case "${NET_HINT:-}" in
-  mirror) printf '\n  Google Maven is blocked on this network. Fix: \033[1mbin/android_doctor --mirror\033[0m\n  (writes ~/.gradle/init.d/notely-google-mirror.gradle.kts), then bin/build_apk.\n' ;;
+  mirror) printf '\n  Google Maven is blocked on this network. Fix: \033[1mbin/android_doctor --mirror\033[0m\n  (writes ~/.gradle/init.d/notely-google-mirror.gradle), then bin/build_apk.\n' ;;
   cache)  printf '\n  Google Maven is reachable, so the 404s are a stale Gradle cache:\n  rm -rf ~/.gradle/caches/modules-2 && bin/build_apk\n' ;;
   proxy)  printf '\n  Direct works, the proxy does not (or the other way round). If Gradle needs the proxy, put\n  systemProp.https.proxyHost/port in ~/.gradle/gradle.properties; if it does not, keep it out.\n' ;;
 esac
@@ -355,11 +380,40 @@ if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
       SDK_MIRROR_URL="${SDK_MIRROR_URL:-https://mirrors.cloud.tencent.com/AndroidSDK/}"
       printf '  dl.google.com/android/repository is blocked here — fetching package lists from %s\n' "$SDK_MIRROR_URL"
       export SDK_TEST_BASE_URL="$SDK_MIRROR_URL"
-      printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_MIRROR_URL" "${MISSING_PKGS[*]}"
     fi
-    printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${MISSING_PKGS[*]}"
+
+    # Mirrors often lag behind Google (e.g. no platforms;android-37 yet, only 36 / 36.1).
+    # Pick the closest matching package from the catalogue so one missing version does
+    # not abort the whole `sdkmanager --install`.
+    CATALOGUE=$(timeout 180 "$SDKMANAGER" --list 2>/dev/null | sed -n '/Available Packages:/,$p' | awk '{print $1}' | sed '/^$/d' || true)
+    INSTALL_PKGS=()
+    for pkg in "${MISSING_PKGS[@]}"; do
+      if [ -n "$CATALOGUE" ] && ! printf '%s\n' "$CATALOGUE" | grep -qx "$pkg"; then
+        case "$pkg" in
+          platforms\;android-*)
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^platforms;android-36(\.[0-9]+)?$' | sort -V | head -1 || true)
+            [ -z "$alt" ] && alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^platforms;android-[0-9]+(\.[0-9]+)?$' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            fi
+            ;;
+          build-tools\;*)
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^build-tools;[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            fi
+            ;;
+        esac
+      fi
+      INSTALL_PKGS+=("$pkg")
+    done
+
+    [ "${SDKREPO_CODE:-000}" != "200" ] && printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_MIRROR_URL" "${INSTALL_PKGS[*]}"
+    printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${INSTALL_PKGS[*]}"
     yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
-    if ! "$SDKMANAGER" --install "${MISSING_PKGS[@]}"; then
+    if ! "$SDKMANAGER" --install "${INSTALL_PKGS[@]}"; then
       printf '\033[31m  sdkmanager failed — see its output above.\033[0m\n'
       printf '  Fallbacks: another mirror with --sdk-mirror=<url>, or Android Studio set up with a proxy.\n'
     fi
