@@ -98,6 +98,34 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Cache pub and Gradle
+        # A cold run spends minutes re-downloading the same plugins and Gradle
+        # distributions, and every extra minute is another minute in which the hosted
+        # runner can be reclaimed (two runs died with SIGTERM at ~8 minutes, exit 143,
+        # with no Gradle error at all). Warm caches make the build shorter and the
+        # kill window narrower.
+        uses: actions/cache@v4
+        with:
+          path: |
+            /mnt/pub-cache
+            /mnt/gradle-home
+          key: ${{ runner.os }}-android-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-
+
+      - name: Cap the Gradle heap
+        # android/gradle.properties asks for -Xmx8G -XX:MaxMetaspaceSize=4G. That is a
+        # desktop setting; on a 16 GB runner it leaves nothing for the Kotlin daemon, the
+        # Dart compiler and the agent itself. `$GRADLE_USER_HOME/gradle.properties` wins
+        # over the project's, so the project file stays as it is for local builds.
+        run: |
+          cat > "$GRADLE_USER_HOME/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF
+          cat "$GRADLE_USER_HOME/gradle.properties"
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -138,6 +166,7 @@ jobs:
           fi
 
       - name: Build APK
+        id: build
         # Compiler/Gradle errors are re-emitted as annotations: a bare "exit 1" from a
         # 6 minute Gradle run is useless feedback when the log is not readable.
         run: |
@@ -167,7 +196,7 @@ jobs:
         # When the runner kills the step (exit 143 = SIGTERM, which is what a full disk
         # or a dead VM looks like) the log is the only witness, and it is not always
         # readable after the fact. These annotations are.
-        if: failure()
+        if: always() && steps.build.outcome != 'success'
         run: |
           echo "::error::disk, memory and the last lines of the build log"
           echo "::notice::disk $(df -h / | tail -1) | mem $(free -m | sed -n 2p) | gradle $(du -sh "$GRADLE_USER_HOME" 2>/dev/null | cut -f1)"
