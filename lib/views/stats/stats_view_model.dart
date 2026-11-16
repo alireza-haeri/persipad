@@ -7,7 +7,6 @@ import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
-import 'package:storypad/core/objects/sp_latlng.dart';
 import 'package:storypad/core/objects/stats/stats_range.dart';
 import 'package:storypad/core/objects/stats/story_stats_object.dart' show LabelStatItem, StoryStatsObject;
 import 'package:storypad/core/services/calendar/calendar_display.dart';
@@ -99,14 +98,12 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     return stored.map((name) => byName[name]).whereType<StatsSection>().toSet();
   }
 
-  /// `places` and `countries` are both derived from story locations, so they belong
-  /// to the map add-on. With it off the stats screen does not mention a place at
-  /// all — not even as a hidden checkbox in the filter sheet (D-035 §3).
+  /// Location/map stats are hidden because the map feature has been removed.
   static bool _isMapSection(StatsSection section) =>
       section == StatsSection.places || section == StatsSection.countries;
 
   bool isSectionVisible(StatsSection section) {
-    if (!devicePreferencesProvider.enableMap && _isMapSection(section)) return false;
+    if (_isMapSection(section)) return false;
     return !_hiddenSections.contains(section);
   }
 
@@ -131,7 +128,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   /// Sections of the visible tab, listed in the section filter sheet.
   List<StatsSection> sectionsForCurrentTab() => [
     for (final section in sectionsForTab(_tabController.index))
-      if (devicePreferencesProvider.enableMap || !_isMapSection(section)) section,
+      if (!_isMapSection(section)) section,
   ];
 
   void _onTabChanged() {
@@ -215,11 +212,7 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     if (place.storyIds == null || place.storyIds!.isEmpty) return;
     final range = rangeForTab(tabIndex);
 
-    SpLatLng? storyLocation = await StoryDbModel.db.find(place.storyIds!.first).then((story) => story?.place?.latLng);
-    if (!context.mounted) return;
-
     SpStoriesBottomSheet(
-      storyLocation: storyLocation,
       filter: filterFor(range, storyIds: place.storyIds),
     ).show(context: context);
   }
@@ -228,7 +221,6 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   void openStoriesForRange(BuildContext context, int tabIndex) {
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
-      storyLocation: null,
       filter: filterFor(range),
     ).show(context: context);
   }
@@ -239,7 +231,6 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
     if (storyIds.isEmpty) return;
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
-      storyLocation: null,
       filter: filterFor(range, storyIds: storyIds),
     ).show(context: context);
   }
@@ -247,7 +238,6 @@ class StatsViewModel extends ChangeNotifier with DisposeAwareMixin {
   void openStoriesForTag(BuildContext context, int tagId, int tabIndex) {
     final range = rangeForTab(tabIndex);
     SpStoriesBottomSheet(
-      storyLocation: null,
       filter: filterFor(range, tagIds: {tagId}),
     ).show(context: context);
   }

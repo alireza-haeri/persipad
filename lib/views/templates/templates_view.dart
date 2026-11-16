@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/databases/models/template_db_model.dart';
 import 'package:storypad/core/objects/gallery_template_object.dart';
 import 'package:storypad/core/storages/previously_visited_template_tab.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/views/templates/local_widgets/gallery_tab.dart';
 import 'package:storypad/views/templates/local_widgets/templates_tab.dart';
 import 'package:flutter/material.dart';

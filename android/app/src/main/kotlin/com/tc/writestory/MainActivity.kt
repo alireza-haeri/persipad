@@ -1,12 +1,12 @@
 package com.tc.writestory
 
-import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 import com.tc.writestory.services.AppLogoService
 
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity: AudioServiceFragmentActivity() {
+class MainActivity: FlutterFragmentActivity() {
   private val CHANNEL = "default_platform_channel"
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

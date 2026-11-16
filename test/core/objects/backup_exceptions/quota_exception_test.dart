@@ -22,19 +22,6 @@ void main() {
       );
     });
 
-    test('userFriendlyMessage names the actual provider, not always Google Drive', () {
-      const exception = QuotaException(
-        'Storage full',
-        QuotaExceptionType.storageQuotaExceeded,
-        serviceType: BackupServiceType.nextcloud,
-      );
-
-      expect(
-        exception.userFriendlyMessage,
-        equals('Nextcloud storage is full. Please free up space or upgrade your storage plan.'),
-      );
-    });
-
     test('userFriendlyMessage falls back to a neutral provider name when serviceType is unset', () {
       const exception = QuotaException(
         'Storage full',

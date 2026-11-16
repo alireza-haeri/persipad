@@ -6,7 +6,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/app_theme.dart';
-import 'package:storypad/core/databases/models/place_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/extensions/matrix_4_extension.dart';
@@ -16,8 +15,6 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/story_time_picker_service.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
-import 'package:storypad/views/calendar/calendar_view.dart';
-import 'package:storypad/views/map/picker/map_picker_view.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_days_count_bottom_sheet.dart';
 import 'package:storypad/widgets/sp_floating_pop_up_button.dart';
 import 'package:storypad/widgets/sp_icons.dart';
@@ -50,8 +47,6 @@ class SpStoryLabels extends StatelessWidget {
     required this.onToggleManagingPage,
     this.setFeeling,
     this.onToggleTags,
-    this.onSetPlace,
-    this.onAddCurrentLocation,
     this.currentPagesCount,
     this.voicesCount,
     this.draftActions,
@@ -78,8 +73,6 @@ class SpStoryLabels extends StatelessWidget {
   final Future<void> Function()? onToggleShowDayCount;
   final Future<void> Function(String? feeling)? setFeeling;
   final Future<bool> Function(List<int> tags)? onToggleTags;
-  final Future<void> Function(PlaceDbModel? place)? onSetPlace;
-  final Future<void> Function()? onAddCurrentLocation;
   final Future<void> Function(DateTime dateTime)? onChangeDate;
   final void Function()? onToggleManagingPage;
 
@@ -231,58 +224,6 @@ class SpStoryLabels extends StatelessWidget {
       );
     }
 
-    // The map add-on owns everything location-shaped, including the pin for a story
-    // that already has one: "off" has to mean the note looks like it did before the
-    // map existed, not "the map is gone but your places are still on screen"
-    // (D-035 §3). The stored place is untouched, so turning the add-on back on
-    // brings the pins straight back.
-    final bool showMapLabels = context.read<DevicePreferencesProvider>().enableMap;
-
-    if (showMapLabels && onAddCurrentLocation != null && !story.hasLocation) {
-      children.add(
-        _buildIconButton(
-          context: context,
-          icon: SpIcons.locationPin,
-          tooltip: tr("button.add_current_location"),
-          onTap: () async => onAddCurrentLocation!(),
-        ),
-      );
-    }
-
-    bool showLocation = preferences.showLocation || !fromStoryTile;
-    if (showMapLabels && story.hasLocation && showLocation) {
-      children.add(
-        buildPin(
-          context: context,
-          title: story.place!.displayLabel,
-          leadingIconData: SpIcons.map,
-          onTap: onSetPlace != null
-              ? () async {
-                  final result = await MapPickerRoute(
-                    initialSelectedPlace: story.place,
-                  ).push(context);
-
-                  if (result is MapPickerResult) {
-                    switch (result.action) {
-                      case MapPickerFinalAction.confirm:
-                        final selected = result.place;
-                        if (selected != null) {
-                          await onSetPlace?.call(selected);
-                        }
-                        break;
-                      case MapPickerFinalAction.remove:
-                        await onSetPlace?.call(null);
-                        break;
-                      case MapPickerFinalAction.cancel:
-                        break;
-                    }
-                  }
-                }
-              : null,
-        ),
-      );
-    }
-
     // Tags labels including its add button. Topics (#) and people (@) are toggled independently.
     bool showTagLabels = preferences.showTagLabels || !fromStoryTile;
     bool showPeopleLabels = preferences.showPeopleLabels || !fromStoryTile;
@@ -380,39 +321,6 @@ class SpStoryLabels extends StatelessWidget {
             behavior: .translucent,
             onTap: onToggleTags != null ? open : null,
             child: emojiRow,
-          ),
-        ),
-      );
-    }
-
-    if (story.event?.period == true) {
-      children.add(
-        SpTapEffect(
-          scaleActive: 2.5,
-          duration: Durations.medium3,
-          curve: Curves.easeInOutCubicEmphasized,
-          effects: [.scaleDown],
-          behavior: .translucent,
-          onTap: fromStoryTile
-              ? null
-              : () {
-                  CalendarRoute(
-                    initialMonth: story.event!.month,
-                    initialYear: story.event!.year,
-                    initialSegment: .period,
-                  ).push(context);
-                },
-          child: SizedBox(
-            height: MediaQuery.textScalerOf(context).scale(20),
-            child: Align(
-              alignment: .center,
-              widthFactor: 1.0,
-              child: Icon(
-                SpIcons.waterDrop,
-                color: Theme.of(context).colorScheme.error,
-                size: MediaQuery.textScalerOf(context).scale(16.0),
-              ),
-            ),
           ),
         ),
       );

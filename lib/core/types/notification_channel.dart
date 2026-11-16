@@ -1,9 +1,4 @@
 enum NotificationChannel {
-  relaxingSound(
-    channelID: 'relaxing_sounds',
-    channelName: 'Relaxing Music',
-    androidIcon: 'ic_music_note',
-  ),
   reminderDaily(
     channelID: 'reminder_daily',
     channelName: 'Daily Reminders',
@@ -13,11 +8,6 @@ enum NotificationChannel {
     channelID: 'reminder_on_this_day',
     channelName: 'On This Day',
     androidIcon: 'ic_history',
-  ),
-  reminderPeriod(
-    channelID: 'reminder_period',
-    channelName: 'Period Reminders',
-    androidIcon: 'ic_water_drop',
   ),
   reminderCustom(
     channelID: 'reminder_custom',

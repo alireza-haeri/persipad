@@ -12,13 +12,8 @@ import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart' a
 import 'package:storypad/core/objects/backup_object.dart';
 import 'package:storypad/core/objects/cloud_file_object.dart';
 import 'package:storypad/core/objects/cloud_service_user.dart';
-import 'package:storypad/core/objects/dropbox_user_object.dart';
 import 'package:storypad/core/objects/google_user_object.dart';
-import 'package:storypad/core/objects/icloud_user_object.dart';
-import 'package:storypad/core/objects/nextcloud_user_object.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
-import 'package:storypad/core/services/backups/dropbox_cloud_service.dart';
-import 'package:storypad/core/services/backups/nextcloud_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_sync_message.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_sync_messenger.dart';
@@ -86,18 +81,6 @@ class BackupRepository {
 
   final RestoreBackupService restoreService;
   final BackupCloudService googleDriveService;
-  final NextcloudCloudService nextcloudService;
-
-  /// Null on platforms where iCloud doesn't conceptually exist (Android,
-  /// Linux, Windows) — unlike Drive's Linux stub, there's no always-registered
-  /// disabled placeholder for iCloud; it's simply absent from [services]
-  /// there, so no connect tile renders. See `BackupProvider._createICloudService`.
-  final BackupCloudService? icloudService;
-
-  /// Unlike iCloud, Dropbox is pure REST — it works identically on every
-  /// platform this app targets, so there's no platform gate and no
-  /// disabled-stub case the way Drive's Linux build needs.
-  final DropboxCloudService dropboxService;
   final BackupSyncMessenger messenger;
 
   final BackupImagesUploaderService _step1ImagesUploader;
@@ -109,9 +92,6 @@ class BackupRepository {
 
   BackupRepository({
     required this.googleDriveService,
-    required this.nextcloudService,
-    required this.icloudService,
-    required this.dropboxService,
     required this.restoreService,
     required this.messenger,
     required BackupImagesUploaderService step1ImagesUploader,
@@ -129,16 +109,10 @@ class BackupRepository {
 
   Future<void> initialize() async {
     await googleDriveService.initialize();
-    await nextcloudService.initialize();
-    await icloudService?.initialize();
-    await dropboxService.initialize();
   }
 
   // currentUser & isSignedIn are load in initializer - before rendering UI.
   GoogleUserObject? get currentGoogleUser => googleDriveService.currentUser as GoogleUserObject?;
-  NextcloudUserObject? get currentNextcloudUser => nextcloudService.currentUser;
-  ICloudUserObject? get currentICloudUser => icloudService?.currentUser as ICloudUserObject?;
-  DropboxUserObject? get currentDropboxUser => dropboxService.currentUser;
   bool get isSignedIn => availableUsers.isNotEmpty;
 
   /// Get all authenticated cloud service users for asset downloads
@@ -152,43 +126,10 @@ class BackupRepository {
     return users;
   }
 
-  /// Nextcloud's auth is a server/username/app-password form rather than a
-  /// no-argument OAuth flow, so the connect sheet calls this directly instead
-  /// of going through the generic [signIn].
-  Future<BackupResult<bool>> connectNextcloud({
-    required String serverUrl,
-    required String username,
-    required String appPassword,
-    String? folderName,
-  }) async {
-    try {
-      final result = await nextcloudService.connect(
-        serverUrl: serverUrl,
-        username: username,
-        appPassword: appPassword,
-        folderName: folderName,
-      );
-      if (result) _userChangesController.add(UserChangeType.signIn);
-      return BackupResult.success(result);
-    } on exp.AuthException catch (e) {
-      return BackupResult.failure(BackupError.fromException(e));
-    } catch (e) {
-      return BackupResult.failure(
-        BackupError.unknown(
-          'Failed to connect to Nextcloud: $e',
-          context: 'connectNextcloud',
-        ),
-      );
-    }
-  }
-
   Stream<BackupSyncMessage> get syncMessages => messenger.messages;
 
   List<BackupCloudService> get services => [
     googleDriveService,
-    ?icloudService,
-    dropboxService,
-    nextcloudService,
   ];
 
   BackupCloudService getService(BackupServiceType serviceType) {
@@ -261,10 +202,6 @@ class BackupRepository {
   Future<BackupResult<SyncResponse>> sync(
     BackupCloudService service, {
     required bool uploadAssets,
-    // False when called from a multi-service batch — see
-    // BackupProvider._syncBackupAcrossDevices, which then owns firing
-    // restoreService.notify() once for the whole batch instead of once per
-    // service.
     bool notifyImportCallbacks = true,
   }) async {
     AppLogger.d('🔄 Starting sync for service: ${service.serviceType.displayName}');
@@ -388,9 +325,6 @@ class BackupRepository {
       );
       return BackupResult.success(result);
     } on exp.AuthException catch (e) {
-      // Credentials are kept even on a revoked grant — only an explicit
-      // "Sign out" or a successful reconnect changes stored state now, so the
-      // UI can offer a reconnect action instead of forcing a fresh connect.
       return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {
@@ -471,9 +405,6 @@ class BackupRepository {
       );
       return BackupResult.success(result);
     } on exp.AuthException catch (e) {
-      // Credentials are kept even on a revoked grant — only an explicit
-      // "Sign out" or a successful reconnect changes stored state now, so the
-      // UI can offer a reconnect action instead of forcing a fresh connect.
       return BackupResult.failure(BackupError.fromException(e));
     } catch (e) {
       if (e is ArgumentError) {
@@ -493,22 +424,10 @@ class BackupRepository {
     }
   }
 
-  /// Checks every signed-in service independently — one service throwing
-  /// (auth failure, or anything unexpected) no longer prevents checking the
-  /// rest, and credentials are never wiped here regardless of outcome.
-  ///
-  /// iCloud is included even while *not* currently signed in: unlike Drive/
-  /// Nextcloud (where "not signed in" means there's nothing to check),
-  /// [ICloudCloudService.reauthenticateIfNeeded] is a cheap local
-  /// availability re-probe, not a network credential check — and it's the
-  /// only way an iCloud tile ever recovers on its own after the user enables
-  /// iCloud Drive in Settings and returns to the app (this runs on every app
-  /// resume via [AutoSyncTriggerService]). Without this, the tile would stay
-  /// stuck on "unavailable" until the user happened to tap it again.
+  /// Checks every signed-in service independently; credentials are never wiped
+  /// here regardless of outcome.
   Future<BackupResult<ConnectionCheckResult>> checkConnection() async {
-    final checkableServices = services
-        .where((service) => service.isSignedIn || service.serviceType == BackupServiceType.icloud)
-        .toList();
+    final checkableServices = services.where((service) => service.isSignedIn).toList();
 
     if (checkableServices.isEmpty) {
       return BackupResult.failure(
@@ -547,8 +466,6 @@ class BackupRepository {
           exp.AuthExceptionType.tokenExpired => BackupConnectionStatus.needServicePermission,
           exp.AuthExceptionType.tokenRevoked => BackupConnectionStatus.needServicePermission,
           exp.AuthExceptionType.insufficientScopes => BackupConnectionStatus.needServicePermission,
-          // Still off in Settings — an expected, recoverable state for
-          // iCloud specifically, not an unknown/broken one.
           exp.AuthExceptionType.signInRequired => BackupConnectionStatus.needServicePermission,
           _ => BackupConnectionStatus.unknownError,
         };
@@ -564,9 +481,6 @@ class BackupRepository {
 
   /// How many distinct local assets are still waiting to reach any signed-in
   /// service — i.e. media deferred by the Wi-Fi-only setting.
-  ///
-  /// Counts distinct assets rather than summing per service, so an asset
-  /// pending on two services isn't reported twice.
   Future<int> pendingMediaCount() async {
     final Set<int> assetIds = {};
 

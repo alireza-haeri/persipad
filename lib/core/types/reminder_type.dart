@@ -8,9 +8,6 @@ enum ReminderType {
   /// Built-in: fires only if past entries exist today; tap opens Throwback.
   onThisDay,
 
-  /// Built-in: fires N days before the predicted next period; tap opens the period calendar.
-  period,
-
   /// User-created: custom message + optional template/tags; tap creates a prefilled journal.
   custom;
 
@@ -22,8 +19,6 @@ enum ReminderType {
         return NotificationChannel.reminderDaily;
       case ReminderType.onThisDay:
         return NotificationChannel.reminderOnThisDay;
-      case ReminderType.period:
-        return NotificationChannel.reminderPeriod;
       case ReminderType.custom:
         return NotificationChannel.reminderCustom;
     }
@@ -37,8 +32,6 @@ enum ReminderType {
         return tr('reminder.daily.title');
       case ReminderType.onThisDay:
         return tr('reminder.on_this_day.title');
-      case ReminderType.period:
-        return tr('reminder.period.title');
       case ReminderType.custom:
         throw UnsupportedError('ReminderType.custom has no generic title — use the reminder\'s own message.');
     }
@@ -52,24 +45,19 @@ enum ReminderType {
         return tr('reminder.daily.description');
       case ReminderType.onThisDay:
         return tr('reminder.on_this_day.description');
-      case ReminderType.period:
-        return tr('reminder.period.description');
       case ReminderType.custom:
         throw UnsupportedError('ReminderType.custom has no generic description.');
     }
   }
 
   /// Stable id for this type's single notification action button, also used
-  /// as the Darwin notification category identifier. `null` means no action
-  /// button is shown (custom reminders — tapping the body is enough).
+  /// as the Darwin notification category identifier.
   String? get notificationActionId {
     switch (this) {
       case ReminderType.daily:
         return 'write_now';
       case ReminderType.onThisDay:
         return 'view';
-      case ReminderType.period:
-        return 'view_calendar';
       case ReminderType.custom:
         return 'view';
     }
@@ -85,8 +73,6 @@ enum ReminderType {
       case ReminderType.onThisDay:
       case ReminderType.custom:
         return tr('button.view');
-      case ReminderType.period:
-        return tr('button.view_calendar');
     }
   }
 }

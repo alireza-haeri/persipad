@@ -1,22 +1,16 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/services/app_store_opener_service.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/types/sidebar_item_id.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
-import 'package:storypad/views/add_ons/add_ons_view.dart';
 import 'package:storypad/views/archives/archives_view.dart';
 import 'package:storypad/views/calendar/calendar_view.dart';
 import 'package:storypad/views/community/community_view.dart';
 import 'package:storypad/views/home/home_view.dart';
 import 'package:storypad/views/home/home_view_model.dart';
 import 'package:storypad/views/home/local_widgets/end_drawer/survey_banner.dart';
-import 'package:storypad/views/map/map_view.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
-import 'package:storypad/views/relax_sounds/relax_sounds_view.dart';
 import 'package:storypad/views/search/search_view.dart';
 import 'package:storypad/widgets/bottom_sheets/sp_share_app_bottom_sheet.dart';
 import 'package:storypad/widgets/side_items/local_widgets/backup_tile.dart';
@@ -26,7 +20,6 @@ import 'package:storypad/views/settings/settings_view.dart';
 import 'package:storypad/views/tags/tags_view.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
-import 'package:storypad/widgets/sp_floating_music_note.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 
 part 'local_widgets/tag_header.dart';
@@ -35,36 +28,19 @@ part 'side_item.dart';
 const double _leadingPaddedSize = 12.0;
 
 class SideItems {
-  /// Whether [item] can appear at all right now.
-  ///
-  /// One rule for the sidebar and for the reorder screen, so the "why is this
-  /// item greyed out?" answer cannot differ between them.
-  static bool isAvailable(
-    SidebarItemId item, {
-    required bool enableMap,
-    required bool enableRelaxSounds,
-  }) {
+  /// Whether [item] can appear in the sidebar.
+  static bool isAvailable(SidebarItemId item) {
     switch (item) {
       case SidebarItemId.home:
       case SidebarItemId.search:
       case SidebarItemId.calendar:
       case SidebarItemId.tags:
         return true;
-      case SidebarItemId.map:
-        return enableMap;
-      case SidebarItemId.relaxSounds:
-        return kProFeaturesAvailable && enableRelaxSounds;
     }
   }
 
-  /// The sidebar's items, in [order], with the unavailable ones left out.
-  ///
-  /// [order] is the user's preference (`DevicePreferencesProvider.sidebarOrder`),
-  /// already repaired by `SidebarItemId.parse`, so this only has to respect it:
-  /// the hard-coded sequence that used to live here is now just the default.
+  /// The sidebar's items, in [order].
   static List<IconButtonSideItem> getSideMenuItems({
-    required bool enableRelaxSounds,
-    required bool enableMap,
     required List<SidebarItemId> order,
   }) {
     final Map<SidebarItemId, IconButtonSideItem> items = {
@@ -82,16 +58,8 @@ class SideItems {
         selectedIconData: SidebarItemId.search.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      SidebarItemId.map: IconButtonSideItem(
-        route: const MapRoute(),
-        title: SidebarItemId.map.displayName,
-        iconData: SidebarItemId.map.icon,
-        selectedIconData: SidebarItemId.map.icon,
-        onTap: (context, route) => context.read<RootProvider>().navigate(route),
-      ),
       SidebarItemId.calendar: IconButtonSideItem(
         route: CalendarRoute(
-          // Display-calendar month today falls in.
           initialMonth: CalendarDisplay.monthOf(DateTime.now()),
           initialYear: CalendarDisplay.yearOf(DateTime.now()),
           initialSegment: .mood,
@@ -108,46 +76,19 @@ class SideItems {
         selectedIconData: SidebarItemId.tags.icon,
         onTap: (context, route) => context.read<RootProvider>().navigate(route),
       ),
-      SidebarItemId.relaxSounds: IconButtonSideItem(
-        route: const RelaxSoundsRoute(),
-        title: SidebarItemId.relaxSounds.displayName,
-        iconData: SidebarItemId.relaxSounds.icon,
-        selectedIconData: SidebarItemId.relaxSounds.icon,
-        onTap: (context, route) => context.read<RootProvider>().navigate(route),
-      ),
     };
 
     return [
       for (final SidebarItemId id in order)
-        if (isAvailable(id, enableMap: enableMap, enableRelaxSounds: enableRelaxSounds)) items[id]!,
+        if (isAvailable(id)) items[id]!,
     ];
   }
 
   static List<BaseSideItem> getEndDrawerItems(BuildContext context, HomeViewModel homeViewModel) {
-    bool showProBanner = kShowProUpsell && !context.read<InAppPurchaseProvider>().isProUser;
-
     return [
       CustomSideItem.custom(builder: (context) => SurveyBanner(homeViewModel: homeViewModel)),
       CustomSideItem.custom(builder: (context) => HomeYearSwitcherHeader(homeViewModel: homeViewModel)),
-      if (showProBanner) ...[
-        CustomSideItem.custom(
-          builder: (context) {
-            return ListTile(
-              contentPadding: const EdgeInsets.only(left: 16.0, right: 16.0),
-              tileColor: Theme.of(context).colorScheme.secondary,
-              textColor: Theme.of(context).colorScheme.onSecondary,
-              iconColor: Theme.of(context).colorScheme.onSecondary,
-              trailing: const Icon(SpIcons.starCircle),
-              title: Text(tr('list_tile.upgrade_to_pro.title')),
-              subtitle: Text(tr('list_tile.upgrade_to_pro.subtitle')),
-              onTap: () => const PaywallRoute().push(context),
-            );
-          },
-        ),
-      ] else ...[
-        CustomSideItem.divider(),
-      ],
-      // CustomSideItem.divider(),
+      CustomSideItem.divider(),
       ListTileSideItem(
         title: tr('page.tags.title'),
         subtitle: null,
@@ -180,12 +121,6 @@ class SideItems {
       ),
       CustomSideItem.divider(),
       ListTileSideItem(
-        title: tr('page.add_ons.title'),
-        subtitle: null,
-        icon: const Icon(SpIcons.addOns),
-        onTap: (context) => const AddOnsRoute().push(context),
-      ),
-      ListTileSideItem(
         title: tr('page.settings.title'),
         subtitle: null,
         icon: const Icon(SpIcons.setting),
@@ -215,36 +150,14 @@ class SideItems {
 
   static List<TimelineSideBarItem> getTimelineSideBarItems({
     required HomeViewModel homeViewModel,
-    required InAppPurchaseProvider iapProvider,
-    required ValueNotifier<bool> showBadgeNotifer,
-    required bool enableRelaxSounds,
-    required bool enableMap,
   }) {
     return [
-      if (kProFeaturesAvailable && enableRelaxSounds)
-        TimelineSideBarItem(
-          icon: SpIcons.musicNote,
-          tooltip: tr('paywall_features.relax_sounds.title'),
-          wrap: (context, child) {
-            return SpFadeIn.bound(
-              child: SpFloatingMusicNote.wrapIfPlaying(child: child),
-            );
-          },
-          onTap: (context) => const RelaxSoundsRoute().push(context),
-        ),
       TimelineSideBarItem(
         icon: SpIcons.search,
         tooltip: tr('page.search.title'),
         wrap: (context, child) => SpFadeIn.bound(child: child),
         onTap: (context) => SearchRoute().push(context),
       ),
-      if (enableMap)
-        TimelineSideBarItem(
-          icon: SpIcons.map,
-          tooltip: tr('page.map.title'),
-          wrap: (context, child) => SpFadeIn.bound(child: child),
-          onTap: (context) => const MapRoute().push(context),
-        ),
       TimelineSideBarItem(
         icon: SpIcons.calendar,
         tooltip: tr('page.calendar.title'),

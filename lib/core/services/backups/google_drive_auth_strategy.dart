@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:google_sign_in/google_sign_in.dart' as gsi;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart' as exp;
 import 'package:storypad/core/objects/google_user_object.dart';
@@ -11,23 +10,18 @@ import 'package:storypad/core/storages/google_user_storage.dart';
 import 'package:storypad/core/storages/storage_adapters/base_storage_adapter.dart';
 import 'package:storypad/core/storages/storage_adapters/secure_storage_adaptor.dart';
 
-/// The part of Google Drive that differs per platform: **how an access token is
-/// obtained and renewed**. Everything else (the Drive REST calls in
-/// [GoogleDriveCloudService]) is identical, so the split lives here instead of
-/// in a second 800-line copy of the API code.
-///
-/// - [GoogleSignInAuthStrategy] — Android/iOS/macOS, via `google_sign_in`, which
-///   borrows the OS Google account.
-/// - [GoogleDesktopAuthStrategy] — Linux, where no OS account integration exists,
-///   via [GoogleDesktopOAuthService]'s loopback OAuth2 flow.
+/// How Google Drive access tokens are obtained and renewed across supported
+/// platforms (Android and Linux) via [GoogleDesktopOAuthService]'s OAuth2 flow.
 ///
 /// Every method returns `null` (rather than throwing) for "the user has to
 /// interact": that is the difference between a silent token refresh and a
 /// re-sign-in, and callers surface it as `signInRequired`.
 abstract class GoogleDriveAuthStrategy {
-  /// The app-only scope both strategies request — the hidden `appDataFolder`,
-  /// which is exactly where the mobile build already keeps backups.
+  /// The app-only scope requested — the hidden `appDataFolder`, where StoryPad
+  /// stores backups.
   static const List<String> requestedScopes = [drive.DriveApi.driveAppdataScope];
+
+  bool get isConfigured => true;
 
   /// Loads the stored account, renewing its token first if it has expired.
   /// Returns null when there is nothing usable (no account, or a dead token).
@@ -50,151 +44,11 @@ abstract class GoogleDriveAuthStrategy {
   Future<void> disconnect();
 }
 
-/// `google_sign_in` path — unchanged behaviour, moved out of the Drive service.
-class GoogleSignInAuthStrategy implements GoogleDriveAuthStrategy {
-  Completer<gsi.GoogleSignIn>? _googleServiceCompleter;
-
-  Future<gsi.GoogleSignIn> get googleServiceInstance async {
-    if (_googleServiceCompleter != null) return _googleServiceCompleter!.future;
-    _googleServiceCompleter = Completer<gsi.GoogleSignIn>();
-
-    try {
-      await gsi.GoogleSignIn.instance.initialize();
-      _googleServiceCompleter!.complete(gsi.GoogleSignIn.instance);
-    } catch (e) {
-      _googleServiceCompleter!.completeError(e);
-      _googleServiceCompleter = null;
-    }
-
-    return _googleServiceCompleter!.future;
-  }
-
-  @override
-  Future<GoogleUserObject?> restore() => GoogleUserStorage().readObject();
-
-  @override
-  Future<GoogleUserObject> signIn() async {
-    try {
-      if (!(await googleServiceInstance).supportsAuthenticate()) {
-        throw exp.AuthException(
-          'Platform does not support authentication',
-          exp.AuthExceptionType.signInFailed,
-          serviceType: BackupServiceType.google_drive,
-        );
-      }
-
-      final account = await (await googleServiceInstance).authenticate(
-        scopeHint: GoogleDriveAuthStrategy.requestedScopes,
-      );
-      final authHeaders = await account.authorizationClient.authorizationHeaders(
-        GoogleDriveAuthStrategy.requestedScopes,
-        promptIfNecessary: true,
-      );
-
-      return GoogleUserObject(
-        id: account.id,
-        email: account.email,
-        displayName: account.displayName,
-        photoUrl: account.photoUrl,
-        accessToken: authHeaders?['Authorization']?.replaceFirst('Bearer ', ''),
-        refreshedAt: DateTime.now(),
-        autoBackupEnabled: null,
-      );
-    } catch (e) {
-      if (e is exp.AuthException) rethrow;
-
-      if (e is gsi.GoogleSignInException) {
-        throw exp.AuthException(
-          e.description ?? e.toString(),
-          exp.AuthExceptionType.signInRequired,
-          context: 'signIn',
-          serviceType: BackupServiceType.google_drive,
-        );
-      }
-
-      throw exp.AuthException(
-        'Sign-in failed: $e',
-        exp.AuthExceptionType.signInFailed,
-        context: 'signIn',
-        serviceType: BackupServiceType.google_drive,
-      );
-    }
-  }
-
-  @override
-  Future<GoogleUserObject?> requestScope(GoogleUserObject current) async {
-    try {
-      final account = await (await googleServiceInstance).authenticate(
-        scopeHint: GoogleDriveAuthStrategy.requestedScopes,
-      );
-      final authHeaders = await account.authorizationClient.authorizationHeaders(
-        GoogleDriveAuthStrategy.requestedScopes,
-        promptIfNecessary: true,
-      );
-
-      if (authHeaders == null) {
-        await (await googleServiceInstance).disconnect();
-        return null;
-      }
-
-      return current.copyWith(
-        id: account.id,
-        email: account.email,
-        displayName: account.displayName,
-        photoUrl: account.photoUrl,
-        accessToken: authHeaders['Authorization']?.replaceFirst('Bearer ', ''),
-        refreshedAt: DateTime.now(),
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
-  @override
-  Future<GoogleUserObject?> refresh(GoogleUserObject current) async {
-    await googleServiceInstance; // ensure initialized
-
-    try {
-      final authHeaders = await (await googleServiceInstance).authorizationClient.authorizationHeaders(
-        GoogleDriveAuthStrategy.requestedScopes,
-        promptIfNecessary: true,
-      );
-
-      if (authHeaders == null) return null;
-
-      return current.copyWith(
-        accessToken: authHeaders['Authorization']?.replaceFirst('Bearer ', ''),
-        refreshedAt: DateTime.now(),
-      );
-    } on exp.AuthException {
-      rethrow;
-    } catch (e) {
-      throw exp.AuthException(
-        'Reauthentication failed: $e',
-        exp.AuthExceptionType.signInFailed,
-        context: 'reauthenticateIfNeeded',
-        serviceType: BackupServiceType.google_drive,
-      );
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    await (await googleServiceInstance).signOut();
-  }
-
-  @override
-  Future<void> disconnect() async {
-    await (await googleServiceInstance).disconnect();
-  }
-}
-
-/// Linux path: no OS account, so the app runs the OAuth2 flow itself in the
-/// system browser (see [GoogleDesktopOAuthService]) and keeps the resulting
-/// refresh token in secure storage.
+/// Unified OAuth2 PKCE + loopback redirect strategy (Android and Linux): runs
+/// the flow in the system browser / Custom Tabs via [GoogleDesktopOAuthService]
+/// and keeps the resulting refresh token in secure storage.
 ///
-/// Unlike `google_sign_in`, nothing here renews a token behind the scenes — a
-/// Google desktop access token lives one hour — so [refresh] is what keeps
+/// A Google OAuth access token lives one hour, so [refresh] is what keeps
 /// automatic backups working without human involvement.
 class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
   final GoogleOAuthClient _oauth;
@@ -212,6 +66,7 @@ class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
   /// Whether this build knows which OAuth client it is. False means the user
   /// must be handed setup instructions instead of a browser window that Google
   /// would reject (`Invalid client_id: ""`).
+  @override
   bool get isConfigured => _oauth.isConfigured;
 
   @override
@@ -265,7 +120,7 @@ class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
 
   /// There is no non-interactive way to add a scope to a Google grant, so this
   /// is another full sign-in — which also lets the user pick a *different*
-  /// account, the same as the mobile flow does.
+  /// account.
   @override
   Future<GoogleUserObject?> requestScope(GoogleUserObject current) async {
     try {

@@ -4,7 +4,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:provider/provider.dart';
 import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/databases/models/story_preferences_db_model.dart';
@@ -12,8 +11,6 @@ import 'package:storypad/core/helpers/path_helper.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/gen/story_backgrounds.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:storypad/widgets/sp_firestore_storage_downloader_builder.dart';
 import 'package:storypad/widgets/sp_icons.dart';
@@ -278,11 +275,6 @@ class _ImageBackgroundCarouselState extends State<_ImageBackgroundCarousel> {
     });
   }
 
-  // First 3 backgrounds has no restriction.
-  bool isLocked(int index) {
-    return index > 2 && !context.read<InAppPurchaseProvider>().isProUser;
-  }
-
   @override
   void dispose() {
     controller.dispose();
@@ -314,11 +306,6 @@ class _ImageBackgroundCarouselState extends State<_ImageBackgroundCarousel> {
         onTap: (index) async {
           HapticFeedback.selectionClick();
 
-          if (isLocked(index)) {
-            const PaywallRoute(initialFocus: .backgrounds).push(context);
-            return;
-          }
-
           final background = widget.backgrounds[index];
           bool selected = widget.backgroundImagePath == basename(background.path);
 
@@ -331,7 +318,7 @@ class _ImageBackgroundCarouselState extends State<_ImageBackgroundCarousel> {
         children: List.generate(widget.backgrounds.length, (index) {
           return _ImageItem(
             background: widget.backgrounds[index],
-            locked: isLocked(index),
+            locked: false,
             selected: isSelected(widget.backgrounds[index]),
             itemWidth: itemWidth,
           );

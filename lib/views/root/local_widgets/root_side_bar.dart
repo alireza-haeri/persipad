@@ -3,10 +3,9 @@ import 'package:storypad/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
+import 'package:storypad/core/types/sidebar_item_id.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
-import 'package:storypad/views/relax_sounds/relax_sounds_view.dart';
-import 'package:storypad/widgets/sp_floating_music_note.dart';
 import 'package:storypad/views/root/local_widgets/root_view_side_bar_info.dart';
 import 'package:storypad/widgets/side_items/side_items.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
@@ -24,19 +23,15 @@ class RootSideBar extends StatefulWidget {
 }
 
 class _RootSideBarState extends State<RootSideBar> {
-  late final DevicePreferencesProvider devicePreferencesProvider = context.read<DevicePreferencesProvider>();
-
   @override
   void initState() {
     super.initState();
     widget.rootProvider.sideBarInfoNotifier.addListener(_listener);
     widget.rootProvider.selectedRootRouteNameNotifier.addListener(_listener);
-    devicePreferencesProvider.addListenerForAddOnChanges(_listener);
   }
 
   @override
   void dispose() {
-    devicePreferencesProvider.removeListenerForAddOnChanges(_listener);
     widget.rootProvider.sideBarInfoNotifier.removeListener(_listener);
     widget.rootProvider.selectedRootRouteNameNotifier.removeListener(_listener);
     super.dispose();
@@ -56,11 +51,10 @@ class _RootSideBarState extends State<RootSideBar> {
     bool visible = bigScreen == true;
     if (sideBarInfo.temporaryHidden == true) visible = false;
 
-    final List<IconButtonSideItem> sideItems = SideItems.getSideMenuItems(
-      enableRelaxSounds: devicePreferencesProvider.enableRelaxSounds,
-      enableMap: devicePreferencesProvider.enableMap,
-      order: devicePreferencesProvider.sidebarOrder,
+    final order = context.select<DevicePreferencesProvider, List<SidebarItemId>>(
+      (provider) => provider.sidebarOrder,
     );
+    final List<IconButtonSideItem> sideItems = SideItems.getSideMenuItems(order: order);
 
     return Visibility(
       visible: visible,
@@ -114,7 +108,7 @@ class _SideBarItem extends StatelessWidget {
           : ColorScheme.of(context).onSurface.withValues(alpha: 0.7);
     }
 
-    Widget child = IconButton(
+    return IconButton(
       style: IconButton.styleFrom(
         backgroundColor: backgroundColor,
         foregroundColor: foregroundColor,
@@ -125,11 +119,5 @@ class _SideBarItem extends StatelessWidget {
       icon: Icon(item.iconData),
       selectedIcon: Icon(item.selectedIconData),
     );
-
-    if (item.route is RelaxSoundsRoute) {
-      return SpFloatingMusicNote.wrapIfPlaying(child: child);
-    }
-
-    return child;
   }
 }

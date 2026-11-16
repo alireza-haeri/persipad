@@ -9,9 +9,6 @@ class _DayColorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inAppPurchaseProvider = Provider.of<InAppPurchaseProvider>(context);
-    final locked = !inAppPurchaseProvider.isProUser;
-
     final provider = Provider.of<DevicePreferencesProvider>(context);
     final String? currentName = provider.preferences.colorByDay?[weekday];
     final bool customized = currentName != null;
@@ -21,24 +18,15 @@ class _DayColorTile extends StatelessWidget {
         return SpColorPicker(
           isDarkMode: AppTheme.isDarkMode(context),
           position: openAbove ? SpColorPickerPosition.bottom : SpColorPickerPosition.top,
-          // Highlight the active swatch by passing one of its shades.
           currentColor: _highlightColor(context, currentName),
           level: SpColorPickerLevel.one,
           onPickedColor: (color) async {
             await close();
             if (!context.mounted) return;
 
-            if (locked) {
-              await const PaywallRoute(
-                initialFocus: .customizations,
-              ).push(context);
-              return;
-            }
-
             final name = _nameFromColor(color);
             if (name == null) return;
 
-            // Picking the already-selected color resets the day back to default (matches Color Seed).
             if (name == currentName) {
               provider.resetColorForDay(weekday);
             } else {
@@ -49,10 +37,9 @@ class _DayColorTile extends StatelessWidget {
       },
       builder: (void Function() open) {
         return ListTile(
-          contentPadding: locked ? null : const EdgeInsets.only(left: 16, right: 8),
+          contentPadding: const EdgeInsets.only(left: 16, right: 8),
           title: Text(_weekdayLabel(context)),
           subtitle: Text(customized ? tr("general.custom") : tr("general.default")),
-
           leading: Container(
             width: 40,
             height: 40,
@@ -71,9 +58,7 @@ class _DayColorTile extends StatelessWidget {
               ),
             ),
           ),
-          trailing: locked
-              ? const Icon(SpIcons.lock)
-              : customized
+          trailing: customized
               ? IconButton(
                   tooltip: tr("button.reset"),
                   icon: const Icon(SpIcons.refresh),
@@ -88,11 +73,9 @@ class _DayColorTile extends StatelessWidget {
 
   String _weekdayLabel(BuildContext context) {
     final localeName = context.locale.toLanguageTag();
-    // Jan 1 2024 is a Monday, so DateTime(2024, 1, weekday) yields the matching weekday.
     return DateFormat.EEEE(localeName).format(DateTime(2024, 1, weekday));
   }
 
-  // Highlight the active swatch by passing a color contained in its shades.
   Color? _highlightColor(BuildContext context, String? currentName) {
     if (currentName == null) return null;
     if (currentName == kBlackWhiteColorName) {
@@ -101,9 +84,7 @@ class _DayColorTile extends StatelessWidget {
     return kMaterialColorsByName[currentName]?[500];
   }
 
-  // Reverse-lookup the picked color (a swatch from the level-one picker) to its stable name.
   String? _nameFromColor(Color color) {
-    // The picker's monochrome swatch resolves to pure black (light) or white (dark).
     // ignore: deprecated_member_use
     if (color.value == 0xFF000000 || color.value == 0xFFFFFFFF) return kBlackWhiteColorName;
 

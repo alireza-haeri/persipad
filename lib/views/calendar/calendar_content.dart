@@ -20,9 +20,6 @@ class _CalendarContent extends StatelessWidget {
         monthYearNotifier: viewModel.monthYearNotifier,
         initialSelectedDay: viewModel.params.initialDay,
       ),
-      CalendarSegmentId.period => PeriodCalendarView(
-        monthYearNotifier: viewModel.monthYearNotifier,
-      ),
       CalendarSegmentId.score => ScoreTrendView(
         monthYearNotifier: viewModel.monthYearNotifier,
       ),

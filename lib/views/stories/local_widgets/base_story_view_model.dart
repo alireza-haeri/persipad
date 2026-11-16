@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:storypad/core/databases/models/place_db_model.dart';
-import 'package:storypad/core/services/location/sp_location_service.dart';
 import 'package:storypad/core/databases/models/story_content_db_model.dart';
 import 'package:storypad/core/databases/models/story_db_model.dart';
 import 'package:storypad/core/databases/models/story_page_db_model.dart';
@@ -19,9 +17,7 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/stories/story_extract_assets_from_pages_service.dart';
 import 'package:storypad/core/services/stories/story_has_data_written_service.dart';
 import 'package:storypad/core/types/editing_flow_type.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/views/templates/edit/edit_template_view.dart';
 
 part 'story_pages_manager_info.dart';
@@ -166,21 +162,6 @@ abstract class BaseStoryViewModel extends ChangeNotifier with DisposeAwareMixin,
     );
   }
 
-  Future<void> setPlace(PlaceDbModel? place) async {
-    story = story?.copyWith(updatedAt: DateTime.now(), place: place);
-    notifyListeners();
-
-    if (hasDataWritten) {
-      await StoryDbModel.db.set(story!);
-      lastSavedAtNotifier.value = story?.updatedAt;
-    }
-  }
-
-  Future<void> addCurrentLocation() async {
-    final result = await SpLocationService.fetchCurrentPlace();
-    if (result.isSuccess) await setPlace(result.place);
-  }
-
   Future<void> toggleShowDayCount() async {
     if (story == null) return;
 
@@ -246,11 +227,6 @@ abstract class BaseStoryViewModel extends ChangeNotifier with DisposeAwareMixin,
 
   Future<void> saveAsTemplate(BuildContext context) async {
     if (story == null) return;
-
-    if (!context.read<InAppPurchaseProvider>().isProUser) {
-      const PaywallRoute(initialFocus: .templates).push(context);
-      return;
-    }
 
     var result = await EditTemplateRoute(
       flowType: .create,

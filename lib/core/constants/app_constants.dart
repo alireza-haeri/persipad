@@ -7,34 +7,23 @@ import 'package:storypad/core/services/analytics/adaptors/base_analytics_event_a
 import 'package:storypad/core/services/analytics/adaptors/base_analytics_user_property_adaptor.dart';
 import 'package:storypad/core/services/cloud_storage/adaptors/base_cloud_storage_adaptor.dart';
 import 'package:storypad/core/services/error_reporting/adaptors/base_error_reporting_adaptor.dart';
-import 'package:storypad/core/services/pro_entitlement_service.dart';
 import 'package:storypad/core/services/remote_config/adaptors/base_remote_config_adaptor.dart';
 import 'package:storypad/core/types/app_logo.dart';
 
 const String kAppName = String.fromEnvironment('APP_NAME');
-const String kRevenueCatAndroidApiKey = String.fromEnvironment('REVENUE_CAT_ANDROID_API_KEY');
-const String kRevenueCatIosApiKey = String.fromEnvironment('REVENUE_CAT_IOS_API_KEY');
 const String kEmailHasherSecreyKey = String.fromEnvironment('EMAIL_HASHER_SECRET_KEY');
-const String kGoogleMapsAndroidApiKey = String.fromEnvironment('GOOGLE_MAPS_ANDROID_API_KEY');
-const String kGoogleMapsIosApiKey = String.fromEnvironment('GOOGLE_MAPS_IOS_API_KEY');
-const String kMapTileProxySecret = String.fromEnvironment('MAP_TILE_PROXY_SECRET');
-
-/// Dropbox OAuth2 "App key" (client ID) — not a secret (Dropbox's PKCE flow
-/// for public/native clients needs no client secret).
-const String kDropboxAppKey = String.fromEnvironment('DROPBOX_APP_KEY');
 
 /// macOS app group, `<team ID>.<name>` (max 19 chars) — ObjectBox needs it in the sandbox. The same dart-define fills
 /// `com.apple.security.application-groups` in macos/Runner/*.entitlements (via GeneratedDartDefines.xcconfig).
 const String kMacosAppGroup = String.fromEnvironment('MACOS_APP_GROUP');
 
-/// Base URL for static.storypad.me — serves remote config, cloud-stored assets,
-/// and the MapTiler tile proxy.
+/// Base URL for static.storypad.me — serves remote config and cloud-stored assets.
 const String kCdnBaseUrl = String.fromEnvironment('CDN_BASE_URL', defaultValue: 'https://static.storypad.me');
 
 const bool kIsCupertino = String.fromEnvironment('CUPERTINO') == 'yes';
 
-/// Font families tried, in order, for glyphs the selected Google font does not
-/// contain — in practice Arabic-script text (Persian, Arabic UI). Families are
+/// Font families tried, in order, for glyphs the primary font does not
+/// contain — in practice Arabic-script text (Persian UI). Families are
 /// resolved by the OS, so a name that is not installed is skipped rather than
 /// breaking the text.
 const List<String> kScriptFontFamilyFallback = [
@@ -49,31 +38,6 @@ const List<String> kScriptFontFamilyFallback = [
 const Color kDefaultColorSeed = Colors.black;
 const String kDefaultFontFamily = 'Quicksand';
 const FontWeight kDefaultFontWeight = FontWeight.normal;
-
-final bool kIAPEnabled =
-    (Platform.isAndroid && kRevenueCatAndroidApiKey.trim().isNotEmpty) ||
-    (Platform.isIOS && kRevenueCatIosApiKey.trim().isNotEmpty) ||
-    (Platform.isMacOS && kRevenueCatIosApiKey.trim().isNotEmpty);
-
-/// This fork gives every Pro feature away for free — there is no store listing
-/// and no RevenueCat project behind it, and on Linux the store plugin has no
-/// implementation at all. The switch lives in [ProEntitlementService] so the
-/// policy is documented and unit-tested in one place (ai/DECISIONS.md D-011).
-const bool kUnlockAllProFeatures = ProEntitlementService.unlockAll;
-
-/// Pro features can be used: either unlocked for free (this fork) or genuinely
-/// sellable on the current platform. UI that used to ask "is the store enabled?"
-/// should ask this instead — the question it actually means is "can the user use
-/// this feature?".
-final bool kProFeaturesAvailable = kUnlockAllProFeatures || kIAPEnabled;
-
-/// Whether purchase/upsell surfaces (paywall entries, Pro badges, banners)
-/// should be rendered at all. False in this fork, and false on Linux, where a
-/// purchase can never complete.
-final bool kShowProUpsell = ProEntitlementService.showUpsell(
-  unlockAll: kUnlockAllProFeatures,
-  storeAvailable: kIAPEnabled,
-);
 
 final bool kSupportCamera = Platform.isAndroid || Platform.isIOS;
 final bool kSupportQuickActions = Platform.isAndroid || Platform.isIOS;

@@ -90,11 +90,11 @@ class _ShowBackupContent extends StatelessWidget {
               break;
             case 'templates':
               leadingIconData = SpIcons.lightBulb;
-              translateTabledName = tr("paywall_features.templates.title");
+              translateTabledName = tr("general.templates");
               break;
             case 'relax_sound_mixes':
               leadingIconData = SpIcons.musicNote;
-              translateTabledName = tr("general.sound_mixes");
+              translateTabledName = table.key.capitalize;
               break;
             case 'events':
               leadingIconData = SpIcons.calendar;

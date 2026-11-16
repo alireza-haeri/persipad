@@ -1,8 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:storypad/core/constants/locale_constants.dart';
-import 'package:storypad/core/extensions/color_scheme_extension.dart';
-import 'package:storypad/core/services/remote_config/remote_config_service.dart';
-import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +9,6 @@ import 'package:storypad/widgets/sp_icons.dart';
 import 'languages_view_model.dart';
 
 part 'languages_content.dart';
-part 'local_widgets/feedback_banner.dart';
 
 class LanguagesRoute extends BaseRoute {
   LanguagesRoute({

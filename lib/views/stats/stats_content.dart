@@ -248,13 +248,6 @@ class _StatsContent extends StatelessWidget {
           label: tr('general.voices'),
           onTap: () => viewModel.openStoriesForIds(context, stats.voiceStoryIds, tabIndex),
         ),
-      if (stats.locatedCount > 0)
-        (
-          icon: SpIcons.locationPin,
-          value: '${stats.locatedCount}',
-          label: tr('general.places'),
-          onTap: () => viewModel.openStoriesForIds(context, stats.locatedStoryIds, tabIndex),
-        ),
     ];
 
     const double spacing = 8.0;

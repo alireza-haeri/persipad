@@ -52,88 +52,16 @@ class $TemplatesGen {
 class $TranslationsGen {
   const $TranslationsGen();
 
-  /// File path: translations/ar.json
-  String get ar => 'translations/ar.json';
-
-  /// File path: translations/de-DE.json
-  String get deDE => 'translations/de-DE.json';
-
   /// File path: translations/en.json
   String get en => 'translations/en.json';
 
-  /// File path: translations/es-419.json
-  String get es419 => 'translations/es-419.json';
-
-  /// File path: translations/es-ES.json
-  String get esES => 'translations/es-ES.json';
-
-  /// File path: translations/fr-FR.json
-  String get frFR => 'translations/fr-FR.json';
-
-  /// File path: translations/hi-IN.json
-  String get hiIN => 'translations/hi-IN.json';
-
-  /// File path: translations/id.json
-  String get id => 'translations/id.json';
-
-  /// File path: translations/it-IT.json
-  String get itIT => 'translations/it-IT.json';
-
-  /// File path: translations/ja-JP.json
-  String get jaJP => 'translations/ja-JP.json';
-
-  /// File path: translations/km.json
-  String get km => 'translations/km.json';
-
-  /// File path: translations/ko-KR.json
-  String get koKR => 'translations/ko-KR.json';
-
-  /// File path: translations/pl-PL.json
-  String get plPL => 'translations/pl-PL.json';
-
-  /// File path: translations/pt-BR.json
-  String get ptBR => 'translations/pt-BR.json';
-
-  /// File path: translations/ru-RU.json
-  String get ruRU => 'translations/ru-RU.json';
-
-  /// File path: translations/th-TH.json
-  String get thTH => 'translations/th-TH.json';
-
-  /// File path: translations/tr.json
-  String get tr => 'translations/tr.json';
-
-  /// File path: translations/uk-UA.json
-  String get ukUA => 'translations/uk-UA.json';
-
-  /// File path: translations/vi-VN.json
-  String get viVN => 'translations/vi-VN.json';
-
-  /// File path: translations/zh-CN.json
-  String get zhCN => 'translations/zh-CN.json';
+  /// File path: translations/fa.json
+  String get fa => 'translations/fa.json';
 
   /// List of all assets
   List<String> get values => [
-    ar,
-    deDE,
     en,
-    es419,
-    esES,
-    frFR,
-    hiIN,
-    id,
-    itIT,
-    jaJP,
-    km,
-    koKR,
-    plPL,
-    ptBR,
-    ruRU,
-    thTH,
-    tr,
-    ukUA,
-    viVN,
-    zhCN,
+    fa,
   ];
 }
 

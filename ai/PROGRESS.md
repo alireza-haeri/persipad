@@ -1,17 +1,20 @@
 # Status
 
 **Last updated:** 2026-11-16
-**Current session:** session 10 — local Android APK loop (`bin/build_apk` + `bin/android_doctor`) + handoff
+**Current session:** session 11 — lightweight fork trim (`D-041`) + unified Google Drive OAuth2
 **Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
-**Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; Fedora `:jni` NDK/CMake blocker diagnosed and fixed (`bin/android_doctor --fix` + `bin/build_apk`)
+**Phase:** 🚧 Lightweight feature/dependency trim implemented; verifying via `[codegen]`, Linux CI, and Android `[apk]` CI
 
 ---
 
 ## 🤝 Handoff Snapshot (start here if you are a new agent/session)
 
 1. **What exists right now:**
-   - **Desktop (Linux):** Fully working app (`bin/setup_linux`, `bin/dev --community-linux`, `bin/dev -t`) with all Pro features unlocked (`ProEntitlementService.unlockAll`), `PlatformCapabilities` gating, loopback OAuth2 Google Drive (`bin/setup_sync`, E2E credentials pending), `file_picker` media picking, Persian (`fa`) locale across all 21 `translations/*.json` files (628 keys), bundled `Vazirmatn` font, full Shamsi display calendar (storage/queries remain Gregorian), RTL layout/icon fixes, Daily Score add-on + animated charts integrated into one calendar (`SpCalendarDateCell`), toggleable Map add-on, and configurable sidebar ordering.
-   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without `android-37` and adapt to whichever valid NDK/CMake are installed on disk (D-040).
+   - **Streamlined cross-platform core (`D-041`):** Removed Maps/Location/Geocoding, Relax Sounds (`audio_service`), Period Calendar, Add-ons screen, Fonts picker (`google_fonts`), In-App Purchases/Paywall/Support Us (`purchases_flutter`), non-Drive cloud providers (`Nextcloud`/`Dropbox`/`iCloud`/`webdav_client`/`dio`/`flutter_web_auth_2`), and 19 non-EN/FA translation locales. Removed 14 dependencies from `pubspec.yaml`.
+   - **Unified Google Drive sync (Linux + Android):** Both platforms now authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
+   - **Two locales & bundled fonts:** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using system default fonts for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale`).
+   - **Daily Score in Settings:** Daily Score toggle moved into Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
+   - **Android (`community` flavor):** `MainActivity` extends `FlutterFragmentActivity` directly, `AndroidManifest.xml` drops unused location/foreground-service/ad-service declarations and adds an `https` `BROWSABLE` `<queries>` intent, and `.github/workflows/android.yml` injects OAuth secrets and fixes `Verify the APK` (`$ANDROID_HOME`, `grep -c`, `ABI`). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) remain intact (`D-040`).
 2. **Latest Fedora APK build diagnosis & fix:**
    - On `d3d534e`, `bin/build_apk --install --avd=storypad_dev -v` cached all Maven/Kotlin dependencies from Tencent (`33m 15s` cold; Retry #1 reached `:jni` in `8.9s`), passed `:app` and 25 plugins cleanly, and failed at `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`) because transitive `jni` (`1.0.3`, pulled by `path_provider_android` `2.3.1`) genuinely compiles `libdartjni.so` via CMake + NDK, while Fedora lacked `ndk` and `cmake`.
    - Updated `bin/android_doctor` (`MISSING` + catalogue fallback for `ndk;*` and `cmake;*` from the SDK mirror when `jni` is in `pubspec.lock`), `bin/build_apk` (fail fast if NDK/CMake missing; otherwise export installed NDK via `notelyNdkVersion`), and `android/build.gradle.kts` (propagate `notelyNdkVersion` to `:app` and `LibraryExtension` plugins such as `:jni`, and clamp `compileSdk` to `notelyCompileSdk`).

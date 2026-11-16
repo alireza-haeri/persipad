@@ -56,12 +56,17 @@ void main() {
 
     test('builtin factory uses type-based id and disabled default', () {
       final daily = ReminderObject.builtin(ReminderType.daily);
-      final period = ReminderObject.builtin(ReminderType.period);
+      final onThisDay = ReminderObject.builtin(ReminderType.onThisDay);
 
       expect(daily.type, ReminderType.daily);
       expect(daily.enabled, false);
       expect(daily.id, ReminderType.daily.index + 1);
-      expect(period.daysAhead, 2);
+      expect(daily.hour, 21);
+
+      expect(onThisDay.type, ReminderType.onThisDay);
+      expect(onThisDay.enabled, false);
+      expect(onThisDay.id, ReminderType.onThisDay.index + 1);
+      expect(onThisDay.hour, 9);
     });
   });
 }

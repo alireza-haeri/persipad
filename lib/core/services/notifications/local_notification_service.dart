@@ -10,7 +10,6 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:storypad/core/objects/reminder_object.dart';
 import 'package:storypad/core/services/notifications/reminder_navigation_service.dart';
 import 'package:storypad/core/services/on_this_day_prediction_service.dart';
-import 'package:storypad/core/services/period_prediction_service.dart';
 import 'package:storypad/core/storages/device_preferences_storage.dart';
 import 'package:storypad/core/types/notification_channel.dart';
 import 'package:storypad/core/types/reminder_type.dart';
@@ -30,33 +29,11 @@ class LocalNotificationService {
   GlobalKey<NavigatorState>? _navigatorKey;
   bool _initialized = false;
 
-  // rescheduleAll() is called unawaited (see DevicePreferencesProvider) so its
-  // Save/toggle caller isn't blocked on OS scheduling latency. That means two
-  // calls can overlap if edits happen back-to-back; this version number ensures
-  // a stale, still-in-flight call can never clobber a newer one — only the
-  // most recently requested reschedule is allowed to finish applying its writes.
   int _rescheduleVersion = 0;
-
-  // Chains reschedule runs so their cancelAll()+schedule work never overlaps —
-  // without this, an older call's cancelAll() could complete after a newer
-  // call had already scheduled notifications, wiping them out even though the
-  // version check below would (correctly) stop the older call from
-  // scheduling anything itself. Each run still checks the version first so a
-  // call superseded before its turn comes up does no wasted native work.
   Future<void> _rescheduleQueue = Future<void>.value();
 
   bool get supported => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
-  /// Initializes the plugin, handles a cold-launch tap, and schedules the
-  /// enabled reminders — a one-time, idempotent setup guarded by [_initialized].
-  ///
-  /// Must be called only from inside the widget tree (e.g. RootProvider, which
-  /// is constructed lazily the first time RootView reads it) rather than from
-  /// main.dart's imperative app bootstrap. Reminder titles and notification
-  /// action labels are built with tr(), which needs easy_localization's
-  /// translations to have finished loading; that only happens once the
-  /// EasyLocalization widget mounts. Calling this earlier resolves tr() to
-  /// raw keys like "button.write_now".
   Future<void> init({GlobalKey<NavigatorState>? navigatorKey}) async {
     if (navigatorKey != null) _navigatorKey = navigatorKey;
     if (_initialized || !supported) return;
@@ -70,15 +47,8 @@ class LocalNotificationService {
       // Fall back to the default (UTC) location; reminders still fire, just in UTC.
     }
 
-    // The OS requires a default icon at init time, before any specific
-    // notification (and its channel) is known — use the generic custom-reminder
-    // icon as that fallback.
     final androidSettings = AndroidInitializationSettings(NotificationChannel.reminderCustom.androidIcon);
-    // Shared by iOS and macOS — both use the same Darwin notification APIs.
-    // One category per built-in type (keyed by ReminderType.notificationActionId),
-    // each with its single action button — see _detailsFor.
     final darwinSettings = DarwinInitializationSettings(
-      // Permission is requested explicitly on first enable, not at init.
       requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
@@ -97,24 +67,15 @@ class LocalNotificationService {
       onDidReceiveNotificationResponse: _onTap,
     );
 
-    // Handle a tap that cold-launched the app.
     final launchDetails = await _plugin.getNotificationAppLaunchDetails();
     if (launchDetails?.didNotificationLaunchApp == true) {
       final response = launchDetails!.notificationResponse;
       if (response != null) _onTap(response);
     }
 
-    // Reschedule on every launch so schedules stay consistent (e.g. across
-    // timezone changes) and survive app data restore. Done here (rather than
-    // leaving callers to do it) so init() always leaves reminders fully
-    // scheduled — see this method's doc comment for the ordering constraint.
     await rescheduleAll(DevicePreferencesStorage.appInstance.preferences.reminders);
   }
 
-  // The OS rejects a second permission request while one is still pending
-  // (PlatformException: permissionRequestInProgress) — a rapid double-tap on
-  // the reminder switch is enough to trigger it. Sharing one in-flight future
-  // across overlapping callers keeps that from ever reaching the plugin twice.
   Future<bool>? _pendingPermissionRequest;
 
   /// Requests OS notification permission. Returns true when granted.
@@ -151,40 +112,24 @@ class LocalNotificationService {
 
     final version = ++_rescheduleVersion;
 
-    // Chained onto the previous run (regardless of whether it's done yet) so
-    // no two runs ever call cancelAll()/schedule concurrently — see
-    // [_rescheduleQueue].
     final run = _rescheduleQueue.then((_) => _runReschedule(version, reminders));
     _rescheduleQueue = run;
     return run;
   }
 
   Future<void> _runReschedule(int version, List<ReminderObject>? reminders) async {
-    // A newer reschedule request arrived before this one's turn came up —
-    // skip it entirely rather than doing a cancelAll()+schedule pass whose
-    // result would just be immediately superseded.
     if (version != _rescheduleVersion) return;
 
     await _plugin.cancelAll();
     for (final reminder in reminders ?? const <ReminderObject>[]) {
-      // A newer reschedule request arrived while we were still working —
-      // abandon this one so it can't overwrite the newer call's result.
       if (version != _rescheduleVersion) return;
+      if (reminder.type == ReminderType.custom && (reminder.message?.trim().isEmpty ?? true)) continue;
       if (reminder.enabled) await _schedule(reminder);
     }
   }
 
   Future<void> _schedule(ReminderObject reminder) async {
-    // Period reminders are one-shot: fired a few days before the predicted next
-    // period, recomputed on each reschedule (app launch / reminder change).
-    if (reminder.type == ReminderType.period) {
-      await _schedulePeriod(reminder);
-      return;
-    }
-
-    // On-this-day fires only on dates that actually have past memories —
-    // local notifications can't check that at delivery time, so we precompute
-    // matching dates and schedule one one-shot notification per date.
+    // On-this-day fires only on dates that actually have past memories.
     if (reminder.type == ReminderType.onThisDay) {
       await _scheduleOnThisDay(reminder);
       return;
@@ -193,11 +138,6 @@ class LocalNotificationService {
     final details = _detailsFor(reminder.type);
     final payload = jsonEncode({'reminderId': reminder.id});
 
-    // Content is baked into each repeating notification at schedule time and
-    // reused for every real-world occurrence of that weekday slot until the
-    // next reschedule (app launch or reminder edit) — that's what gives daily
-    // reminders variety day-to-day (different slots can pick different copy),
-    // rather than variety within a single slot's recurrences.
     for (final slot in reminder.scheduleSlots) {
       final weekday = slot == 0 ? null : slot;
       final (title, body) = await ReminderNavigationService.copyFor(reminder);
@@ -214,34 +154,7 @@ class LocalNotificationService {
     }
   }
 
-  Future<void> _schedulePeriod(ReminderObject reminder) async {
-    final predicted = await PeriodPredictionService.loadPredictedNextPeriodStart();
-    if (predicted == null) return;
-
-    final daysAhead = reminder.daysAhead ?? 2;
-    final target = predicted.subtract(Duration(days: daysAhead));
-    final scheduled = tz.TZDateTime(tz.local, target.year, target.month, target.day, reminder.hour, reminder.minute);
-
-    // Skip when the reminder moment has already passed.
-    if (!scheduled.isAfter(tz.TZDateTime.now(tz.local))) return;
-
-    final (title, body) = await ReminderNavigationService.copyFor(reminder);
-    await _plugin.zonedSchedule(
-      id: _notificationId(reminder.id, 0),
-      title: title,
-      body: body,
-      scheduledDate: scheduled,
-      notificationDetails: _detailsFor(reminder.type),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: jsonEncode({'reminderId': reminder.id}),
-      // No matchDateTimeComponents -> one-shot.
-    );
-  }
-
   Future<void> _scheduleOnThisDay(ReminderObject reminder) async {
-    // Bounded horizon + result cap: keeps this a handful of cheap indexed
-    // count() queries (see OnThisDayPredictionService) and keeps the number of
-    // pending notifications well under the OS limits (iOS caps at 64 total).
     final dates = await OnThisDayPredictionService.loadUpcomingMemoryDates(
       horizonDays: 30,
       maxResults: 20,
@@ -265,17 +178,12 @@ class LocalNotificationService {
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: payload,
-        // No matchDateTimeComponents -> one-shot.
       );
     }
   }
 
-  /// Derived, stable OS notification id. `slot` is 0 (every day) or a weekday 1..7.
   int _notificationId(int reminderId, int slot) => reminderId * 10 + slot;
 
-  /// Derived id for one-shot, date-specific notifications (on-this-day). Uses a
-  /// much larger multiplier than [_notificationId] so the two id spaces never
-  /// collide for realistic reminder ids.
   int _dateNotificationId(int reminderId, DateTime date) => reminderId * 100000 + date.month * 100 + date.day;
 
   tz.TZDateTime _nextInstance({required int hour, required int minute, int? weekday}) {

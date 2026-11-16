@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/providers/app_lock_provider.dart';
 import 'package:storypad/providers/backup_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/providers/in_app_update_provider.dart';
 import 'package:storypad/providers/nickname_provider.dart';
-import 'package:storypad/providers/relax_sounds_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
@@ -42,15 +40,8 @@ class ProviderScope extends StatelessWidget {
         ListenableProvider<InAppUpdateProvider>(
           create: (context) => InAppUpdateProvider(),
         ),
-        ListenableProvider<InAppPurchaseProvider>(
-          create: (context) => InAppPurchaseProvider(),
-        ),
         ListenableProvider<NicknameProvider>(
           create: (context) => NicknameProvider(),
-        ),
-        ListenableProvider<RelaxSoundsProvider>(
-          lazy: true,
-          create: (context) => RelaxSoundsProvider(),
         ),
         // Loaded eagerly rather than lazily: the calendar's score segment can be
         // the first screen after a cold start (it is a segment of the calendar

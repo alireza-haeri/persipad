@@ -32,28 +32,20 @@ void main() {
       expect(asset.allCloudDestinations, isEmpty);
     });
 
-    test('flattens every service+identifier into one list', () {
+    test('flattens service+identifier into one list', () {
       final asset = buildAsset(
         cloudDestinations: {
           BackupServiceType.google_drive.id: {
             'tester@example.com': {'file_id': 'abc', 'file_name': '1.jpg'},
           },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
-          },
         },
       );
 
-      expect(asset.allCloudDestinations, hasLength(2));
+      expect(asset.allCloudDestinations, hasLength(1));
       expect(
         asset.allCloudDestinations,
         containsAll([
           (serviceType: BackupServiceType.google_drive, identifier: 'tester@example.com', fileId: 'abc'),
-          (
-            serviceType: BackupServiceType.nextcloud,
-            identifier: 'admin@example.com/StoryPad',
-            fileId: '/StoryPad/images/1.jpg',
-          ),
         ]),
       );
     });
@@ -61,9 +53,9 @@ void main() {
     test('includes multiple identifiers under the same service', () {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
-            'admin@example.com/OldFolder': {'file_id': '/OldFolder/images/1.jpg', 'file_name': '1.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'abc', 'file_name': '1.jpg'},
+            'other@example.com': {'file_id': 'def', 'file_name': '1.jpg'},
           },
         },
       );
@@ -87,102 +79,91 @@ void main() {
   group('AssetDbModel.matchingCloudDestinationFor', () {
     test('is null when the asset has no destinations at all', () {
       final asset = buildAsset(cloudDestinations: {});
-      final nextcloud = _FakeCloudService(currentUser: _FakeUser());
+      final drive = _FakeCloudService(currentUser: _FakeUser());
 
-      expect(asset.matchingCloudDestinationFor([nextcloud]), isNull);
+      expect(asset.matchingCloudDestinationFor([drive]), isNull);
     });
 
-    test('is null when no signed-in service matches the destination\'s serviceType', () {
+    test('is null when no signed-in service is passed', () {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'abc', 'file_name': '1.jpg'},
           },
         },
       );
-      final drive = _FakeCloudService(currentUser: _FakeUser(), serviceType: BackupServiceType.google_drive);
 
-      expect(asset.matchingCloudDestinationFor([drive]), isNull);
+      expect(asset.matchingCloudDestinationFor([]), isNull);
     });
 
     test('is null when the destination belongs to a different (switched) account on the same service', () {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'old-admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
+          BackupServiceType.google_drive.id: {
+            'old@example.com': {'file_id': 'abc', 'file_name': '1.jpg'},
           },
         },
       );
-      final nextcloud = _FakeCloudService(currentUser: _FakeUser(identifier: 'new-admin@example.com/StoryPad'));
+      final drive = _FakeCloudService(currentUser: _FakeUser(identifier: 'new@example.com'));
 
-      expect(asset.matchingCloudDestinationFor([nextcloud]), isNull);
+      expect(asset.matchingCloudDestinationFor([drive]), isNull);
     });
 
     test('finds the destination matching the currently signed-in account', () {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'abc', 'file_name': '1.jpg'},
           },
         },
       );
-      final nextcloud = _FakeCloudService(currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'));
+      final drive = _FakeCloudService(currentUser: _FakeUser(identifier: 'tester@example.com'));
 
-      final destination = asset.matchingCloudDestinationFor([nextcloud]);
+      final destination = asset.matchingCloudDestinationFor([drive]);
 
-      expect(destination?.serviceType, BackupServiceType.nextcloud);
-      expect(destination?.identifier, 'admin@example.com/StoryPad');
-      expect(destination?.fileId, '/StoryPad/images/1.jpg');
+      expect(destination?.serviceType, BackupServiceType.google_drive);
+      expect(destination?.identifier, 'tester@example.com');
+      expect(destination?.fileId, 'abc');
     });
   });
 
   group('AssetDbModel.matchingCloudDestinationsFor', () {
     test('is empty when nothing matches', () {
       final asset = buildAsset(cloudDestinations: {});
-      final nextcloud = _FakeCloudService(currentUser: _FakeUser());
+      final drive = _FakeCloudService(currentUser: _FakeUser());
 
-      expect(asset.matchingCloudDestinationsFor([nextcloud]), isEmpty);
+      expect(asset.matchingCloudDestinationsFor([drive]), isEmpty);
     });
 
-    test('returns every matching destination, not just the first, when both Drive and Nextcloud have it', () {
+    test('returns only the destination matching the signed-in account when multiple accounts exist', () {
       final asset = buildAsset(
         cloudDestinations: {
           BackupServiceType.google_drive.id: {
             'tester@example.com': {'file_id': 'drive-id', 'file_name': '1.jpg'},
-          },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/1.jpg', 'file_name': '1.jpg'},
+            'other@example.com': {'file_id': 'other-id', 'file_name': '1.jpg'},
           },
         },
       );
       final drive = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'tester@example.com', serviceType: BackupServiceType.google_drive),
-        serviceType: BackupServiceType.google_drive,
-      );
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
+        currentUser: _FakeUser(identifier: 'tester@example.com'),
       );
 
-      final destinations = asset.matchingCloudDestinationsFor([drive, nextcloud]);
+      final destinations = asset.matchingCloudDestinationsFor([drive]);
 
-      expect(destinations, hasLength(2));
-      expect(
-        destinations.map((d) => d.serviceType),
-        containsAll([BackupServiceType.google_drive, BackupServiceType.nextcloud]),
-      );
+      expect(destinations, hasLength(1));
+      expect(destinations.single.identifier, 'tester@example.com');
+      expect(destinations.single.fileId, 'drive-id');
     });
   });
 }
 
 class _FakeUser implements CloudServiceUser {
   _FakeUser({
-    this.identifier = 'admin@example.com/StoryPad',
-    this.serviceType = BackupServiceType.nextcloud,
+    this.identifier = 'tester@example.com',
   });
 
   @override
-  final BackupServiceType serviceType;
+  BackupServiceType get serviceType => BackupServiceType.google_drive;
 
   @override
   final String identifier;
@@ -209,14 +190,13 @@ class _FakeUser implements CloudServiceUser {
 class _FakeCloudService implements BackupCloudService {
   _FakeCloudService({
     required this.currentUser,
-    this.serviceType = BackupServiceType.nextcloud,
   });
 
   @override
   final CloudServiceUser? currentUser;
 
   @override
-  final BackupServiceType serviceType;
+  BackupServiceType get serviceType => BackupServiceType.google_drive;
 
   @override
   bool get isSignedIn => currentUser != null;

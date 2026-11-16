@@ -18,7 +18,6 @@ class _LanguagesContent extends StatelessWidget {
             ),
         ],
       ),
-      bottomNavigationBar: viewModel.params.showBetaBanner ? _FeedbackBanner(context: context) : null,
       body: ListView.builder(
         padding: const EdgeInsets.only(bottom: 16.0),
         itemCount: viewModel.supportedLocales.length,

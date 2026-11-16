@@ -37,40 +37,12 @@ class _TemplatesContent extends StatelessWidget {
   AppBar buildAppBar(BuildContext context) {
     return AppBar(
       title: Text(
-        viewModel.params.pickMode ? tr("button.choose_template") : tr("paywall_features.templates.title"),
+        viewModel.params.pickMode ? tr("button.choose_template") : tr("general.templates"),
       ),
       bottom: TabBar(
-        onTap: (index) {
-          if (index == 0 && !context.read<InAppPurchaseProvider>().isProUser) {
-            DefaultTabController.of(context).animateTo(1);
-            const PaywallRoute(initialFocus: .templates).push(context);
-            return;
-          }
-
-          viewModel.setCurrentIndex(index);
-        },
+        onTap: (index) => viewModel.setCurrentIndex(index),
         tabs: [
-          Tab(
-            child: Consumer<InAppPurchaseProvider>(
-              builder: (context, iapProvider, child) {
-                return Text.rich(
-                  TextSpan(
-                    text: "${tr('general.my_templates')} ",
-                    children: [
-                      if (!iapProvider.isProUser)
-                        const WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Icon(
-                            SpIcons.lock,
-                            size: 16.0,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+          Tab(text: tr('general.my_templates')),
           Tab(text: tr('general.gallery')),
         ],
       ),
@@ -79,7 +51,6 @@ class _TemplatesContent extends StatelessWidget {
 
   Widget buildBody(BuildContext context) {
     return TabBarView(
-      physics: context.read<InAppPurchaseProvider>().isProUser ? null : const NeverScrollableScrollPhysics(),
       children: [
         TemplatesTab(params: viewModel.params),
         GalleryTab(params: viewModel.params),

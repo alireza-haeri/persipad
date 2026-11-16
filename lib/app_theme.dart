@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 import 'package:animations/animations.dart';
 import 'package:dynamic_color/dynamic_color.dart';
+import 'package:easy_localization/easy_localization.dart' show BuildContextEasyLocalizationExtension;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
@@ -45,8 +45,14 @@ class AppTheme extends StatelessWidget {
     }
   }
 
+  static String? fontFamilyForLocale(BuildContext context) {
+    return context.locale.languageCode == 'fa' ? 'Vazirmatn' : null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String? fontFamily = fontFamilyForLocale(context);
+
     return Consumer<DevicePreferencesProvider>(
       builder: (context, provider, child) {
         return buildColorScheme(
@@ -56,13 +62,13 @@ class AppTheme extends StatelessWidget {
 
             final lightTheme = getTheme(
               colorScheme: lightScheme,
-              fontFamily: provider.preferences.fontFamily,
+              fontFamily: fontFamily,
               fontWeight: provider.preferences.fontWeight,
             );
 
             final darkTheme = getTheme(
               colorScheme: darkScheme,
-              fontFamily: provider.preferences.fontFamily,
+              fontFamily: fontFamily,
               fontWeight: provider.preferences.fontWeight,
             );
 
@@ -86,7 +92,7 @@ class AppTheme extends StatelessWidget {
 
   static ThemeData getTheme({
     required ColorScheme colorScheme,
-    required String fontFamily,
+    String? fontFamily,
     required FontWeight fontWeight,
     Color? scaffoldBackgroundColor,
   }) {
@@ -97,11 +103,8 @@ class AppTheme extends StatelessWidget {
 
     TextStyle calculateTextStyle(TextStyle textStyle, FontWeight defaultFontWeight) {
       return textStyle.copyWith(
+        fontFamily: fontFamily,
         fontWeight: _calculateFontWeight(defaultFontWeight, fontWeight),
-        // The selectable fonts are Latin families; Persian/Arabic glyphs are not
-        // in them, so the OS is asked for the next family in this list. Missing
-        // entries are simply skipped (fontconfig on Linux, the system stack
-        // elsewhere), which is why the list can be generous.
         fontFamilyFallback: kScriptFontFamilyFallback,
       );
     }
@@ -152,25 +155,22 @@ class AppTheme extends StatelessWidget {
           side: BorderSide(color: dividerColor),
         ),
       ),
-      textTheme: GoogleFonts.getTextTheme(
-        GoogleFonts.asMap().keys.contains(fontFamily) ? fontFamily : kDefaultFontFamily,
-        TextTheme(
-          displayLarge: calculateTextStyle(baseTheme.textTheme.displayLarge!, FontWeight.w400),
-          displayMedium: calculateTextStyle(baseTheme.textTheme.displayMedium!, FontWeight.w400),
-          displaySmall: calculateTextStyle(baseTheme.textTheme.displaySmall!, FontWeight.w400),
-          headlineLarge: calculateTextStyle(baseTheme.textTheme.headlineLarge!, FontWeight.w400),
-          headlineMedium: calculateTextStyle(baseTheme.textTheme.headlineMedium!, FontWeight.w400),
-          headlineSmall: calculateTextStyle(baseTheme.textTheme.headlineSmall!, FontWeight.w400),
-          titleLarge: calculateTextStyle(baseTheme.textTheme.titleLarge!, FontWeight.w400),
-          titleMedium: calculateTextStyle(baseTheme.textTheme.titleMedium!, FontWeight.w400),
-          titleSmall: calculateTextStyle(baseTheme.textTheme.titleSmall!, FontWeight.w500),
-          bodyLarge: calculateTextStyle(baseTheme.textTheme.bodyLarge!, FontWeight.w400),
-          bodyMedium: calculateTextStyle(baseTheme.textTheme.bodyMedium!, FontWeight.w400),
-          bodySmall: calculateTextStyle(baseTheme.textTheme.bodySmall!, FontWeight.w400),
-          labelLarge: calculateTextStyle(baseTheme.textTheme.labelLarge!, FontWeight.w500),
-          labelMedium: calculateTextStyle(baseTheme.textTheme.labelMedium!, FontWeight.w500),
-          labelSmall: calculateTextStyle(baseTheme.textTheme.labelSmall!, FontWeight.w500),
-        ),
+      textTheme: TextTheme(
+        displayLarge: calculateTextStyle(baseTheme.textTheme.displayLarge!, FontWeight.w400),
+        displayMedium: calculateTextStyle(baseTheme.textTheme.displayMedium!, FontWeight.w400),
+        displaySmall: calculateTextStyle(baseTheme.textTheme.displaySmall!, FontWeight.w400),
+        headlineLarge: calculateTextStyle(baseTheme.textTheme.headlineLarge!, FontWeight.w400),
+        headlineMedium: calculateTextStyle(baseTheme.textTheme.headlineMedium!, FontWeight.w400),
+        headlineSmall: calculateTextStyle(baseTheme.textTheme.headlineSmall!, FontWeight.w400),
+        titleLarge: calculateTextStyle(baseTheme.textTheme.titleLarge!, FontWeight.w400),
+        titleMedium: calculateTextStyle(baseTheme.textTheme.titleMedium!, FontWeight.w400),
+        titleSmall: calculateTextStyle(baseTheme.textTheme.titleSmall!, FontWeight.w500),
+        bodyLarge: calculateTextStyle(baseTheme.textTheme.bodyLarge!, FontWeight.w400),
+        bodyMedium: calculateTextStyle(baseTheme.textTheme.bodyMedium!, FontWeight.w400),
+        bodySmall: calculateTextStyle(baseTheme.textTheme.bodySmall!, FontWeight.w400),
+        labelLarge: calculateTextStyle(baseTheme.textTheme.labelLarge!, FontWeight.w500),
+        labelMedium: calculateTextStyle(baseTheme.textTheme.labelMedium!, FontWeight.w500),
+        labelSmall: calculateTextStyle(baseTheme.textTheme.labelSmall!, FontWeight.w500),
       ),
     );
   }

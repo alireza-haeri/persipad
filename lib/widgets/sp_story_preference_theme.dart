@@ -49,7 +49,7 @@ class _SpStoryPreferenceThemeState extends State<SpStoryPreferenceTheme> {
     SpStoryPreferenceThemeConstructor themeConstructor = SpStoryPreferenceThemeConstructor(
       isDarkMode: Theme.of(context).brightness == Brightness.dark,
       context: context,
-      fontFamily: widget.preferences?.fontFamily ?? themeProvider.preferences.fontFamily,
+      fontFamily: AppTheme.fontFamilyForLocale(context),
       fontWeight: widget.preferences?.fontWeight ?? themeProvider.preferences.fontWeight,
       preferences: widget.preferences,
     );
@@ -112,7 +112,7 @@ class SpStoryPreferenceThemeConstructor {
 
   final bool isDarkMode;
   final BuildContext context;
-  final String fontFamily;
+  final String? fontFamily;
   final FontWeight fontWeight;
   final StoryPreferencesDbModel? preferences;
 

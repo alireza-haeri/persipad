@@ -27,11 +27,7 @@ class SidebarOrderViewModel extends ChangeNotifier with DisposeAwareMixin {
   /// Same rule the sidebar itself uses, imported rather than re-derived — a row
   /// that claims to be usable but is hidden in the sidebar (or the reverse) is the
   /// kind of inconsistency this screen exists to avoid.
-  bool isAvailable(SidebarItemId item) => SideItems.isAvailable(
-    item,
-    enableMap: devicePreferencesProvider.enableMap,
-    enableRelaxSounds: devicePreferencesProvider.enableRelaxSounds,
-  );
+  bool isAvailable(SidebarItemId item) => SideItems.isAvailable(item);
 
   void reorder(int oldIndex, int newIndex) {
     // ReorderableListView reports the *pre-removal* index for the drop slot.

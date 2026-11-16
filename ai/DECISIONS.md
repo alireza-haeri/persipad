@@ -1018,3 +1018,38 @@ Template:
   NDK/CMake versions cleanly, while CI leaves all `notely*` properties unset and continues building against
   `android-37` + pinned NDK `28.2.13676358`. Warning for future edits: never remove `notelyCompileSdkMinor`
   or `notelyNdkVersion` propagation in `android/build.gradle.kts`.
+
+## D-041 — Lightweight fork trim: single OAuth Drive sync, two locales, zero paywall/map/sounds/period bloat (2026-11-16)
+- **Status:** accepted (closes `BACKLOG.md` A-3 / I-13; supersedes `D-011` and `D-012`'s multi-provider/Pro policy)
+- **Context:** With the local Fedora Android build and CI `[apk]` loop established (`D-038`..`D-040`),
+  the fork carried heavy upstream subsystems that added APK/compile weight, SDK permissions, and broken
+  cross-device sync splits (`D-021`): RevenueCat IAP/paywall/Support Us, Google Maps + `flutter_map` +
+  geolocator/geocoding, `audio_service` Relax Sounds, Period Calendar, Add-ons screen, `google_fonts` runtime
+  font downloading/picker, Dropbox/Nextcloud/iCloud backup backends (`webdav_client`, `dio`,
+  `flutter_web_auth_2`, `google_sign_in`), and 19 non-EN/FA translation files.
+- **Decision:**
+  1. **Remove deleted features and 14 dependencies from `pubspec.yaml`** (`audio_service`, `dio`,
+     `flutter_map`, `flutter_web_auth_2`, `geocoding`, `geolocator`, `google_fonts`, `google_maps_flutter`,
+     `google_maps_flutter_ios_sdk10`, `google_sign_in`, `latlong2`, `open_location_code`,
+     `purchases_flutter`, `webdav_client`).
+  2. **Unify Google Drive sync on `GoogleDesktopAuthStrategy` for both Android and Linux** (`D-021` / `I-13`),
+     dropping `GoogleSignInAuthStrategy` and `GoogleDriveLinuxCloudService`. `GoogleDriveCloudService`
+     reads `GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wraps interactive browser OAuth
+     in `SpAppLockWrapper.disableAppLockIfHas`, declares an `https` `BROWSABLE` query intent in
+     `AndroidManifest.xml`, and `MainActivity` extends `FlutterFragmentActivity` directly (replacing
+     `AudioServiceFragmentActivity`).
+  3. **Keep English (`en`) and Persian (`fa`) only** in `translations/` (`485` keys in exact parity),
+     using platform system fonts for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale`)
+     instead of runtime `google_fonts`.
+  4. **Move Daily Score toggle straight into Settings → Stories** (`list_tile.daily_score.{title,subtitle}`)
+     and unlock all remaining customization/export/template/stats features unconditionally without paywall
+     or `InAppPurchaseProvider` indirection, while keeping Linux `FilePicker.saveFile` path writes working
+     for all offline exports.
+  5. **Preserve persisted DB/JSON schemas and `*.g.dart` fields** (`PlaceDbModel`, `EventDbModel`,
+     `RelaxSoundMixModel`, `DevicePreferencesObject`, `StoryTilePreferencesObject`, `PreferencesBox` IDs
+     `3`/`4`) so existing user backups and local ObjectBox stores remain readable, while syncing
+     `ReminderType.period` removal cleanly across `reminder_type.dart` and `reminder_object.g.dart`.
+- **Consequences:** Both Android and Linux share one Google Drive `appDataFolder` via the desktop OAuth
+  client, all Pro-gated clutter is gone, Android loses location/audio-service/ad-free-bloat manifests,
+  and only `en`/`fa` locales need ongoing maintenance.
+

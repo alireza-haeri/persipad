@@ -12,7 +12,7 @@ void main() {
     });
 
     test('setUserProperty with null value completes without throwing', () async {
-      await expectLater(adaptor.setUserProperty('font_family', null), completes);
+      await expectLater(adaptor.setUserProperty('color_seed', null), completes);
     });
 
     test('logSetThemeMode completes without throwing', () async {
@@ -22,8 +22,8 @@ void main() {
       );
     });
 
-    test('logSetFontFamily completes without throwing', () async {
-      await expectLater(adaptor.logSetFontFamily(newFontFamily: 'Roboto'), completes);
+    test('logToggleDailyScore completes without throwing', () async {
+      await expectLater(adaptor.logToggleDailyScore(enabled: true), completes);
     });
 
     test('logSetStoryTilePreferences completes without throwing', () async {

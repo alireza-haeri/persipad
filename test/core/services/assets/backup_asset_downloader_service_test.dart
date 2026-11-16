@@ -33,8 +33,6 @@ void main() {
     );
   }
 
-  // asset.localFilePath resolves under kSupportDirectory, which is normally
-  // set during app init — point it at a scratch dir for this group only.
   setUpAll(() {
     tempDir = io.Directory.systemTemp.createTempSync('backup_asset_downloader_test_');
     kSupportDirectory = tempDir;
@@ -83,20 +81,17 @@ void main() {
       );
     });
 
-    test('throws when no signed-in service matches the destination\'s serviceType', () async {
+    test('throws when no signed-in service matches', () async {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
           },
         },
       );
 
-      // Only Drive is signed in — the asset's only destination is Nextcloud.
-      final drive = _FakeCloudService(currentUser: _FakeUser(), serviceType: BackupServiceType.google_drive);
-
       await expectLater(
-        service.downloadAsset(asset: asset, signedInServices: [drive]),
+        service.downloadAsset(asset: asset, signedInServices: []),
         throwsA(isA<BackupAssetDownloadException>()),
       );
     });
@@ -104,84 +99,58 @@ void main() {
     test('throws when the destination belongs to a different (switched) account on the same service', () async {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'old-admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
+          BackupServiceType.google_drive.id: {
+            'old@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
           },
         },
       );
 
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'new-admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
+      final drive = _FakeCloudService(
+        currentUser: _FakeUser(identifier: 'new@example.com'),
       );
 
       await expectLater(
-        service.downloadAsset(asset: asset, signedInServices: [nextcloud]),
+        service.downloadAsset(asset: asset, signedInServices: [drive]),
         throwsA(isA<BackupAssetDownloadException>()),
       );
     });
 
-    test('downloads from the one matching signed-in service and writes the file', () async {
-      final asset = buildAsset(
-        cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
-          },
-        },
-      );
-
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
-        bytesToDownload: [1, 2, 3],
-      );
-
-      final path = await service.downloadAsset(asset: asset, signedInServices: [nextcloud]);
-
-      expect(path, asset.localFilePath);
-      expect(io.File(path).readAsBytesSync(), [1, 2, 3]);
-    });
-
-    test('picks the correct destination when both Drive and Nextcloud have this asset, only one signed in', () async {
+    test('downloads from the matching signed-in service and writes the file', () async {
       final asset = buildAsset(
         cloudDestinations: {
           BackupServiceType.google_drive.id: {
             'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
           },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
-          },
         },
       );
 
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
-        bytesToDownload: [4, 5, 6],
+      final drive = _FakeCloudService(
+        currentUser: _FakeUser(identifier: 'tester@example.com'),
+        bytesToDownload: [1, 2, 3],
       );
 
-      final path = await service.downloadAsset(asset: asset, signedInServices: [nextcloud]);
+      final path = await service.downloadAsset(asset: asset, signedInServices: [drive]);
 
-      expect(io.File(path).readAsBytesSync(), [4, 5, 6]);
+      expect(path, asset.localFilePath);
+      expect(io.File(path).readAsBytesSync(), [1, 2, 3]);
     });
 
     test('throws when the matched service returns null bytes', () async {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
           },
         },
       );
 
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
+      final drive = _FakeCloudService(
+        currentUser: _FakeUser(identifier: 'tester@example.com'),
         bytesToDownload: null,
       );
 
       await expectLater(
-        service.downloadAsset(asset: asset, signedInServices: [nextcloud]),
+        service.downloadAsset(asset: asset, signedInServices: [drive]),
         throwsA(isA<BackupAssetDownloadException>()),
       );
     });
@@ -189,105 +158,19 @@ void main() {
     test('lets the underlying service exception propagate unwrapped', () async {
       final asset = buildAsset(
         cloudDestinations: {
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
+          BackupServiceType.google_drive.id: {
+            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
           },
         },
       );
 
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
+      final drive = _FakeCloudService(
+        currentUser: _FakeUser(identifier: 'tester@example.com'),
         downloadShouldThrow: true,
       );
 
       await expectLater(
-        service.downloadAsset(asset: asset, signedInServices: [nextcloud]),
-        throwsA(isA<Exception>()),
-      );
-    });
-
-    test('falls back to a second matching destination when the first (Drive) throws', () async {
-      final asset = buildAsset(
-        cloudDestinations: {
-          BackupServiceType.google_drive.id: {
-            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
-          },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
-          },
-        },
-      );
-
-      final drive = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'tester@example.com', serviceType: BackupServiceType.google_drive),
-        serviceType: BackupServiceType.google_drive,
-        downloadShouldThrow: true,
-      );
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
-        bytesToDownload: [7, 8, 9],
-      );
-
-      final path = await service.downloadAsset(asset: asset, signedInServices: [drive, nextcloud]);
-
-      expect(io.File(path).readAsBytesSync(), [7, 8, 9]);
-    });
-
-    test('falls back to a second matching destination when the first (Drive) returns null bytes', () async {
-      final asset = buildAsset(
-        cloudDestinations: {
-          BackupServiceType.google_drive.id: {
-            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
-          },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
-          },
-        },
-      );
-
-      final drive = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'tester@example.com', serviceType: BackupServiceType.google_drive),
-        serviceType: BackupServiceType.google_drive,
-        bytesToDownload: null,
-      );
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
-        bytesToDownload: [7, 8, 9],
-      );
-
-      final path = await service.downloadAsset(asset: asset, signedInServices: [drive, nextcloud]);
-
-      expect(io.File(path).readAsBytesSync(), [7, 8, 9]);
-    });
-
-    test('throws the last error when every matching destination fails', () async {
-      final asset = buildAsset(
-        cloudDestinations: {
-          BackupServiceType.google_drive.id: {
-            'tester@example.com': {'file_id': 'drive-id', 'file_name': '42.jpg'},
-          },
-          BackupServiceType.nextcloud.id: {
-            'admin@example.com/StoryPad': {'file_id': '/StoryPad/images/42.jpg', 'file_name': '42.jpg'},
-          },
-        },
-      );
-
-      final drive = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'tester@example.com', serviceType: BackupServiceType.google_drive),
-        serviceType: BackupServiceType.google_drive,
-        downloadShouldThrow: true,
-      );
-      final nextcloud = _FakeCloudService(
-        currentUser: _FakeUser(identifier: 'admin@example.com/StoryPad'),
-        serviceType: BackupServiceType.nextcloud,
-        downloadShouldThrow: true,
-      );
-
-      await expectLater(
-        service.downloadAsset(asset: asset, signedInServices: [drive, nextcloud]),
+        service.downloadAsset(asset: asset, signedInServices: [drive]),
         throwsA(isA<Exception>()),
       );
     });
@@ -296,12 +179,11 @@ void main() {
 
 class _FakeUser implements CloudServiceUser {
   _FakeUser({
-    this.identifier = 'admin@example.com/StoryPad',
-    this.serviceType = BackupServiceType.nextcloud,
+    this.identifier = 'tester@example.com',
   });
 
   @override
-  final BackupServiceType serviceType;
+  BackupServiceType get serviceType => BackupServiceType.google_drive;
 
   @override
   final String identifier;
@@ -328,7 +210,6 @@ class _FakeUser implements CloudServiceUser {
 class _FakeCloudService implements BackupCloudService {
   _FakeCloudService({
     required this.currentUser,
-    this.serviceType = BackupServiceType.nextcloud,
     this.bytesToDownload,
     this.downloadShouldThrow = false,
   });
@@ -346,7 +227,7 @@ class _FakeCloudService implements BackupCloudService {
   }
 
   @override
-  final BackupServiceType serviceType;
+  BackupServiceType get serviceType => BackupServiceType.google_drive;
 
   @override
   bool get isSignedIn => currentUser != null;

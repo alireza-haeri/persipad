@@ -43,7 +43,7 @@ class RemindersViewModel extends ChangeNotifier with DisposeAwareMixin {
     super.dispose();
   }
 
-  /// Built-in reminders (daily/on-this-day/period) edit via a compact sheet.
+  /// Built-in reminders (daily/on-this-day) edit via a compact sheet.
   Future<void> openBuiltinEditor(BuildContext context, ReminderObject reminder) async {
     await SpEditReminderSheet(reminder: reminder).show(context: context);
   }

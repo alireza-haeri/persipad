@@ -136,14 +136,33 @@ jobs:
         run: flutter pub get
 
       - name: Prepare dart-defines
-        # android/app/build.gradle.kts reads APP_NAME and the Maps key out of
-        # --dart-define-from-file with defaults, so an empty file is enough for the
-        # community build. bin/dev creates the same file locally.
+        # android/app/build.gradle.kts reads APP_NAME out of
+        # --dart-define-from-file with defaults, and GoogleDriveCloudService reads
+        # GOOGLE_DESKTOP_CLIENT_ID / GOOGLE_DESKTOP_CLIENT_SECRET when configured.
+        env:
+          GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
           mkdir -p bin/.tmp/private_keys/dart_defines
-          if [ ! -f bin/.tmp/private_keys/dart_defines/$FLAVOR.json ]; then
-            echo '{}' > bin/.tmp/private_keys/dart_defines/$FLAVOR.json
-          fi
+          python3 - <<'PY'
+          import json, os
+
+          path = f"bin/.tmp/private_keys/dart_defines/{os.environ['FLAVOR']}.json"
+          try:
+              with open(path) as handle:
+                  data = json.load(handle)
+          except (FileNotFoundError, json.JSONDecodeError):
+              data = {}
+
+          for key in ("GOOGLE_DESKTOP_CLIENT_ID", "GOOGLE_DESKTOP_CLIENT_SECRET"):
+              value = os.environ.get(key, "").strip()
+              if value:
+                  data[key] = value
+
+          with open(path, "w") as handle:
+              json.dump(data, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
 
       - name: Decide the signing mode
         id: signing
@@ -243,7 +262,12 @@ jobs:
         run: |
           set -uo pipefail
           APK="${{ steps.apk.outputs.path }}"
-          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$BUILD_TOOLS" ] || [ ! -d "$BUILD_TOOLS" ]; then
+            echo "::error::Android build-tools not found under '$SDK/build-tools'"
+            exit 1
+          fi
           AAPT2="$BUILD_TOOLS/aapt2"
           [ -x "$AAPT2" ] || AAPT2="$BUILD_TOOLS/aapt"
           BADGING=$("$AAPT2" dump badging "$APK" 2>/dev/null || true)
@@ -256,10 +280,10 @@ jobs:
           TGT=$(field "s/^targetSdkVersion:'\([^']*\)'.*/\1/p")
           ABI=$(field "s/^native-code: //p")
           SIGNER=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>/dev/null |
-                   sed -n 's/^Signer #1 certificate DN: //p' | head -1)
+                   sed -n 's/^Signer #1 certificate DN: //p' | head -1 || true)
 
-          LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so')
-          DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex')
+          LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so' || true)
+          DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex' || true)
 
           echo "package=$PKG" >> "$GITHUB_OUTPUT"
           echo "min=$MIN"   >> "$GITHUB_OUTPUT"
@@ -286,6 +310,7 @@ jobs:
           PKG: ${{ steps.verify.outputs.package }}
           MIN: ${{ steps.verify.outputs.min }}
           TGT: ${{ steps.verify.outputs.target }}
+          ABI: ${{ steps.verify.outputs.abi }}
           SIGNER: ${{ steps.verify.outputs.signer }}
         run: |
           set -e

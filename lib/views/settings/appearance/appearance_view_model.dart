@@ -5,11 +5,9 @@ import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/types/appearance_preference_key.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/views/day_colors/day_colors_view.dart';
 import 'package:storypad/views/settings/local_widgets/app_icon_tile.dart';
 import 'package:storypad/views/settings/local_widgets/color_seed_tile.dart';
-import 'package:storypad/views/settings/local_widgets/font_family_tile.dart';
 import 'package:storypad/views/settings/local_widgets/font_size_tile.dart';
 import 'package:storypad/views/settings/local_widgets/font_weight_tile.dart';
 import 'package:storypad/views/settings/local_widgets/quick_actions_tile.dart';
@@ -18,10 +16,7 @@ import 'package:storypad/views/settings/local_widgets/theme_mode_tile.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_setting_icon_badge.dart';
 
-/// A single tile on the Appearance page.
-///
-/// [resetKey] is `null` for tiles with nothing to reset (e.g. `AppIconTile`,
-/// `QuickActionsTile` — app shortcuts aren't a resettable preference).
+/// A single tile on the Appearance settings page.
 class AppearanceItem {
   const AppearanceItem({
     required this.builder,
@@ -79,10 +74,6 @@ class AppearanceViewModel extends ChangeNotifier with DisposeAwareMixin {
             resetKey: .fontSize,
           ),
           AppearanceItem(
-            builder: (context) => FontFamilyTile.globalTheme(weekday: 3),
-            resetKey: .fontFamily,
-          ),
-          AppearanceItem(
             builder: (context) => FontWeightTile.globalTheme(weekday: 4),
             resetKey: .fontWeight,
           ),
@@ -112,16 +103,10 @@ class AppearanceViewModel extends ChangeNotifier with DisposeAwareMixin {
   static Widget _buildQuickActionsTile(BuildContext context) => QuickActionsTile();
 
   static Widget _buildDayColorTile(BuildContext context) {
-    return Consumer<InAppPurchaseProvider>(
-      builder: (context, inAppPurchaseProvider, child) {
-        final locked = !inAppPurchaseProvider.isProUser;
-        return ListTile(
-          trailing: locked ? const Icon(SpIcons.lock) : null,
-          leading: const SpSettingIconBadge(weekday: 5, icon: SpIcons.theme),
-          title: Text(context.tr('list_tile.day_colors.title')),
-          onTap: () => const DayColorsRoute().push(context),
-        );
-      },
+    return ListTile(
+      leading: const SpSettingIconBadge(weekday: 5, icon: SpIcons.theme),
+      title: Text(context.tr('list_tile.day_colors.title')),
+      onTap: () => const DayColorsRoute().push(context),
     );
   }
 }

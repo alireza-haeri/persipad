@@ -23,6 +23,7 @@
 # artifacts you want to keep, this is for the loop you are in now (D-038).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source "$(dirname "$0")/helpers"
 
 FLAVOR=community
 MODE=debug
@@ -327,9 +328,8 @@ elif [ "$ORG_GRADLE_PROJECT_notelyNdkVersion" = "none" ] && [ "$NEEDS_NDK" = 1 ]
 fi
 
 # ---------------------------------------------------------------- dart-defines
+sync_private_keys
 DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
-mkdir -p "$(dirname "$DEFINES")"
-[ -f "$DEFINES" ] || echo '{}' > "$DEFINES"
 
 # ---------------------------------------------------------------- signing
 if [ "$MODE" = "release" ] && [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then

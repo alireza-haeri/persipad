@@ -10,11 +10,8 @@ import 'package:storypad/core/objects/default_story_preferences_object.dart';
 import 'package:storypad/core/services/messenger_service.dart';
 import 'package:storypad/core/types/editing_flow_type.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_purchase_provider.dart';
 import 'package:storypad/views/home/home_view.dart';
-import 'package:storypad/views/paywall/paywall_view.dart';
 import 'package:storypad/views/stories/local_widgets/base_story_view_model.dart';
-import 'package:storypad/views/settings/local_widgets/font_family_tile.dart';
 import 'package:storypad/views/settings/local_widgets/font_size_tile.dart';
 import 'package:storypad/views/settings/local_widgets/font_weight_tile.dart';
 import 'package:storypad/widgets/bottom_sheets/base_bottom_sheet.dart';
@@ -112,19 +109,6 @@ class _StoryThemeSheetState extends State<_StoryThemeSheet> with DebounchedCallb
           const SizedBox(height: 4.0),
           buildHeader(context),
           const SizedBox(height: 8.0),
-          FontFamilyTile(
-            currentFontWeight:
-                preferences.fontWeight ?? context.read<DevicePreferencesProvider>().preferences.fontWeight,
-            currentFontFamily:
-                preferences.fontFamily ?? context.read<DevicePreferencesProvider>().preferences.fontFamily,
-            onChanged: (fontFamily) {
-              preferences = preferences.copyWith(fontFamily: fontFamily);
-              setState(() {});
-
-              widget.onThemeChanged(preferences);
-            },
-            weekday: 2,
-          ),
           FontSizeTile(
             currentFontSize: preferences.fontSize,
             onChanged: (fontSize) {
@@ -216,12 +200,8 @@ class _StoryThemeSheetState extends State<_StoryThemeSheet> with DebounchedCallb
             titleStyle: TextStyle(
               color: alreadySavedAsDefault ? Theme.of(context).disabledColor : null,
             ),
-            trailingIconData: !context.read<InAppPurchaseProvider>().isProUser
-                ? SpIcons.lock
-                : (alreadySavedAsDefault ? SpIcons.check : null),
-            onPressed: !context.read<InAppPurchaseProvider>().isProUser
-                ? () => const PaywallRoute(initialFocus: .customizations).push(context)
-                : alreadySavedAsDefault
+            trailingIconData: alreadySavedAsDefault ? SpIcons.check : null,
+            onPressed: alreadySavedAsDefault
                 ? null
                 : () {
                     context.read<DevicePreferencesProvider>().setDefaultStoryPreferences(
@@ -244,7 +224,6 @@ class _StoryThemeSheetState extends State<_StoryThemeSheet> with DebounchedCallb
             SpPopMenuItem(
               title: tr('button.save_as_template'),
               leadingIconData: SpIcons.lightBulb,
-              trailingIconData: !context.read<InAppPurchaseProvider>().isProUser ? SpIcons.lock : null,
               onPressed: () => storyViewModel.saveAsTemplate(context),
             ),
             if (story.editable)

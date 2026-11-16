@@ -34,7 +34,7 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 |---|---|---|
 | A-1 | `✅` CI APK workflow (`.github/workflows/android.yml`) | Builds arm64 `community` APK on `[apk]` commit subject + publishes pre-release (D-038, D-039) |
 | A-2 | `✅` Local Fedora APK loop (`bin/build_apk` + `bin/android_doctor`) | Handles offline `dl.google.com` via Tencent/Huawei Maven mirror, `android-36.1` minor SDK, `--no-ndk` `forceNdkDownload` bypass, and `--avd` (D-040) |
-| A-3 | `🔜` **Lightweight mobile (phone) build** | User goal (N-015): trim heavy/unused modules or dependencies to produce a lean, fast phone APK once the first local Fedora build is verified; scope & feature cuts pending user decision |
+| A-3 | `✅` **Lightweight mobile (phone) build** | Trimmed Maps/Location, Relax Sounds, Period Calendar, Add-ons, Fonts picker, IAP/Paywall/Support Us, non-Drive backups (`Nextcloud`/`Dropbox`/`iCloud`), and 19 unused locales (`D-041`) |
 
 ## 0b. Calendar (the Persian-calendar track)
 
@@ -99,5 +99,5 @@ Generic journaling-app ideas; your preferences set the priority.
 | Id | | Item | Why |
 |---|---|---|---|
 | I-12 | `🔴` | Verify Nextcloud sync against the **official** phone app (same account, same folder) | the only path-based provider both apps already support — this is the realistic phone↔desktop bridge |
-| I-13 | `🟡` | Android build that reuses the **desktop** OAuth client id (loopback flow, not `google_sign_in`) | only then do our own devices share one Drive appDataFolder (D-021) |
+| I-13 | `✅` | Android build that reuses the **desktop** OAuth client id (loopback flow, not `google_sign_in`) | Unified in `D-041`: both Linux and Android now use `GoogleDesktopAuthStrategy` so both devices share one Drive `appDataFolder` |
 | I-14 | `🟡` | One-time migration flow: import a phone-exported JSON, then let Drive take over | existing notes must not be stranded on the old app |
