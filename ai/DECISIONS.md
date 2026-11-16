@@ -630,9 +630,12 @@ Template:
      in RTL. Same treatment for `EdgeInsets.only(left/right:)` that really meant start/end.
   4. **Persian months are never abbreviated.** `DateFormatHelper.monthName(short: true)` and
      `MMM` ignore `short` when the display calendar is Persian: `آبا` is a stem of آبان/آذر/
-     اردیبهشت, not a name. Latin months keep `Aug`/`Nov`. The timeline month chip therefore
-     grows around its centre (the rail still crosses the middle) instead of scaling a full name
-     into illegibility.
+     اردیبهشت, not a name. Latin months keep `Aug`/`Nov`. The timeline month chip keeps its one
+     monogram width (the rail crosses its centre) and scales the full name down with a
+     `FittedBox`. It must **not** use an `OverflowBox` to grow sideways: a story list gives its
+     rows unbounded height, `OverflowBox` sizes itself to `constraints.biggest`, and
+     `Size(32, infinity)` fails layout for the whole scroll view — see the incident in
+     `PROGRESS.md` (the blank home screen of 2026-11-15).
   5. **The big window sidebar and its insets mirror.** The root sidebar docks to the start edge
      (right in RTL) and `RootPagesMediaQuery` puts its 88pt inset on that side, so pages are not
      pushed clear of a sidebar that is no longer there.

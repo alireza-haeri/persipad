@@ -251,3 +251,22 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
 - The "Verify formatting" step stays advisory and now lists files nobody touched in this round
   (`stories_box.dart`, `home_view_model.dart`, …), i.e. it is the CI formatter version disagreeing
   with the committed style, not this change.
+
+### Incident — 2026-11-15: the blank home screen (fixed in `573024a`)
+- After the RTL round every story list rendered nothing: the home screen showed only the
+  timeline side bar and the FAB (its app bar lives in the same viewport, so it went too), and
+  the calendar's notes tab was white.
+- Cause: `_MonthChip` (the month badge on a story-list header) was wrapped in an `OverflowBox`
+  so a full Persian month name could grow symmetrically around the rail. `OverflowBox` defaults
+  to `OverflowBoxFit.max`, which is `sizedByParent` — it takes `constraints.biggest` — and a list
+  gives its rows unbounded height, so the box resolved to `Size(32, infinity)` and failed layout.
+  A failing child takes the whole viewport with it, which is why the app bar vanished too.
+- Fix: the chip is back to the plain `Container` + `FittedBox(scaleDown)` the tile always used,
+  now with the full month name. `test/widgets/story_list/story_month_header_test.dart` pumps two
+  headers in a `SingleChildScrollView` (unbounded height) in LTR and RTL and asserts the Shamsi
+  chip reads `آبان` — that test fails with the old widget.
+- Two follow-up CI rounds were spent on the *test*, not the fix: `context.locale` comes from
+  `EasyLocalization` and throws without that widget, and easy_localization re-exports `intl`,
+  whose `TextDirection` has no `.ltr`/`.rtl` and shadows Material's. Both are now encoded in the
+  test's imports (`show AssetLoader, EasyLocalization`) and its in-memory `AssetLoader`.
+- CI `43796471061` green: Analyze 83s, Test (1) 197s, Test (2) 207s.
