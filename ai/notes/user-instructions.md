@@ -255,6 +255,32 @@ question, so the next session does not have to guess.
 **Status:** ✅ done → `D-047`, `D-048`, `D-049`
 **Note:** Confirmed all `D-047` lightweight trims; unified offline fonts (`Vazirmatn` for `fa`, bundled `Quicksand` for `en`); fixed the `Asia/Tehran` DST failure surfaced by `bin/local_verify` on Fedora (`D-049`).
 
+## Session 14 — 2026-11-16
+
+### N-021 — Continue the session-13 AI's work; the emulator sign-in log is the brief
+> «سلام خوبی. روی برنچ ...e5 یه ai داشت کار میکرد خطا خورد و متوقف شد. لطفا پوشه ai رو بخون و
+> تغیراتش رو هم ببین. کارش رو ادامه بدیم» + the current logs: `Sign-in failed: ClientException
+> with SocketException: Failed host lookup: 'oauth2.googleapis.com' … errno = 7` (after trying
+> to sign in on the emulator) and a `bin/local_verify` report ending in
+> `Error: Directory ../static/sources/story_backgrounds not found` / `err build_runner failed`.
+> «سعی کن کار رو سریع انجام بدی. فعلا نیازی به ci نیست. تست ها رو من اجرا میکنم و بیلد میگیریم»
+
+**Status:** ✅ done → `D-055`, `PROGRESS.md` session 14, `CHANGES.md` §8, `NEXT.md` rewritten
+**What I understood:**
+1. *Read `ai/` and the diff first* — the crashed session's state has to be reconstructed from
+   the folder, not from assumptions. It turned out every code change from that session was
+   already committed (`15b28ac`) and green in CI; the crash happened during the bookkeeping,
+   so the folder was half-updated.
+2. *Continue the work* — the one real gap left by `D-053` was that fixing the emulator still
+   required a human to remember `--dns-server`; that is now automatic, and an AVD that was
+   already running is diagnosed before install (`D-055`).
+3. *Speed over process for now* — no CI runs requested, the user runs the tests and the builds.
+   Commits therefore carry no `[full]`/`[build]` marker unless a run is actually wanted.
+**Note:** the two log excerpts are from *before* `15b28ac` (the report names commit `89dc1f0`
+on `arena/446a6eb3-notely`), so they describe the state that session 13 fixed, not a new
+failure. I did not treat them as a fresh bug; I did treat them as evidence that the fix had
+never been exercised, which is why the first item in `NEXT.md` is a single sign-in attempt.
+
 ---
 
 ## Template for a new note

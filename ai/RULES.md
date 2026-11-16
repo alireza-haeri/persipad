@@ -6,7 +6,8 @@
 ## 1. Git & branch rules
 
 - We **always** work on the current active branch of the session (`main` holds the
-  integrated baseline; per-session Arena branches such as **`arena/41be3147-notely`**
+  integrated baseline; per-session Arena branches — the current one is
+  **`arena/085071d0-notely`**, branched from `arena/2ef5bee5-notely` at `15b28ac` —
   merge back into `main` via PR once verified). Never switch to, create, push to, or
   rename another branch unless you are explicitly working in a new session attached
   to that branch.

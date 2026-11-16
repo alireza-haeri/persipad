@@ -1,11 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-16
+**Last updated:** 2026-11-16 (session 14)
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
 
-**Current session:** session 12 — parallel branch review, integration, local+CI verification, and `main` consolidation (`D-047`..`D-049`)
-**Branch:** `main` (integrated via `arena/41be3147-notely`)
-**Phase:** ✅ Consolidated on `main` — Linux CI (7/7 jobs), Android APK CI, and local Fedora Linux + Android APK verification all green
+**Current session:** session 14 — finishing session 13 (the emulator "sign-in failed" that was DNS), plus making the AVD fix itself (`D-053`..`D-055`)
+**Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
+**Phase:** ✅ Session 13 is committed and green in CI; session 14 closes the last gap (a running AVD is diagnosed, a booted one gets a real resolver automatically). Waiting on one thing from you: one emulator sign-in attempt.
 
 ---
 
@@ -17,11 +17,13 @@
    - **Two locales & 100% offline dual-font typography (`D-048`):** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using bundled `Quicksand` (`Quicksand-Variable.ttf`) for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale` / `fontFamilyForLanguageCode`), with zero network font fetching.
    - **Performance, tests, CI & DST-safe calendar (`D-042`..`D-046`, `D-049`):** Non-blocking search reindex (`count()` probe), backup merge unit tests (`BackupRepository.overrideDatabases`), `SearchFilterObject` tests, calendar cell accessibility semantics, DST-safe civil/UTC date math (`Asia/Tehran` verified), editor package test job (`390` cases) + `Coverage` job (`14.7%`) in `linux.yml`, fail-closed `apksigner` signature check + `[apk-test]` mode in `android.yml`, and `bin/local_verify` for one-command local Linux + Android verification.
    - **Daily Score in Settings:** Daily Score toggle lives in Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
+   - **Runtime defects from real Fedora/Android logs (`D-050`..`D-055`):** Linux voice notes play through a system CLI player (`LinuxVoicePlayerBackend`), no-op syncs no longer reload the home screen, story lists watch a filter notifier, a missing artwork submodule is a codegen *skip*, and an **unreachable Google is a network error** — `signIn` shows `snack_bar.no_internet`, `refresh` marks the service `noInternet`, `restore()` keeps the account while offline, and app startup cannot throw because of it. The AVD now gets a working resolver by itself (`bin/build_apk` reads `resolvectl dns` when the host uses the `127.0.0.53` stub) and an already-running emulator with broken DNS is named as such before you install.
    - **Android (`community` flavor, local Fedora & CI verified):** `bin/android_doctor` + `bin/build_apk` confirmed working end-to-end on Fedora (`NDK 28.2.13676358` + `CMake 3.22.1` + `android-36.1` + Tencent Maven mirror → APK built in `1m32s`), alongside `.github/workflows/android.yml` on GitHub Actions.
 2. **Verified metrics (2026-11-16):**
    - **Fedora local (`bin/local_verify`):** `analyze` PASS (`12s`), `root tests` PASS (`+1087`, `56s`), `editor tests` PASS (`+11088` steps / 57 files, `24s`), `linux build` PASS (`13s`), `android apk` PASS (`1m32s`).
-   - **GitHub Actions CI:** Linux (`43854176350`) 7/7 jobs green; Android (`43849981463`) APK build + signature verification green.
+   - **GitHub Actions CI:** Linux (`43868965727` on `15b28ac`, the session-13 commit): `Scope`, `Analyze`, `Test (1)`, `Test (2)`, `Editor package tests`, `Build Linux desktop` all green; `Coverage` (advisory) was still running when the session ended. Earlier full runs: Linux `43854176350` 7/7; Android `43849981463` APK build + signature verification green.
 3. **What is planned next:**
+   - **👤 One emulator sign-in attempt** — `bin/build_apk --install --avd=storypad_dev` (no flags: the resolver is automatic now) → Settings → Backup → Google Drive → sign in. This is the only open question in the sync path, and it needs your machine.
    - **Real-device Google Drive OAuth E2E check:** configure `GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET` via `bin/setup_sync` and test sign-in + sync between Linux desktop and Android phone.
    - **Release keystore secrets (optional):** add `ANDROID_KEYSTORE_*` secrets in GitHub Settings if smaller, updatable release-signed APKs are wanted from `[apk]`.
 4. **Hard rules & invariants for any agent touching this repo:**
@@ -626,3 +628,38 @@ adb shell ping -c1 oauth2.googleapis.com     # must answer before the app can si
 
 The remaining log noise (GTK `border-spacing` / cursor theme, Impeller, Gradle/AGP
 deprecations) is unchanged and still benign or backlogged as noted in Session 12.
+
+### Session 14 — Session 13 finished, and the AVD fixes its own DNS (2026-11-16)
+
+Session 13's AI stopped right after its commit (`15b28ac`); the code, the tests and the
+`ENVIRONMENT.md` section were in, but `PROGRESS.md` still said "session 12", `NEXT.md` was
+written before the DNS finding, and `CHANGES.md` had no entry. This session finished that
+bookkeeping and closed the one real gap left in the fix.
+
+| # | Gap after `15b28ac` | Fix |
+|---|---|---|
+| 1 | The AVD only got a working resolver if a human remembered `--dns-server=8.8.8.8` | `bin/build_apk` reads the stub-resolver state and passes the host's real upstream (`resolvectl dns`, else `8.8.8.8,1.1.1.1`) automatically; `--dns-server` still wins, `--no-dns-server` opts out (**D-055**) |
+| 2 | An AVD started from Android Studio can never be repaired by a boot flag, and its broken DNS surfaces minutes later as a "sign-in failure" | after `--install`, an attached emulator (`ro.kernel.qemu=1`) that cannot resolve `oauth2.googleapis.com` is reported with the exact one-line recovery (`adb -s <serial> emu kill && bin/build_apk --install --avd=<name>`) |
+| 3 | Docs were half-updated after the crash | `NEXT.md` rewritten to the two questions that are actually open, `CHANGES.md` §8 tells session 13's story, `notes/user-instructions.md` N-021, `ENVIRONMENT.md` §2.2c documents the automatic behaviour, `D-055`, handoff snapshot refreshed |
+
+**What the app does now** (unchanged by this session, worth restating because it is what you
+will see): with no network, sign-in says "No internet connection!" instead of printing
+`ClientException … errno = 7`, the stored Google account is *not* thrown away when a token
+refresh fails offline, and app startup cannot fail because Google is unreachable.
+
+**Verification** — `bash -n bin/build_apk`, the new `host_upstream_dns` helper against a fake
+`resolvectl` (stub + link + IPv6 line → `192.168.1.1,1.1.1.1`) and against a `PATH` with no
+resolver tool at all (empty output, no `set -e` abort), then the whole script against stubbed
+`flutter`/`java`/`adb`/`emulator`/`resolvectl`:
+
+| Scenario | Observed |
+|---|---|
+| stub-resolver host, `--avd` | `emulator -avd storypad_dev -dns-server 192.168.1.1,1.1.1.1` |
+| same, `--no-dns-server` | `emulator -avd storypad_dev` (no flag), message says so |
+| same, `--dns-server=9.9.9.9` | `-dns-server 9.9.9.9` — the explicit flag wins |
+| booted AVD that still cannot resolve | `still cannot resolve oauth2.googleapis.com … --dns-server=1.1.1.1` |
+| already-running emulator, broken DNS, no `--avd` | `adb -s emulator-5554 emu kill && bin/build_apk --install --avd=storypad_dev` |
+| already-running emulator, healthy DNS | silent (no false alarm) |
+
+No Dart/Flutter in the sandbox, so nothing app-side was rebuildable here; the test suite you
+run is the proof.

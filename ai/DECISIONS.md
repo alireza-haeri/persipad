@@ -1346,3 +1346,29 @@ Template:
   when the source directory is absent; the committed output is left untouched.
 - **Consequences:** Codegen and the whole setup path work in a plain checkout of this repo;
   regenerating the backgrounds still requires the submodule.
+
+## D-055 — The AVD gets a real resolver automatically; a running emulator is diagnosed (2026-11-16)
+- **Status:** accepted
+- **Context:** D-053 made the *message* honest and added `--dns-server`, but fixing the
+  emulator still depended on the user remembering a flag. The failure had already cost two
+  sessions' worth of confusion, and the person hitting it is the person least interested in
+  emulator boot flags. Worse, the flag only applies at boot: an AVD started from Android
+  Studio (the common case) can never be repaired by `bin/build_apk`, and its broken DNS shows
+  up minutes later as a sign-in failure.
+- **Decision:**
+  1. When the host resolves names only through a loopback stub (`/etc/resolv.conf` → `127.0.0.53`,
+     the default on Fedora with systemd-resolved) and no `--dns-server` was passed,
+     `bin/build_apk` reads the host's **real upstream** resolvers with `resolvectl dns`
+     (or `systemd-resolve --status`) and boots the AVD with `-dns-server <them>`. Falling
+     back to `8.8.8.8,1.1.1.1` when that cannot be read.
+  2. An explicitly passed `--dns-server` still wins; `--no-dns-server` opts out of the
+     automatic behaviour entirely. Both are printed, so the boot command is never mysterious.
+  3. When `--install` targets an **already running** emulator (`ro.kernel.qemu=1`) that cannot
+     resolve `oauth2.googleapis.com`, the script names the exact recovery:
+     `adb -s <serial> emu kill && bin/build_apk --install --avd=<name>`.
+- **Consequences:** `bin/build_apk --install --avd=storypad_dev` now works on a stock Fedora
+  box without any DNS knowledge, which is the whole point of the one-command loop (D-010,
+  D-040). The alternative — leaving the flag opt-in — was rejected: the tool can detect the
+  condition reliably, so making a human repeat it is just a second failure mode.
+  Upstream resolvers are preferred over public ones so a network that blocks `8.8.8.8`
+  (or a split-horizon DNS) keeps working.
