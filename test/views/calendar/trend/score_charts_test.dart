@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/objects/monthly_score_average.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
-import 'package:storypad/views/calendar/score/local_widgets/score_month_line_chart.dart';
-import 'package:storypad/views/calendar/score/local_widgets/score_monthly_average_chart.dart';
+import 'package:storypad/views/calendar/trend/local_widgets/score_month_line_chart.dart';
+import 'package:storypad/views/calendar/trend/local_widgets/score_monthly_average_chart.dart';
 
 void main() {
   setUpAll(() async => initializeDateFormatting());

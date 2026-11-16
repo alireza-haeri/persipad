@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:storypad/core/helpers/date_format_helper.dart';
 import 'package:storypad/core/services/scores/daily_score_scale.dart';
-import 'package:storypad/views/calendar/score/local_widgets/score_chart_card.dart';
+import 'package:storypad/views/calendar/trend/local_widgets/score_chart_card.dart';
 
 /// The shown month's scores as a line, one point per **rated** day.
 ///

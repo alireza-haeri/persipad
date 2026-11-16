@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
 import 'package:storypad/core/objects/monthly_score_average.dart';
 import 'package:storypad/core/services/scores/daily_score_scale.dart';
-import 'package:storypad/views/calendar/score/local_widgets/score_chart_card.dart';
+import 'package:storypad/views/calendar/trend/local_widgets/score_chart_card.dart';
 
 /// One bar per month that has at least one rated day.
 ///
