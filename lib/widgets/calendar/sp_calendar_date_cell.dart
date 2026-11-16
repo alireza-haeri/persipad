@@ -58,6 +58,31 @@ class SpCalendarDateCell extends StatelessWidget {
   bool get hasStoriesButNoFeelings =>
       isDisplayMonth && feelings != null && feelings!.every((feeling) => feeling == 'exist_but_not_set');
 
+  /// One spoken sentence for the whole cell.
+  ///
+  /// The cell is a `Stack` of a ring, a tint, an emoji and a badge, which a
+  /// screen reader reads as unrelated fragments ("۲۴", "😀", "70"). A single
+  /// label — date, then what the day holds, then the score — says the same thing
+  /// a sighted user gets from one glance. The inner texts are excluded so the
+  /// number is not announced twice.
+  String _semanticsLabel(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    final parts = <String>[DateFormatHelper.yMMMd(date, locale)];
+
+    // The feeling *is* the emoji, so it is already language-neutral; a score is
+    // announced as a bare number preceded by the localised label when translations
+    // are loaded. `tr()` throws outside an `EasyLocalization` scope (widget tests
+    // pump this cell bare), hence `CalendarDisplay`-safe lookups instead of a raw
+    // `tr()` for the numbers that do not need words.
+    if (hasFeelings) {
+      parts.add(feelings!.where((feeling) => feeling != 'exist_but_not_set').join(', '));
+    }
+
+    if (score != null) parts.add('$score%');
+
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return SpTapEffect(
@@ -65,43 +90,49 @@ class SpCalendarDateCell extends StatelessWidget {
       scaleActive: 0.9,
       onTap: onTap,
       onLongPressed: onLongPress,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          if (isToday)
-            Positioned.fill(
-              child: AnimatedContainer(
-                duration: Durations.short4,
-                curve: Curves.easeOutCubic,
-                margin: const EdgeInsets.all(6.0),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: isSelected ? 2.0 : 1.0,
+      child: Semantics(
+        label: _semanticsLabel(context),
+        button: onTap != null,
+        selected: isSelected,
+        excludeSemantics: true,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (isToday)
+              Positioned.fill(
+                child: AnimatedContainer(
+                  duration: Durations.short4,
+                  curve: Curves.easeOutCubic,
+                  margin: const EdgeInsets.all(6.0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: isSelected ? 2.0 : 1.0,
+                    ),
                   ),
                 ),
               ),
+            AnimatedContainer(
+              // A stable key even when there is no tint: swapping the key on the way
+              // from "unrated" to "rated" would rebuild the box and snap the colour in
+              // instead of fading it.
+              key: const ValueKey('calendar-cell-background'),
+              duration: Durations.medium2,
+              curve: Curves.easeOut,
+              alignment: Alignment.center,
+              constraints: const BoxConstraints(minHeight: 56),
+              margin: const EdgeInsets.all(2.0),
+              decoration: score == null
+                  ? null
+                  : BoxDecoration(
+                      color: DailyScoreScale.colorOf(score!).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+              child: _buildDateContent(context),
             ),
-          AnimatedContainer(
-            // A stable key even when there is no tint: swapping the key on the way
-            // from "unrated" to "rated" would rebuild the box and snap the colour in
-            // instead of fading it.
-            key: const ValueKey('calendar-cell-background'),
-            duration: Durations.medium2,
-            curve: Curves.easeOut,
-            alignment: Alignment.center,
-            constraints: const BoxConstraints(minHeight: 56),
-            margin: const EdgeInsets.all(2.0),
-            decoration: score == null
-                ? null
-                : BoxDecoration(
-                    color: DailyScoreScale.colorOf(score!).withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-            child: _buildDateContent(context),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

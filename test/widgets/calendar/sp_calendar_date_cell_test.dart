@@ -1,6 +1,7 @@
 // ignore: depend_on_referenced_packages
 import 'package:intl/date_symbol_data_local.dart' show initializeDateFormatting;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/widgets/calendar/sp_calendar_date_cell.dart';
@@ -120,5 +121,83 @@ void main() {
 
     expect(find.text('15'), findsOneWidget);
     expect(find.text('🥳'), findsNothing);
+  });
+
+  group('semantics', () {
+    // A grid cell is a stack of ring + tint + emoji + badge. Without one label a
+    // screen reader announces those as unrelated fragments, so the cell carries a
+    // single sentence and excludes the fragments (T-15 / accessibility).
+    //
+    // Assertions go through the semantics *tree* (`tester.binding.pipelineOwner.
+    // semanticsOwner`) rather than one node's identity: `SpTapEffect` wraps the cell
+    // in a `GestureDetector`, which contributes its own node above ours.
+    SemanticsNode rootNode(WidgetTester tester) =>
+        tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
+
+    String allLabels(SemanticsNode node) {
+      final labels = <String>[];
+      void visit(SemanticsNode current) {
+        final label = current.getSemanticsData().label;
+        if (label.isNotEmpty) labels.add(label);
+        current.visitChildren((child) {
+          visit(child);
+          return true;
+        });
+      }
+
+      visit(node);
+      return labels.join(' | ');
+    }
+
+    testWidgets('one label carries the date, the feeling and the score', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpCell(tester, feelings: ['🥳'], score: 70);
+
+      final labels = allLabels(rootNode(tester));
+      expect(labels, contains('🥳'));
+      expect(labels, contains('70%'));
+      expect(labels, contains('2026'), reason: 'the spoken label is a formatted date, not a bare number');
+
+      handle.dispose();
+    });
+
+    testWidgets('an unrated day says nothing about a score', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpCell(tester, feelings: ['🥳']);
+
+      expect(allLabels(rootNode(tester)), isNot(contains('%')));
+
+      handle.dispose();
+    });
+
+    testWidgets('the day number is announced once, through the label', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpCell(tester, feelings: ['🥳'], score: 70);
+
+      final labels = allLabels(rootNode(tester));
+      expect('15'.allMatches(labels).length, lessThanOrEqualTo(1),
+          reason: 'excludeSemantics keeps the badge from being read as a second, bare "15"');
+
+      handle.dispose();
+    });
+
+    testWidgets('a cell with a tap callback is announced as a button', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpCell(tester, feelings: ['🥳'], onTap: () {});
+
+      var found = false;
+      void visit(SemanticsNode node) {
+        if (node.getSemanticsData().hasFlag(SemanticsFlag.isButton)) found = true;
+        node.visitChildren((child) {
+          visit(child);
+          return true;
+        });
+      }
+
+      visit(rootNode(tester));
+      expect(found, isTrue);
+
+      handle.dispose();
+    });
   });
 }
