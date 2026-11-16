@@ -469,10 +469,12 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
     the `?: 37` expression added in `67bac3c`.
 - Fixed the Gradle 9.3.1 init-script compile error from `notely-google-mirror.gradle.kts` (which
   used Groovy-style `{ settings -> }` / `{ project -> }` lambdas in Kotlin DSL):
-  - `bin/android_doctor --mirror` now writes Groovy `~/.gradle/init.d/notely-google-mirror.gradle`
-    that rewrites `dl.google.com` in-place via `repositories.all` without adding new `maven {}`
-    entries (adding repositories tripped Flutter's `flutter_tools/gradle` `RepositoriesMode` check),
-    removes the old `.gradle.kts`, and `bin/build_apk` fails fast if `.gradle.kts` is still present.
+  - `bin/android_doctor --mirror` now probes Aliyun/Tencent/Huawei mirrors for AGP 9.1.1,
+    `google-services:4.4.4` (both `.gradle.plugin` marker and JAR POM) and `crashlytics:3.0.6`,
+    picks the first complete mirror, writes Groovy `~/.gradle/init.d/notely-google-mirror.gradle`
+    (rewriting `dl.google.com` in-place via `repositories.all` + mapping `google-services` and
+    `crashlytics` via `pluginManagement.resolutionStrategy.eachPlugin` when a mirror lacks
+    `.gradle.plugin` marker POMs), removes `.gradle.kts`, and `bin/build_apk` guards against it.
   - `bin/android_doctor --fix` resolves missing `platforms`/`build-tools` against `sdkmanager --list`
     (so missing `android-37` on a mirror falls back to `android-36`), skips the optional 1 GB NDK,
     and `bin/build_apk` warns when the local platform is below 36 (required by plugin subprojects).

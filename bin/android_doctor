@@ -287,7 +287,32 @@ if have curl; then
     NET_HINT="mirror"
   fi
   [ "$central" = "200" ] || note "maven central is also unreachable — suspect the whole network, not Google"
+
+  GOOGLE_MIRROR="https://maven.aliyun.com/repository/google"
+  if [ "$GOOGLE_DIRECT_OK" -lt "$GOOGLE_TOTAL" ] || [ "$MIRROR" = 1 ]; then
+    [ "$SHORT" = 1 ] || { hdr "google maven mirrors"; printf '  %-48s %s\n' "mirror" "agp / gs-jar / gs-plugin / crash"; }
+    BEST_MIRROR=""
+    FALLBACK_MIRROR=""
+    for m in \
+      "https://maven.aliyun.com/repository/google" \
+      "https://mirrors.cloud.tencent.com/nexus/repository/maven-public" \
+      "https://repo.huaweicloud.com/repository/maven" ; do
+      c_agp=$(probe -L --connect-timeout 5 -m 12 "$m/com/android/tools/build/gradle/9.1.1/gradle-9.1.1.pom")
+      c_gs=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/gms/google-services/4.4.4/google-services-4.4.4.pom")
+      c_gsp=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/gms/google-services/com.google.gms.google-services.gradle.plugin/4.4.4/com.google.gms.google-services.gradle.plugin-4.4.4.pom")
+      c_cr=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/firebase/firebase-crashlytics-gradle/3.0.6/firebase-crashlytics-gradle-3.0.6.pom")
+      label="${m#https://}"; label="${label%%/*}"
+      [ "$SHORT" = 1 ] || printf '  %-48s %s / %s / %s / %s\n' "$label" "$c_agp" "$c_gs" "$c_gsp" "$c_cr"
+      if [ -z "$BEST_MIRROR" ] && [ "$c_agp" = "200" ] && [ "$c_gs" = "200" ] && [ "$c_cr" = "200" ]; then
+        BEST_MIRROR="$m"
+      elif [ -z "$FALLBACK_MIRROR" ] && [ "$c_agp" = "200" ] && { [ "$c_gs" = "200" ] || [ "$c_gsp" = "200" ]; }; then
+        FALLBACK_MIRROR="$m"
+      fi
+    done
+    [ -n "$BEST_MIRROR" ] && GOOGLE_MIRROR="$BEST_MIRROR" || { [ -n "$FALLBACK_MIRROR" ] && GOOGLE_MIRROR="$FALLBACK_MIRROR"; }
+  fi
 else
+  GOOGLE_MIRROR="https://maven.aliyun.com/repository/google"
   note "curl not found — reachability checks skipped"
 fi
 
@@ -306,20 +331,22 @@ if [ "$MIRROR" = 1 ]; then
     rm -f "$OLD_MIRROR_FILE"
     printf '\n  \033[33mRemoved\033[0m old %s\n' "$OLD_MIRROR_FILE"
   fi
-  cat > "$MIRROR_FILE" <<'EOF'
-// Written by `bin/android_doctor --mirror`.
+  cat > "$MIRROR_FILE" <<EOF
+// Written by \`bin/android_doctor --mirror\`.
 // Purpose: this network cannot reach dl.google.com, so Google's Maven repository is
 // redirected in-place to a public mirror without adding extra repositories (which
 // would trip RepositoriesMode.FAIL_ON_PROJECT_REPOS / PREFER_SETTINGS in Flutter's
 // included gradle build). Delete this file to go back to dl.google.com.
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 
+def mirrorUrl = "$GOOGLE_MIRROR"
+
 def redirectGoogle = { repos ->
     repos.all { repo ->
         if (repo instanceof MavenArtifactRepository) {
             def u = repo.url?.toString() ?: ""
             if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
-                repo.setUrl("https://maven.aliyun.com/repository/google")
+                repo.setUrl(mirrorUrl)
             }
         }
     }
@@ -328,6 +355,16 @@ def redirectGoogle = { repos ->
 beforeSettings { settings ->
     redirectGoogle(settings.pluginManagement.repositories)
     redirectGoogle(settings.dependencyResolutionManagement.repositories)
+    // Some Google Maven mirrors sync plugin JARs without their \`.gradle.plugin\` marker POMs.
+    settings.pluginManagement.resolutionStrategy.eachPlugin { details ->
+        if (details.requested.version) {
+            if (details.requested.id.id == "com.google.gms.google-services") {
+                details.useModule("com.google.gms:google-services:\${details.requested.version}")
+            } else if (details.requested.id.id == "com.google.firebase.crashlytics") {
+                details.useModule("com.google.firebase:firebase-crashlytics-gradle:\${details.requested.version}")
+            }
+        }
+    }
 }
 
 allprojects { project ->
@@ -335,7 +372,7 @@ allprojects { project ->
     redirectGoogle(project.repositories)
 }
 EOF
-  printf '\n  \033[32mWrote\033[0m %s\n' "$MIRROR_FILE"
+  printf '\n  \033[32mWrote\033[0m %s (mirror: %s)\n' "$MIRROR_FILE" "$GOOGLE_MIRROR"
   printf '  Remove it with: rm %s\n' "$MIRROR_FILE"
 elif [ -f "$OLD_MIRROR_FILE" ]; then
   bad "old broken mirror script ${OLD_MIRROR_FILE/#$HOME/\~} — run bin/android_doctor --mirror to replace it"
