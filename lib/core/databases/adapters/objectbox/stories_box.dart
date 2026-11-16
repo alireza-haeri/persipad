@@ -202,16 +202,18 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
   /// never the query — it was `TagsBox().box.query(...)`, which materialises every
   /// live tag into a map, plus `StoryContentHelper.stringToContent` for every story
   /// missing metadata. On a fully indexed database (the normal case) all of that
-  /// work computed an empty result. A `count()` on the indexed condition answers
-  /// the only question that matters — "is there anything to do?" — for the price of
-  /// an index lookup, so the tag query and the per-story work only happen when
-  /// legacy rows actually exist.
+  /// work computed an empty result, so a single `count()` answers the only question
+  /// that matters — "is there anything to do?" — and the tag query and the
+  /// per-story work happen only when legacy rows exist.
   ///
-  /// The count is inclusive of deleted rows on purpose: `searchMetadata.isNull()`
-  /// is the same field the backfill writes, so counting with the full condition
-  /// (including `permanentlyDeletedAt.isNull()`) keeps this exactly as conservative
-  /// as the loop below it.
+  /// **`searchMetadata` is not `@Index`ed**, so that `count()` is a column scan,
+  /// not an index lookup; what it saves is the tag map and the markdown decode, not
+  /// the scan. On a store with a null-metadata row the scan and the fetch both run,
+  /// which is the same work the loop would do anyway.
   Future<void> reindexSearchMetadata() async {
+    // One condition, used for both the probe and the fetch: if they ever drifted
+    // apart, the count could say "nothing to do" while the fetch matched rows (or
+    // the reverse), and the early return would hide real pending work.
     final pendingCondition = StoryObjectBox_.id
         .notNull()
         .and(StoryObjectBox_.permanentlyDeletedAt.isNull())
@@ -230,12 +232,7 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
         .findAsync()
         .then((e) => {for (var item in e) item.id: item.title});
 
-    final conditions = StoryObjectBox_.id
-        .notNull()
-        .and(StoryObjectBox_.permanentlyDeletedAt.isNull())
-        .and(StoryObjectBox_.searchMetadata.isNull());
-
-    final queryBuilder = box.query(conditions);
+    final queryBuilder = box.query(pendingCondition);
     final boxes = await queryBuilder.build().findAsync();
 
     int count = 0;

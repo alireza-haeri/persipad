@@ -1088,7 +1088,12 @@ Template:
   every live tag into a map *before* discovering that no story needed reindexing.
 - **Decision:**
   1. `reindexSearchMetadata()` answers "is there anything to do?" with a single
-     `count()` on the indexed condition and returns when the answer is zero.
+     `count()` and returns when the answer is zero. Measured honestly: `searchMetadata`
+     is **not** `@Index`ed, so this is a column scan, not an index lookup. What it
+     removes is the `TagsBox` materialisation (every live tag into a map) and the
+     `StoryContentHelper.stringToContent` decode of every unindexed story — the two
+     things that actually cost time. The probe and the fetch now share one condition, so
+     they cannot drift apart and make the early return lie.
   2. `SearchViewModel` calls `load()` first and lets the backfill run concurrently. When it
      finishes, the search re-runs **only** if a query or a tag was chosen while it was in
      flight — the only two ways its result can change.

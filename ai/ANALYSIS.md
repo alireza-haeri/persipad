@@ -94,7 +94,9 @@ The gaps below are mostly *coverage* and *product surface*, not structural rot.
 ## 3. Search is a linear scan; the per-open reindex and the missing tests are fixed (2026-11-16)
 
 > **Partly done.** `SearchFilterObject` now has its own test file, and the per-open reindex is
-> a single indexed `count()` with the search no longer waiting on it (D-044). **Still open:**
+> a single `count()` with the search no longer waiting on it (D-044; the column is not
+> `@Index`ed, so the count is a scan — it replaces the tag map and the markdown decode, not
+> the scan itself). **Still open:**
 > the scan itself — `contains` on an unindexed field — which needs a decision, not a drive-by.
 
 - **Evidence:** `StoryObjectBox.searchMetadata` is a nullable `String` with **no `@Index()`**

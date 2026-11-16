@@ -201,8 +201,9 @@ thing it recommends doing *first* is enabling the editor package's 390 existing 
 
 **Status:** ✅ done for everything that can be done without the user's machine
 **Delivered:** T-9 (editor package tests in CI + scoper), T-10 (backup merge tests + D-042
-seam), T-11 cheap half (`search_filter_object_test.dart`), search open-speed fix (D-044,
-one indexed `count()` + no first-paint wait), T-12 (bundled default font, D-043), T-14
+seam), T-11 cheap half (`search_filter_object_test.dart`), search open-speed fix (D-044:
+one `count()` probe + no first-paint wait; the probe is a column scan, not an
+index lookup), T-12 (bundled default font, D-043), T-14
 (coverage job), T-15 first surface (calendar-cell semantics + tests). T-13 turned out to be
 already true and was closed as a non-finding.
 **Honestly not done, with reasons:**
