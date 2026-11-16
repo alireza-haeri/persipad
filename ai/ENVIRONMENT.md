@@ -175,20 +175,26 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
     Aliyun if it returns 502 on `.gradle.plugin`), and writes Groovy
     `~/.gradle/init.d/notely-google-mirror.gradle` (rewriting `dl.google.com` in-place via
     `repositories.all` + `eachPlugin` mappings; never `.gradle.kts`, never appending repos).
+  - Run **`bin/android_doctor --fix`** when any SDK components (such as NDK or CMake, required
+    by transitive `:jni` via `path_provider_android`) are reported `MISSING`; when `dl.google.com`
+    is blocked, it queries `SDK_TEST_BASE_URL=https://mirrors.cloud.tencent.com/AndroidSDK/` and
+    falls back cleanly to available catalogue versions.
   - Run **`bin/build_apk --install --avd=storypad_dev -v`** (or `--install` with a phone
     plugged in). It resolves `flutter` (`~/development/flutter_stable`), `adb`, and
     `emulator` even when `$SDK/platform-tools` / `$SDK/emulator` are missing from `PATH`,
     boots and waits for the AVD if requested, detects attached device ABI (`--abi auto`),
     adapts to local platforms such as `android-36.1` (`notelyCompileSdk=36` +
-    `notelyCompileSdkMinor=1`) when `android-37` is absent, and sets `notelyNdkVersion=none`
-    when no NDK is installed (bypassing Flutter 3.50's `forceNdkDownload` `sdkmanager` hang
-    because nothing in `pubspec.lock` compiles C/C++ — see D-040).
+    `notelyCompileSdkMinor=1`) when `android-37` is absent, and adapts `notelyNdkVersion` to
+    whichever valid NDK is installed on disk (propagating it to `:app` and `:jni`), failing
+    fast with `bin/android_doctor --fix` if NDK or CMake is missing while `:jni` is in
+    `pubspec.lock` (see D-040).
   - First cold build downloads Maven/Gradle artifacts once; warm incremental builds take
     under a minute.
 - **Verified Fedora Android environment (`/mnt/MyData/Develop/Projects/notely`):**
   JDK `17.0.19` (`amazon-corretto`), `ANDROID_HOME=~/Android/Sdk`, `platforms: android-34`
   and `android-36.1` (no `android-36` or `android-37`), `build-tools: 36.1.0 37.0.0`,
-  no `ndk` / no `cmake`, AVD `storypad_dev` (`x86_64`), active Gradle mirror: Tencent.
+  AVD `storypad_dev` (`x86_64`), active Gradle mirror: Tencent (NDK + CMake installation
+  required for `:jni`).
 - `storypad` (the upstream flavor) is **not** buildable here: it needs `private_keys/`.
 - Local store builds via `bin/build_release_android` expect `private_keys/` and
   `codemagic-cli-tools`, and upload to Play/Firebase. The `community` workflow and
@@ -215,7 +221,8 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | `bin/dev` refuses to start: "Generated code has not been built in this checkout" | codegen stamp missing (fresh clone or pubspec change) | `bin/setup_linux`, or bypass once with `SKIP_CODEGEN_CHECK=1` |
 | `bin/build_apk`: `dl.google.com` 404 or `google-services:4.4.4` 502 from Aliyun | Google Maven blocked or mirror lacks `.gradle.plugin` marker POMs | run `bin/android_doctor --mirror` (selects 4/4 healthy Tencent/Huawei mirror, removes stale `.gradle.kts`) |
 | Gradle fails on `notely-google-mirror.gradle.kts` or `RepositoriesMode` (`prefer settings repositories`) | old Kotlin DSL init script or mirror script appended `repos.maven` instead of rewriting URLs | run `bin/android_doctor --mirror` to overwrite with Groovy in-place `repos.all` script |
-| Android build hangs 5+ min in `:app` on `sdkmanager --install ndk;28.2.13676358` | Flutter 3.50 `forceNdkDownload` calls `sdkmanager` even when nothing builds C/C++ | ensure `notelyNdkVersion=none` (`bin/build_apk --no-ndk` sets it automatically; D-040) |
+| Android build hangs 5+ min in `:app` on `sdkmanager --install ndk;28.2.13676358` | Flutter 3.50 `forceNdkDownload` calls `sdkmanager` when `flutter.installedNdkVersions` mismatches | install NDK via `bin/android_doctor --fix`; `bin/build_apk` exports `notelyNdkVersion` for installed NDKs |
+| Gradle fails configuring `:jni` with `NDK not configured. Preferred NDK version is '28.2.13676358'` | transitive `jni` (`1.0.3`, from `path_provider_android`) builds `libdartjni.so` via CMake + NDK | run `bin/android_doctor --fix` to install NDK + CMake from the SDK mirror, then `bin/build_apk` |
 | Android build fails looking for `platforms;android-36` when machine has `android-36.1` | plugins pin `< 36`, `android/build.gradle.kts` raises to `36` without minor | fixed in `d3d534e`: `notelyCompileSdkMinor` aligns `app` and `LibraryExtension` plugins to `36.1` |
 | `emulator: command not found` or `bin/build_apk --install` exited silently with no device | SDK `emulator/`/`platform-tools/` not on `PATH`; `pipefail` tripped on empty `adb` | fixed in `0cb892f`: `bin/build_apk` resolves `$SDK/{emulator,platform-tools}` and adds `--avd` |
 

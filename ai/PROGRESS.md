@@ -3,22 +3,20 @@
 **Last updated:** 2026-11-16
 **Current session:** session 10 — local Android APK loop (`bin/build_apk` + `bin/android_doctor`) + handoff
 **Branch:** `arena/e3e3866a-notely` (branched from `67bac3c5` on `arena/f59917e7-notely`)
-**Code tip:** `d3d534e` (plus this `ai/` documentation handoff commit)
-**Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; first local Fedora APK build actively running on user's machine
+**Phase:** 🟡 Linux CI (`43823502245`) & Android CI (`43812916947`) green; Fedora `:jni` NDK/CMake blocker diagnosed and fixed (`bin/android_doctor --fix` + `bin/build_apk`)
 
 ---
 
 ## 🤝 Handoff Snapshot (start here if you are a new agent/session)
 
-1. **What exists right now (`d3d534e`):**
+1. **What exists right now:**
    - **Desktop (Linux):** Fully working app (`bin/setup_linux`, `bin/dev --community-linux`, `bin/dev -t`) with all Pro features unlocked (`ProEntitlementService.unlockAll`), `PlatformCapabilities` gating, loopback OAuth2 Google Drive (`bin/setup_sync`, E2E credentials pending), `file_picker` media picking, Persian (`fa`) locale across all 21 `translations/*.json` files (628 keys), bundled `Vazirmatn` font, full Shamsi display calendar (storage/queries remain Gregorian), RTL layout/icon fixes, Daily Score add-on + animated charts integrated into one calendar (`SpCalendarDateCell`), toggleable Map add-on, and configurable sidebar ordering.
-   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without an NDK or `android-37` (D-040).
-2. **What is running on the user's Fedora machine right now:**
-   - User pulled `d3d534e`, ran `bin/android_doctor --mirror` (selected 4/4 healthy Tencent mirror `mirrors.cloud.tencent.com/nexus/repository/maven-public`), and ran `bin/build_apk --install --avd=storypad_dev -v`.
-   - **Verified fixed:** the 5m 34s `:app` `sdkmanager` NDK hang is gone (`notelyNdkVersion=none` + `flutter.installedNdkVersions` bypass worked) and Gradle is downloading artifacts cleanly from Tencent.
-   - **In progress on user's machine:** cold first-time Gradle plugin configuration (~50% through the ~31 Android plugins in `pubspec.lock`, last seen at `:google_sign_in_android`), followed by remaining Android plugins (`image_picker_android`…`volume_controller`), dependency resolution, Dart/Kotlin compilation, APK packaging, and `adb install` on `storypad_dev`.
+   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without `android-37` and adapt to whichever valid NDK/CMake are installed on disk (D-040).
+2. **Latest Fedora APK build diagnosis & fix:**
+   - On `d3d534e`, `bin/build_apk --install --avd=storypad_dev -v` cached all Maven/Kotlin dependencies from Tencent (`33m 15s` cold; Retry #1 reached `:jni` in `8.9s`), passed `:app` and 25 plugins cleanly, and failed at `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`) because transitive `jni` (`1.0.3`, pulled by `path_provider_android` `2.3.1`) genuinely compiles `libdartjni.so` via CMake + NDK, while Fedora lacked `ndk` and `cmake`.
+   - Updated `bin/android_doctor` (`MISSING` + catalogue fallback for `ndk;*` and `cmake;*` from the SDK mirror when `jni` is in `pubspec.lock`), `bin/build_apk` (fail fast if NDK/CMake missing; otherwise export installed NDK via `notelyNdkVersion`), and `android/build.gradle.kts` (propagate `notelyNdkVersion` to `:app` and `LibraryExtension` plugins such as `:jni`, and clamp `compileSdk` to `notelyCompileSdk`).
 3. **What is planned next (do not step on these):**
-   - **Wait for Fedora build verdict** (either success + manual AVD check, or any final Gradle/runtime log the user brings back to the original session).
+   - **User installs NDK + CMake (`bin/android_doctor --fix`) and re-runs `bin/build_apk --install --avd=storypad_dev`** (reusing cached `~/.gradle/caches/`).
    - **Lightweight mobile build (`BACKLOG.md` A-3 / `N-015`):** after the first APK runs, the user plans to return to trim heavy/unneeded features/dependencies into a lighter phone build.
 4. **Hard rules & invariants for any agent touching this repo:**
    - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` (`Scope` + `Analyze` + sharded `Test`) or user's `bin/dev -t`.
@@ -539,8 +537,18 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   `d3d534e`. `Linux` CI (`43823502245`) passed full suite (`Scope` + `Analyze` + `Test (1)` +
   `Test (2)`).
 - Live Fedora check (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e` with Tencent
-  mirror): confirmed the 5m34s `:app` `sdkmanager` NDK hang is gone; Gradle passed `:geolocator_android`
-  / `:google_maps_flutter_android` and was configuring `:google_sign_in_android` (~50% through ~31
-  Android plugins) while downloading Maven/Kotlin artifacts cleanly. Waiting for the build +
-  `storypad_dev` AVD install to finish; next goal after verification is a lightweight phone build
-  (`BACKLOG.md` A-3 / `N-015`).
+  mirror):
+  - Confirmed the 5m34s `:app` `sdkmanager` NDK hang was eliminated and all Maven/Kotlin dependencies
+    cached in `~/.gradle/caches/` (initial cold fetch `33m 15s`; retry #1 reached `:jni` in `8.9s`).
+  - Failed configuring subproject `:jni` (`NDK not configured. Preferred NDK version is '28.2.13676358'`)
+    because transitive `jni` (`1.0.3`, brought in by `path_provider_android` `2.3.1`) genuinely builds
+    `libdartjni.so` via CMake + NDK (`externalNativeBuild { cmake { path = "../src/CMakeLists.txt" } }`),
+    while Fedora had neither `ndk` nor `cmake` installed.
+- Fix applied: `bin/android_doctor` now marks missing NDK/CMake as `MISSING` when `jni` is in
+  `pubspec.lock` and falls back to the best available `ndk;*` / `cmake;*` in the SDK mirror catalogue
+  during `--fix`; `bin/build_apk` fails fast with `bin/android_doctor --fix` when NDK/CMake is missing
+  for `:jni` and otherwise exports whichever valid NDK (`source.properties`) is on disk as
+  `notelyNdkVersion`; `android/build.gradle.kts` forwards `notelyNdkVersion` to `:app`
+  (`flutter.installedNdkVersions`) and `LibraryExtension` plugins (aligning `:jni`) and clamps
+  `compileSdk` to `notelyCompileSdk`. Next step: run `bin/android_doctor --fix` and re-run
+  `bin/build_apk --install --avd=storypad_dev`; then proceed to the lightweight phone build (`A-3`).

@@ -972,40 +972,49 @@ Template:
   the job re-emits disk, memory and the log tail as annotations, and reads them from the check-run API —
   the log itself comes from a host this workspace cannot reach.
 
-## D-040 — Local Android build works without `dl.google.com`, NDK, or `android-37` (2026-11-16)
+## D-040 — Local Android build works without `dl.google.com` or `android-37` (2026-11-16; updated after `:jni` NDK discovery)
 - **Status:** accepted (extends D-038 / D-039; CI behavior stays unchanged)
 - **Context:** Running `bin/build_apk` on the user's Fedora machine (`ANDROID_HOME=~/Android/Sdk`,
-  `platforms/android-36.1` and `android-34`, no NDK, `dl.google.com` blocked with 404) surfaced four
-  local blockers in sequence:
+  `platforms/android-36.1` and `android-34`, no NDK/CMake initially, `dl.google.com` blocked with 404)
+  surfaced five local blockers in sequence:
   1. `bin/build_apk --install` exited silently under `set -euo pipefail` when 0 devices were connected
      and failed when `adb` / `emulator` were under `$ANDROID_HOME` instead of `PATH`.
   2. `bin/android_doctor --mirror` wrote a `.gradle.kts` init script (13 Kotlin DSL compile errors on
      Gradle 9.3.1), then appended a repository (rejected by Flutter's `RepositoriesMode.PREFER_SETTINGS`),
      and picked Aliyun even though Aliyun returned `502` on `com.google.gms.google-services.gradle.plugin:4.4.4`.
-  3. With `notelyNdkVersion=none`, `:app` evaluation still hung 5m 34s on `sdkmanager --install ndk;28.2.13676358`
-     because Flutter 3.50's `FlutterPluginUtils.forceNdkDownload` inspects `AgpCommonExtensionWrapper.ndkVersion`
-     (AGP's default `28.2.13676358`) whenever `flutter.installedNdkVersions` lacks it — and falls back to
-     injecting synthetic `CMakeLists.txt` (still downloading NDK) if `ndkVersion` is blank.
+  3. `:app` evaluation still hung 5m 34s on `sdkmanager --install ndk;28.2.13676358` via Flutter 3.50's
+     `forceNdkDownload`. Initially bypassed with `notelyNdkVersion=none`, which then uncovered item 5.
   4. Selecting `android-34` failed because `android/build.gradle.kts` forces `LibraryExtension.compileSdk = 36`
      on plugins, while the installed platform directory was `android-36.1` (not `android-36`).
+  5. **Transitive `:jni` (`jni` `1.0.3`, pulled in by `path_provider_android` `2.3.1`) genuinely compiles C
+     code (`dartjni.c` → `libdartjni.so`) via `externalNativeBuild { cmake { path = "../src/CMakeLists.txt" } }`.**
+     Bypassing `:app` with `notelyNdkVersion=none` let configuration advance 25 plugins cleanly (caching
+     all Maven/Kotlin downloads in `~/.gradle/caches/`, reducing retry time from 33m15s to 8.9s), until
+     `:jni` threw `NDK not configured. Preferred NDK version is '28.2.13676358'` because neither NDK nor
+     CMake was installed on Fedora.
 - **Decision:**
   1. **Groovy in-place mirror init script + health probe (`bin/android_doctor --mirror`):** probes Aliyun,
      Tencent, and Huawei across AGP `9.1.1`, `google-services:4.4.4` (`.pom` + `.gradle.plugin`), and
      `crashlytics:3.0.6`; prefers 4/4 `200` mirrors (Tencent/Huawei over Aliyun's 502); writes Groovy
      `~/.gradle/init.d/notely-google-mirror.gradle` (deleting any `.gradle.kts`), rewrites `dl.google.com`
      in-place via `repos.all`, and maps the two FlutterFire plugins via `resolutionStrategy.eachPlugin`.
-  2. **Minor SDK platform forwarding (`notelyCompileSdk` + `notelyCompileSdkMinor`):** `bin/build_apk`
+  2. **Minor SDK platform forwarding + clamping (`notelyCompileSdk` + `notelyCompileSdkMinor`):** `bin/build_apk`
      detects `android-<major>.<minor>` alongside `android-<major>` (preferring `36.1` over `34`) and
      forwards both Gradle properties; `android/app/build.gradle.kts` and `android/build.gradle.kts`
-     (`com.android.build.api.dsl.LibraryExtension`) apply `compileSdkMinor` so AGP targets `platforms/android-36.1`.
-  3. **Bypass `forceNdkDownload` when `notelyNdkVersion=none` (`--no-ndk`):** verified from `pubspec.lock`
-     that no plugin compiles C/C++ (`objectbox_flutter_libs` ships prebuilt `.so`s). `android/build.gradle.kts`
-     sets `project(":app").extensions.extraProperties.set("flutter.installedNdkVersions", "28.2.13676358")`
-     paired with `ndkVersion = "28.2.13676358"` in `android/app/build.gradle.kts`.
+     (`com.android.build.api.dsl.LibraryExtension`) apply `compileSdkMinor` and clamp subprojects to
+     `notelyCompileSdk` so AGP targets `platforms/android-36.1`.
+  3. **Require & auto-provision NDK + CMake when `:jni` is in `pubspec.lock`, and adapt to any installed NDK:**
+     `bin/android_doctor` checks `pubspec.lock` for `jni`/`jni_flutter`; when present, missing NDK or CMake
+     are reported as `MISSING` and resolved against the SDK mirror catalogue (`--fix`, falling back to the
+     best available `ndk;*` and `cmake;*` if exact `28.2.13676358`/`3.22.1` is absent). `bin/build_apk` fails
+     fast with `bin/android_doctor --fix` if NDK or CMake is missing when `:jni` is present, and otherwise
+     selects whichever valid NDK (`source.properties`) is installed on disk via `notelyNdkVersion`, which
+     `android/build.gradle.kts` propagates to `:app`'s `flutter.installedNdkVersions` and all `LibraryExtension`
+     subprojects (`:jni`). `--no-ndk` remains available only when `:jni` is absent (e.g. a future trimmed build).
   4. **Local device/AVD ergonomics:** `bin/build_apk` resolves `$SDK/{platform-tools,emulator}`, guards
      empty `adb` results, adds `--avd [name]` (boots + waits for `sys.boot_completed`) and `-v`/`--verbose`,
      and fails fast if an old `.gradle.kts` mirror script exists.
-- **Consequences:** Local APK builds work without `dl.google.com`, `android-37`, or a 1 GB NDK download,
-  while CI leaves all three `notely*` properties unset and continues building against `android-37` + NDK.
-  Warning for future edits: never remove `notelyCompileSdkMinor` or `flutter.installedNdkVersions` without
-  preserving offline/local Fedora builds, and require `--ndk=<version>` if a C/C++-compiling plugin is ever added.
+- **Consequences:** Local APK builds work without `dl.google.com` or `android-37` and adapt to mirrored
+  NDK/CMake versions cleanly, while CI leaves all `notely*` properties unset and continues building against
+  `android-37` + pinned NDK `28.2.13676358`. Warning for future edits: never remove `notelyCompileSdkMinor`
+  or `notelyNdkVersion` propagation in `android/build.gradle.kts`.

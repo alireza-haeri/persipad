@@ -46,10 +46,10 @@ android {
         compileSdkMinor = minor
     }
 
-    // The NDK is only needed when something actually compiles C/C++; nothing in this
-    // app does, and the debug build does not touch it. `notelyNdkVersion=none` (or
-    // bin/build_apk --no-ndk) skips sdkmanager provisioning (paired with the matching
-    // entry in android/build.gradle.kts).
+    // Transitive :jni (pulled by path_provider_android) compiles libdartjni.so via
+    // CMake + NDK, so Android builds normally need an NDK on disk. `notelyNdkVersion`
+    // lets local machines use whichever NDK version is installed on disk (paired with
+    // android/build.gradle.kts to align :jni), or `none` if :jni is ever removed.
     val notelyNdkVersion = project.findProperty("notelyNdkVersion") as String?
     ndkVersion = if (notelyNdkVersion != "none") {
         notelyNdkVersion ?: flutter.ndkVersion
