@@ -323,3 +323,12 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   `sp_score_calendar_date_cell_test.dart` went with its widget.
 - Keys: `general.score` → `general.trend` (the segment is charts now) and a new
   `general.score_long_press_hint`; all 21 locale files kept in lockstep (621 keys).
+- Two stumbles on the way, both caught by CI rather than by the user this time:
+  `git mv` of `views/calendar/score` → `views/calendar/trend` left the package URIs *inside* the
+  moved chart files pointing at the old folder (`Target of URI doesn't exist`, 13 analyze errors);
+  swept lib/ and test/ for the old path (`af6d2ef`). And for two runs `actions/checkout` failed with
+  `repository 'https://github.com/alireza-haeri/notely/' not found` in *every* job — not the code: a
+  rerun went through and produced the real errors. When every job fails in ~30s at checkout, read it
+  as infrastructure and rerun before changing anything.
+- CI `43800211911` green on `af6d2ef`: Scope 5s, Analyze 74s, Test (1) 201s, Test (2) 165s (223s
+  total, full suite via `[test]` — the scoped run is for the small follow-ups).
