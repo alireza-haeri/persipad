@@ -286,7 +286,7 @@ jobs:
           ABI=$(field "s/^native-code: //p")
 
           APKSIGNER_OUT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>&1 || true)
-          SIGNER=$(printf '%s\n' "$APKSIGNER_OUT" | sed -nE 's/^Signer #1.*certificate DN: //p' | head -1)
+          SIGNER=$(printf '%s\n' "$APKSIGNER_OUT" | sed -nE 's/^.*certificate DN: //p' | head -1)
           if [ -z "$SIGNER" ]; then
             SIGNER=$(keytool -printcert -jarfile "$APK" 2>/dev/null | sed -n 's/^Owner: //p' | head -1 || true)
           fi
