@@ -83,7 +83,7 @@ class LinuxVoicePlayerBackend {
   /// every Linux (and is deprecated on Fedora).
   static Future<bool> _commandExists(String binary) async {
     try {
-      final result = await Process.run('sh', ['-c', 'command -v "$1"', 'sh', binary]);
+      final result = await Process.run('sh', ['-c', r'command -v "$1"', 'sh', binary]);
       return result.exitCode == 0;
     } catch (_) {
       return false;
