@@ -365,3 +365,35 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   files), 85s total. Formatting stayed advisory and still lists untouched files
   (`stories_box.dart`, `search_filter_object.dart`, …) — the CI formatter's tall style does not match
   the repo's existing formatting, so `bin/format` cannot be reproduced without a local SDK.
+
+### 2026-11-16 — RTL palette, a real switch for the map, and an order for the sidebar (D-035)
+- Four things the calendar got wrong in daily use, plus one new capability the user asked for:
+  - **The score bar read backwards in Persian**: 100 was red and 0 green, while the thumb and the
+    labels read forwards. Cause: the bar maps 0 to the right edge in RTL, but the ramp's ends were
+    resolved by the ambient `TextDirection`, so one half of the widget described the opposite scale.
+    `DailyScoreScale.gradient(rtl:)` now swaps its own ends and `SpDailyScoreBar` paints the ramp under
+    an explicit LTR `Directionality` — the direction is the caller's statement, not the tree's
+    (D-035 §1). Pinned by two unit tests on the ends plus one on the inner direction.
+  - **Turning the score add-on off left the grid tinted.** `scoresByDay` is now empty unless
+    `enableScores` is on, so tint, long press and day card switch off together (D-035 §2).
+  - **The map is an add-on** (`AddOnType.map`, `enableMap`, on unless turned off). Off means: no
+    sidebar item, no mobile timeline item, no map-provider setting, no `places`/`countries` stats, and
+    in notes no location pin and no "add current location" (D-035 §3). Stored places are untouched.
+  - **Sidebar order is a preference**: `SidebarItemId` + `sidebarOrder`, stored as names and repaired
+    on read (`parse`: unknown dropped, missing appended), with a reorder screen in Settings that greys
+    out (but keeps the slot of) items an add-on currently hides (D-035 §4).
+  - **The 12px yellow-and-black strip** around the score card in a short window: a fixed-height
+    sibling above a list that can shrink to zero. The card is skipped below 140pt of body height,
+    where it would be the only thing on screen (D-035 §5).
+- Tests: `test/core/types/sidebar_item_id_test.dart`, `test/widgets/side_items/side_items_test.dart`
+  (stored order, map off, relax-sounds needs pro *and* the add-on, labels/icons from the ids), the
+  gradient ends in both directions, and the bar's inner `Directionality`.
+- Stumble worth remembering: the first commit added `AddOnType.map` while `toggleAddOn`'s switch still
+  had no `.map` case — and that case could not be written until the regenerated `copyWith` existed, so
+  the push went red on a non-exhaustive switch (`65d0763`, Analyze). The `.g.dart` landed in the very
+  next commit (`411291a`) with the setters, and the tip has been green since. The rule: a new enum
+  value and an exhaustive switch over it are one atomic change, so the regeneration has to be fetched
+  *before* the enum grows, not after.
+- CI `43803014131` green on `411291a`: Scope 6s, Analyze ✓, Test (1) ✓ in 2m31s over 40 scoped files,
+  162s total. (`flutter test failed but the JSON reporter reported no failing test` is the same
+  pre-existing annotation the previous green run carries; the job exits success.)
