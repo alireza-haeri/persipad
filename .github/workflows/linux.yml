@@ -1,0 +1,438 @@
+name: Linux
+
+# We ship Linux only (Android is parked — see ai/DECISIONS.md D-007). The agent
+# sandbox has no Flutter SDK and no pub.dev access, so compile/test verification has
+# to happen here.
+#
+# SPEED: the work is scoped to the change. A plain push runs `analyze` (~90s) plus
+# the tests that can actually fail for it — see `bin/changed_tests`, which mirrors
+# changed `lib/**` files onto `test/**` directories, skips everything for docs-only
+# changes, and falls back to the whole suite when a change cannot be mapped. That
+# is usually a handful of test files instead of 106, i.e. seconds instead of ~3.5
+# minutes.
+#
+# Markers still force work, for changes too broad to scope or too risky to scope.
+# They are read from the commit **subject** only — a body that merely mentions
+# `[build]` must not spend two minutes building (it did once, on 48694a9):
+#
+#   [test]   the whole suite                (~3 min, sharded 2 ways)
+#   [build]  build the Linux binary         (~2.5 min)
+#   [full]   run all of them
+#
+# The `scope` job decides all of that in ~15s (checkout + Python, no Flutter) and
+# publishes `mode`/`shards`/`paths`, which is what lets the test matrix have one
+# shard for a scoped run and two for a full one.
+#
+# The jobs do NOT wait for `analyze` (they used to: that alone serialized ~90s in
+# front of every test/build). They run in parallel, so `[full]` costs about as
+# long as its slowest job rather than the sum. Check a run with `bin/ci`, which
+# returns immediately instead of watching.
+#
+# Pull requests always run everything. Adding a marker is cheaper than a workflow
+# dispatch, which GitHub refuses for workflows that only exist on a feature branch.
+#
+# Generated code is committed and verified fresh (D-016), so `build_runner` is not
+# part of this workflow at all — that alone removed ~75s from every job.
+
+on:
+  push:
+    branches:
+      - 'arena/**'
+      - main
+      - develop
+    paths-ignore:
+      - 'ai/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.vscode/**'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+
+jobs:
+  scope:
+    name: Scope
+    # Cheap on purpose: no Flutter, no pub get. Full history is needed to diff a
+    # push, and this repo packs into ~5 MB, so that costs a couple of seconds.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
+      build: ${{ steps.scope.outputs.build }}
+      packages: ${{ steps.scope.outputs.packages }}
+      shards: ${{ steps.scope.outputs.shards }}
+      paths: ${{ steps.scope.outputs.paths }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide what changed
+        id: scope
+        env:
+          # `[test]` / `[full]` force the whole suite (see bin/changed_tests).
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${{ github.base_ref }}" > /dev/null 2>&1
+            bin/changed_tests --base "origin/${{ github.base_ref }}" --head HEAD --explain --github-output >> "$GITHUB_OUTPUT"
+            status=$?
+          else
+            bin/changed_tests --base "${{ github.event.before }}" --head "${{ github.sha }}" --explain --github-output >> "$GITHUB_OUTPUT"
+            status=$?
+          fi
+          if [ $status -ne 0 ]; then
+            # Never let the scoper's own failure turn into "no tests at all".
+            echo "::warning::changed_tests failed; running the full suite"
+            printf 'mode=full\nbuild=false\npackages=true\nshards=[1, 2]\npaths=\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        # ADVISORY: the sandbox cannot run `dart format`, so a blocking gate would
+        # cost a full round trip per line-break guess. Annotations name every
+        # offending file instead (they are the agent's only readable channel —
+        # Actions logs come from blob storage, which is blocked).
+        continue-on-error: true
+        run: |
+          find lib test -name "*.dart" -not -name "*.g.dart" -not -name "*.gen.dart" \
+            -not -name "*.mocks.dart" -not -path "*/firebase_options/*" -print0 \
+            | xargs -0 dart format --line-length=120 > /dev/null
+
+          changed=$(git status --porcelain -- '*.dart' \
+            ':!*.g.dart' ':!*.gen.dart' ':!*.mocks.dart' ':!lib/firebase_options/*' \
+            | awk '{print $2}')
+          if [ -n "$changed" ]; then
+            echo "::error::Some Dart files are not formatted (run bin/format):"
+            for f in $changed; do
+              echo "::error file=$f::Not formatted. Run: bin/format"
+            done
+            exit 1
+          fi
+          echo "::notice::All Dart files are formatted"
+
+      - name: flutter analyze
+        # Only analyzer *errors* fail this job; infos/warnings are upstream lint
+        # debt. Every error is re-emitted as an annotation so it reaches the agent.
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings > /tmp/analyze.txt 2>&1
+          status=$?
+          cat /tmp/analyze.txt
+          if [ $status -ne 0 ]; then
+            errors=$(grep -cE '^ *error • ' /tmp/analyze.txt || true)
+            echo "::error::flutter analyze found ${errors} error(s)"
+            grep -E '^ *error • ' /tmp/analyze.txt | head -10 | while IFS= read -r line; do
+              msg=$(printf '%s' "$line" | awk -F' • ' '{print $2}')
+              loc=$(printf '%s' "$line" | awk -F' • ' '{print $3}')
+              file=${loc%%:*}; rest=${loc#*:}; line_no=${rest%%:*}; col=${rest#*:}
+              echo "::error file=${file},line=${line_no},col=${col}::${msg}"
+            done
+          fi
+          exit $status
+
+  test:
+    # No shard suffix here on purpose: GitHub renders the matrix value itself when
+    # the job is skipped, and a literal `${{ matrix.shard }}` looks like a bug.
+    name: Test
+    # No `needs: analyze`: the two jobs are independent, and gating on the analyzer
+    # added ~90s of dead time before a single test compiled. `scope` is a different
+    # matter — its output decides whether this job exists and how it is split.
+    needs: scope
+    # `none` means the change cannot affect runtime behaviour (docs, ai notes), and
+    # running the suite for it would be pure cost.
+    if: needs.scope.outputs.mode != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # One shard for a scoped run (a few files: splitting them would only add a
+        # second cold start), two for the full suite.
+        shard: ${{ fromJson(needs.scope.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        # `flutter test` has no built-in sharding, so a full run splits the file
+        # list round-robin (106 files / ~1000 cases take ~4.5 min in one job; two
+        # shards land near the length of the slower half). A scoped run needs no
+        # split at all — it is the handful of files `bin/changed_tests` picked.
+        env:
+          TEST_MODE: ${{ needs.scope.outputs.mode }}
+          TEST_PATHS: ${{ needs.scope.outputs.paths }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set +e
+          if [ "$TEST_MODE" = "full" ]; then
+            mapfile -t files < <(find test -name '*_test.dart' | sort)
+            selected=()
+            for i in "${!files[@]}"; do
+              if (( i % 2 == SHARD - 1 )); then selected+=("${files[$i]}"); fi
+            done
+            echo "::notice::shard $SHARD/2: ${#selected[@]} files (full suite)"
+          # JSON reporter: the human-readable log is unreadable for the agent
+          # (blob storage), so failures are parsed and re-emitted as annotations
+          # with the test name and the first line of the error.
+          else
+            read -r -a selected <<< "$TEST_PATHS"
+            echo "::notice::scoped run: ${#selected[@]} file(s): ${selected[*]}"
+          fi
+
+          if [ ${#selected[@]} -eq 0 ]; then
+            echo "::error::no test files selected"
+            exit 1
+          fi
+
+          flutter test --reporter json "${selected[@]}" > /tmp/test.json 2>&1
+          status=$?
+          # `status` is passed in so a green run can never produce a failure
+          # annotation. This used to print "flutter test failed but the JSON
+          # reporter reported no failing test" on *every successful run*, which
+          # teaches everyone to ignore annotations - exactly the signal a real
+          # failure has to stand out against.
+          TEST_STATUS=$status python3 - <<'PY' || true
+          import json
+          import os
+
+          status = int(os.environ.get('TEST_STATUS', '0'))
+          names = {}
+          failed = []
+          for line in open('/tmp/test.json', errors='replace'):
+              line = line.strip()
+              if not line.startswith('{'):
+                  continue
+              try:
+                  event = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              kind = event.get('type')
+              if kind == 'testStart':
+                  names[event['test']['id']] = event['test']['name']
+              elif kind == 'error':
+                  name = names.get(event.get('testID'), '?')
+                  message = (event.get('error') or '').strip().splitlines()
+                  detail = message[0] if message else 'failed'
+                  print(f"::error::FAILED {name} :: {detail}")
+              elif kind == 'testDone' and event.get('result') != 'success' and not event.get('hidden'):
+                  failed.append(names.get(event.get('testID'), '?'))
+
+          for name in failed:
+              print(f"::error::failing test: {name}")
+          if status != 0 and not failed:
+              # The run failed without a reported test failure: a compile error,
+              # a missing dependency, a timeout. The tail of the log is the only
+              # useful thing here, and it is what the annotation should carry.
+              print("::error::flutter test exited non-zero with no failing test reported - see the step log")
+          PY
+          exit $status
+
+  editor-package:
+    # `packages/storypad_editor` owns the persisted content format (Markdown in/out,
+    # Quill import, embeds) and ships 57 test files / ~390 cases of its own that the
+    # root `flutter test` never touches: it is a separate package with its own
+    # pubspec and its own test directory. Leaving them off CI meant the most
+    # dangerous-to-break code in the repo had its suite permanently switched off
+    # (`ai/ANALYSIS.md` §1, `BACKLOG.md` T-9).
+    #
+    # It is its own job on purpose: a scoped run must not spend this time, and a
+    # failure here should name the package instead of hiding among app tests.
+    name: Editor package tests
+    needs: scope
+    if: needs.scope.outputs.packages == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        working-directory: packages/storypad_editor
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: packages/storypad_editor
+        run: |
+          set +e
+          flutter test --reporter json > /tmp/editor-test.json 2>&1
+          status=$?
+          python3 - <<'PY' || true
+          import json
+
+          names = {}
+          failed = []
+          for line in open('/tmp/editor-test.json', errors='replace'):
+              line = line.strip()
+              if not line.startswith('{'):
+                  continue
+              try:
+                  event = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              kind = event.get('type')
+              if kind == 'testStart':
+                  names[event['test']['id']] = event['test']['name']
+              elif kind == 'error':
+                  name = names.get(event.get('testID'), '?')
+                  message = (event.get('error') or '').strip().splitlines()
+                  detail = message[0] if message else 'failed'
+                  print(f"::error::FAILED {name} :: {detail}")
+              elif kind == 'testDone' and event.get('result') != 'success' and not event.get('hidden'):
+                  failed.append(names.get(event.get('testID'), '?'))
+          for name in failed:
+              print(f"::error::failing test: {name}")
+          PY
+          exit $status
+
+  coverage:
+    # `flutter test --coverage` on the full suite only: a scoped run measures a
+    # handful of files, which says nothing about the tree and would tempt someone
+    # to "fix" the number by running more tests in a scoped job.
+    #
+    # Advisory by design (like the formatter): the artifact is for a human to read.
+    # There is no threshold gate, because a threshold chosen today would either be
+    # trivially passed or silently lowered — measure first (`ai/ANALYSIS.md` §6).
+    name: Coverage
+    needs: scope
+    if: |
+      needs.scope.outputs.mode == 'full' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Summarise lcov
+        run: |
+          python3 - <<'PY'
+          lines = 0
+          hit = 0
+          for line in open('coverage/lcov.info', errors='replace'):
+              if line.startswith('DA:'):
+                  parts = line.strip().split(',')
+                  if len(parts) >= 2:
+                      lines += 1
+                      if int(parts[1]) > 0:
+                          hit += 1
+          pct = (100.0 * hit / lines) if lines else 0.0
+          print(f"::notice::line coverage: {hit}/{lines} ({pct:.1f}%)")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux desktop
+    # `needs.scope` instead of grepping the message here: the scoper only reads the
+    # subject line, so prose in the body cannot trigger a 2-minute build.
+    needs: scope
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.scope.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux desktop build dependencies
+        # Keep in sync with bin/setup_linux (ai/ENVIRONMENT.md §2.2).
+        # Cached: a cold `apt-get update && install` of this list cost 47s per run.
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: >-
+            clang cmake ninja-build pkg-config
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsecret-1-dev libjsoncpp-dev
+            libayatana-appindicator3-dev libasound2-dev libpulse-dev liblzma-dev
+          version: 1.0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build (debug)
+        # The community flavor is the only one that builds without private keys.
+        # Compiler errors are re-emitted as annotations: a bare "exit 1" from a
+        # 4 minute build is useless feedback without log access.
+        run: |
+          set +e
+          flutter build linux --debug --target=lib/main_community.dart > /tmp/build.txt 2>&1
+          status=$?
+          tail -60 /tmp/build.txt
+          if [ $status -ne 0 ]; then
+            echo "::error::flutter build linux failed"
+            grep -E 'lib/.*\.dart:[0-9]+:[0-9]+: Error|^Error: |error •' /tmp/build.txt \
+              | head -10 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+          fi
+          exit $status
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storypad-linux-debug
+          path: build/linux/x64/debug/bundle/
+          retention-days: 3
+          if-no-files-found: warn

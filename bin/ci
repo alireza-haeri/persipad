@@ -1,0 +1,151 @@
+#!/bin/bash -e
+
+# Use this [bin/ci] to check CI **without waiting**. By default it makes one round
+# of API calls and returns in about a second — the thing that made the old loop
+# feel slow was `gh run watch` sitting on a 3-5 minute run, not the run itself.
+#
+# Commands:
+#   bin/ci               every workflow for the latest commit on this branch
+#   bin/ci --branch x    same, for another branch
+#   bin/ci --all         the last 5 runs on this branch
+#   bin/ci --wait 180    poll for at most 180s, return as soon as it finishes
+#   bin/ci --watch       poll until it finishes (explicitly opting in to waiting)
+#
+# Exit status: 0 = success or still running (without --wait), 1 = something failed.
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+ALL=0
+WAIT=0
+WATCH=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --branch)
+    BRANCH="$2"
+    shift 2
+    ;;
+  --all)
+    ALL=1
+    shift
+    ;;
+  --wait)
+    WAIT="$2"
+    shift 2
+    ;;
+  --watch)
+    WATCH=1
+    shift
+    ;;
+  -h | --help)
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1 (try bin/ci --help)"
+    exit 1
+    ;;
+  esac
+done
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+fetch() {
+  if [ "$ALL" = "1" ]; then
+    gh api "repos/:owner/:repo/actions/runs?branch=${BRANCH}&per_page=5" > "$TMP/runs.json"
+  else
+    # Everything that ran for the commit at the tip of the branch, whatever the
+    # workflow. Falls back to the branch's newest run when the tip has none yet
+    # (e.g. a docs-only push, which no workflow watches).
+    sha=$(gh api "repos/:owner/:repo/commits/${BRANCH}" -q .sha 2>/dev/null || echo "")
+    gh api "repos/:owner/:repo/actions/runs?head_sha=${sha}&per_page=10" > "$TMP/runs.json" 2>/dev/null || echo '{"workflow_runs":[]}' > "$TMP/runs.json"
+    count=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["workflow_runs"]))' "$TMP/runs.json")
+    if [ "$count" = "0" ]; then
+      gh api "repos/:owner/:repo/actions/runs?branch=${BRANCH}&per_page=1" > "$TMP/runs.json"
+    fi
+  fi
+
+  # One jobs call per run (at most a handful), so the report can show which job
+  # is the slow one.
+  python3 -c 'import json,sys; [print(r["id"]) for r in json.load(open(sys.argv[1]))["workflow_runs"]]' \
+    "$TMP/runs.json" | while read -r id; do
+    gh api "repos/:owner/:repo/actions/runs/${id}/jobs" > "$TMP/jobs-${id}.json" || echo '{"jobs":[]}' > "$TMP/jobs-${id}.json"
+  done
+}
+
+report() {
+  python3 - "$TMP" <<'PY'
+import glob, json, os, sys
+from datetime import datetime, timezone
+
+tmp = sys.argv[1]
+runs = json.load(open(os.path.join(tmp, "runs.json")))["workflow_runs"]
+if not runs:
+    print("no runs for this branch yet")
+    raise SystemExit(0)
+
+ICON = {"success": "ok  ", "failure": "FAIL", "cancelled": "stop", "skipped": "--", "timed_out": "slow"}
+NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def secs(a, b):
+    if not a or not b:
+        return None
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    return int((datetime.strptime(b, fmt) - datetime.strptime(a, fmt)).total_seconds())
+
+
+worst = 0
+for run in runs:
+    title = run["display_title"][:66]
+    print(f"{run['name']} #{run['id']} [{run['status']}] {run['created_at'][11:16]}Z  {title}")
+
+    jobs_path = os.path.join(tmp, f"jobs-{run['id']}.json")
+    jobs = json.load(open(jobs_path)).get("jobs", []) if os.path.exists(jobs_path) else []
+    for job in jobs:
+        state = job["conclusion"] or job["status"]
+        took = secs(job["started_at"], job["completed_at"] or NOW)
+        if job["conclusion"] == "skipped":
+            note = "not requested"
+        elif took is not None:
+            note = f"{took}s"
+        else:
+            note = ""
+        print(f"   {ICON.get(state, '... ')} {job['name']:<24} {note}")
+
+    if run["status"] == "completed":
+        took = secs(run["run_started_at"], run["updated_at"])
+        print(f"   total {took}s  -> {run['conclusion']}")
+        if run["conclusion"] not in ("success", "skipped"):
+            worst = 1
+    else:
+        took = secs(run["run_started_at"], NOW)
+        print(f"   still running ({took}s)")
+    print()
+
+raise SystemExit(worst)
+PY
+}
+
+fetch
+report && rc=0 || rc=$?
+
+if [ "$WATCH" = "1" ]; then WAIT=86400; fi
+if [ "$WAIT" != "0" ]; then
+  deadline=$((SECONDS + WAIT))
+  while [ $SECONDS -lt $deadline ]; do
+    if python3 -c '
+import json, sys
+runs = json.load(open(sys.argv[1]))["workflow_runs"]
+sys.exit(0 if all(r["status"] == "completed" for r in runs) else 1)
+' "$TMP/runs.json"; then
+      break
+    fi
+    sleep 15
+    fetch
+  done
+  echo "=== after waiting ==="
+  report && rc=0 || rc=$?
+fi
+
+exit $rc

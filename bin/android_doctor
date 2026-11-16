@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+# android_doctor — what this machine has, what the Android build needs, and what is missing.
+#
+#   bin/android_doctor            # full read-only report
+#   bin/android_doctor --short    # only the verdict lines
+#   bin/android_doctor --fix      # install the missing SDK packages with sdkmanager
+#   bin/android_doctor --mirror   # write ~/.gradle/init.d/notely-google-mirror.gradle
+#   bin/android_doctor --fix --sdk-mirror=<url>   # SDK packages from a mirror of Google's repo
+#
+# Prints one paste-able report: toolchain versions, SDK packages, AVDs and their ABIs,
+# the Gradle/AGP/NDK the repo *and the pinned Flutter SDK* ask for, and whether Google
+# Maven is reachable — probed twice, with and without the environment's HTTP proxy,
+# because "404 for every file on dl.google.com" is a network interception while "404 for
+# two files" is a stale Gradle cache, and the two need opposite fixes.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+SHORT=0
+FIX=0
+MIRROR=0
+for arg in "$@"; do
+  case "$arg" in
+    --short)  SHORT=1 ;;
+    --fix)    FIX=1 ;;
+    --mirror) MIRROR=1 ;;
+    --sdk-mirror=*) SDK_MIRROR_URL="${arg#*=}" ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "bin/android_doctor: unknown argument '$arg' (try --help)" >&2; exit 2 ;;
+  esac
+done
+
+hdr() { [ "$SHORT" = 1 ] || printf '\n\033[1m== %s\033[0m\n' "$*"; }
+row() { printf '  %-26s %s\n' "$1" "$2"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+verdict_ok=(); verdict_bad=(); verdict_note=(); MISSING_PKGS=()
+ok()   { verdict_ok+=("$*");   [ "$SHORT" = 1 ] || printf '  \033[32mok\033[0m      %s\n' "$*"; }
+bad()  { verdict_bad+=("$*");  [ "$SHORT" = 1 ] || printf '  \033[31mMISSING\033[0m %s\n' "$*"; }
+note() { verdict_note+=("$*"); [ "$SHORT" = 1 ] || printf '  \033[33mnote\033[0m    %s\n' "$*"; }
+
+[ "$SHORT" = 1 ] || printf '\033[1mAndroid doctor\033[0m — %s on %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)"
+
+# ---------------------------------------------------------------- machine
+hdr "machine"
+row distro "$(sed -n 's/^PRETTY_NAME="\(.*\)"/\1/p' /etc/os-release 2>/dev/null | head -1)"
+row kernel "$(uname -r)"
+row cpus "$(nproc 2>/dev/null)"
+row memory "$(free -h 2>/dev/null | awk 'NR==2{print $2}')"
+row disk_here "$(df -h . | awk 'NR==2{print $4" free of "$2" on "$6}')"
+
+# `grep -v` first: a commented-out `// compileSdk = flutter.compileSdkVersion` line
+# would otherwise match with an empty number and report nothing.
+gradle_value() { # file, property
+  grep -v '^[[:space:]]*//' "$1" 2>/dev/null |
+    sed -n "s/.*[[:space:]]$2[[:space:]]*=.*[^0-9]\([0-9][0-9]*\)[[:space:]]*$/\1/p" | head -1
+}
+
+# ---------------------------------------------------------------- repo
+hdr "repo"
+row branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+row commit "$(git log --oneline -1 2>/dev/null)"
+row dirty "$(git status --porcelain 2>/dev/null | wc -l) file(s)"
+row gradle_wrapper "$(sed -n 's/.*gradle-\(.*\)-\(all\|bin\)\.zip/\1/p' android/gradle/wrapper/gradle-wrapper.properties 2>/dev/null)"
+row agp "$(sed -n 's/.*com\.android\.application") version "\([^"]*\)".*/\1/p' android/settings.gradle.kts 2>/dev/null)"
+row kotlin "$(sed -n 's/.*org\.jetbrains\.kotlin\.android") version "\([^"]*\)".*/\1/p' android/settings.gradle.kts 2>/dev/null)"
+COMPILE_SDK=$(gradle_value android/app/build.gradle.kts compileSdk)
+MIN_SDK=$(gradle_value android/app/build.gradle.kts minSdk)
+row compile_sdk "${COMPILE_SDK:-<unparsed>}"
+row min_sdk "${MIN_SDK:-<unparsed>}"
+
+# ---------------------------------------------------------------- toolchain
+hdr "toolchain"
+FLUTTER_VERSION=""
+FLUTTER_ROOT=""
+if have flutter; then
+  FLUTTER_BIN=$(command -v flutter)
+  FLUTTER_VERSION=$(flutter --version 2>/dev/null | head -1)
+  row flutter "$(echo "$FLUTTER_VERSION" | cut -c1-60)"
+  row flutter_path "$FLUTTER_BIN"
+  FLUTTER_ROOT=$(cd "$(dirname "$(readlink -f "$FLUTTER_BIN")")/.." && pwd)
+  case "$FLUTTER_VERSION" in
+    *3.50.*) ok "flutter $(echo "$FLUTTER_VERSION" | awk '{print $2}')" ;;
+    *) note "flutter is $(echo "$FLUTTER_VERSION" | awk '{print $2}'); CI pins 3.50.0" ;;
+  esac
+else
+  bad "flutter not on PATH (install 3.50.0)"
+fi
+
+if have java; then
+  JAVA_LINE=$(java -version 2>&1 | head -1)
+  JAVA_MAJOR=$(printf '%s\n' "$JAVA_LINE" | sed -n 's/.*version "\([0-9]*\).*/\1/p')
+  row java "$JAVA_LINE"
+  row JAVA_HOME "${JAVA_HOME:-<unset>}"
+  if [ "${JAVA_MAJOR:-0}" -ge 17 ] 2>/dev/null; then ok "JDK ${JAVA_MAJOR}"; else bad "JDK ${JAVA_MAJOR:-?} (need 17+)"; fi
+else
+  bad "no java on PATH (need JDK 17+)"
+fi
+
+# What the pinned Flutter SDK itself demands — these are the numbers Gradle enforces.
+FLUTTER_NDK=""
+FLUTTER_GRADLE=""
+FLUTTER_AGP=""
+if [ -n "$FLUTTER_ROOT" ]; then
+  GU="$FLUTTER_ROOT/packages/flutter_tools/lib/src/android/gradle_utils.dart"
+  if [ -f "$GU" ]; then
+    pf() { sed -n "s/.*const $1 = '\([^']*\)';.*/\1/p" "$GU" | head -1; }
+    FLUTTER_NDK=$(pf ndkVersion)
+    FLUTTER_GRADLE=$(pf templateDefaultGradleVersion)
+    FLUTTER_AGP=$(pf templateAndroidGradlePluginVersion)
+    row flutter_pins "gradle ${FLUTTER_GRADLE:-?} / agp ${FLUTTER_AGP:-?} / ndk ${FLUTTER_NDK:-?}"
+    AGP_HERE=$(sed -n 's/.*com\.android\.application") version "\([^"]*\)".*/\1/p' android/settings.gradle.kts 2>/dev/null)
+    if [ -n "$FLUTTER_AGP" ] && [ -n "$AGP_HERE" ] && [ "$AGP_HERE" != "$FLUTTER_AGP" ]; then
+      note "repo pins AGP $AGP_HERE, the Flutter template uses $FLUTTER_AGP (the repo's value wins; Flutter only enforces a minimum)"
+    fi
+  else
+    note "could not read gradle_utils.dart from the Flutter SDK — NDK/platform pins unknown"
+  fi
+fi
+
+# ---------------------------------------------------------------- android sdk
+hdr "android sdk"
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+[ -z "$SDK" ] && for guess in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" /usr/lib/android-sdk /opt/android-sdk; do
+  [ -d "$guess" ] && { SDK="$guess"; break; }
+done
+SDKMANAGER=""
+if [ -n "$SDK" ] && [ -d "$SDK" ]; then
+  ok "ANDROID_HOME=$SDK"
+  row sdk_path "$SDK"
+  row disk_sdk "$(df -h "$SDK" | awk 'NR==2{print $4" free"}')"
+  for c in "$SDK"/cmdline-tools/*/bin/sdkmanager "$SDK"/cmdline-tools/latest/bin/sdkmanager "$SDK"/tools/bin/sdkmanager; do
+    [ -x "$c" ] && { SDKMANAGER="$c"; break; }
+  done
+  if [ -n "$SDKMANAGER" ]; then
+    row sdkmanager "$SDKMANAGER"
+    INSTALLED=$(timeout 180 "$SDKMANAGER" --list_installed 2>/dev/null | sed -n '/Installed packages:/,$p' | sed '1d' | awk '{print $1}' | sed '/^$/d')
+    row platforms "$(printf '%s\n' "$INSTALLED" | grep '^platforms;android-' | sed 's/platforms;android-//' | sort -n | tr '\n' ' ')"
+    row platform_dirs "$(ls "$SDK/platforms" 2>/dev/null | tr '\n' ' ')"
+    row build_tools "$(printf '%s\n' "$INSTALLED" | grep '^build-tools;' | sed 's/build-tools;//' | sort -V | tr '\n' ' ')"
+    row ndk "$(printf '%s\n' "$INSTALLED" | grep '^ndk;' | sed 's/ndk;//' | sort -V | tr '\n' ' ')"
+    row cmake "$(printf '%s\n' "$INSTALLED" | grep '^cmake;' | sed 's/cmake;//' | sort -V | tr '\n' ' ')"
+    row platform_tools "$(printf '%s\n' "$INSTALLED" | grep -q '^platform-tools' && echo installed || echo missing)"
+    row emulator "$(printf '%s\n' "$INSTALLED" | grep -q '^emulator' && echo installed || echo missing)"
+
+    if [ -n "$COMPILE_SDK" ]; then
+      if printf '%s\n' "$INSTALLED" | grep -qx "platforms;android-$COMPILE_SDK"; then
+        ok "platform android-$COMPILE_SDK"
+      elif printf '%s\n' "$INSTALLED" | grep -q '^platforms;android-36'; then
+        ok "platform android-36 (local fallback; CI uses $COMPILE_SDK)"
+      else
+        bad "platform android-36+ (subprojects require >=36; CI uses $COMPILE_SDK)"
+        MISSING_PKGS+=("platforms;android-$COMPILE_SDK")
+      fi
+    fi
+    if [ -n "$FLUTTER_NDK" ]; then
+      if printf '%s\n' "$INSTALLED" | grep -qx "ndk;$FLUTTER_NDK"; then
+        ok "ndk $FLUTTER_NDK (pinned by the Flutter SDK)"
+      else
+        note "ndk $FLUTTER_NDK not installed (optional — bin/build_apk builds with --no-ndk)"
+      fi
+    fi
+    if ! printf '%s\n' "$INSTALLED" | grep -q '^build-tools;'; then
+      bad "build-tools"
+      MISSING_PKGS+=("build-tools;37.0.0")
+    fi
+    if ! printf '%s\n' "$INSTALLED" | grep -q '^platform-tools'; then
+      bad "platform-tools (adb lives here)"
+      MISSING_PKGS+=("platform-tools")
+    fi
+    printf '%s\n' "$INSTALLED" | grep -q '^emulator' || note "emulator package not installed (only needed for AVDs)"
+    printf '%s\n' "$INSTALLED" | grep -q '^cmake;' || note "cmake not installed — Gradle downloads it only if a plugin has native code"
+  else
+    note "sdkmanager not found under $SDK (cmdline-tools missing) — package checks skipped"
+  fi
+else
+  bad "no Android SDK (set ANDROID_HOME; Android Studio ships it)"
+  SDK=""
+fi
+
+# ---------------------------------------------------------------- devices & avds
+hdr "devices and AVDs"
+ADB=""
+have adb && ADB=$(command -v adb)
+if [ -z "$ADB" ] && [ -n "$SDK" ] && [ -x "$SDK/platform-tools/adb" ]; then
+  ADB="$SDK/platform-tools/adb"
+  note "adb is at ${ADB/#$HOME/\~} (not on PATH — bin/build_apk finds it automatically)"
+fi
+if [ -n "$ADB" ]; then
+  row adb "$("$ADB" version 2>/dev/null | head -1)"
+  DEVICES=$(timeout 30 "$ADB" devices -l 2>/dev/null | sed -n '2,$p' | sed '/^$/d')
+  if [ -n "$DEVICES" ]; then
+    printf '%s\n' "$DEVICES" | while IFS= read -r line; do row device "$line"; done
+    FIRST_SERIAL=$(printf '%s\n' "$DEVICES" | awk '$2=="device"{print $1; exit}')
+    if [ -n "$FIRST_SERIAL" ]; then
+      ABI_DEV=$(timeout 20 "$ADB" -s "$FIRST_SERIAL" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r' | head -1)
+      [ -n "$ABI_DEV" ] && ok "attached device ABI $ABI_DEV (bin/build_apk --abi auto follows it)"
+    fi
+  else
+    note "no device/emulator attached ('adb devices' is empty)"
+  fi
+else
+  bad "adb not found on PATH${SDK:+ or under $SDK/platform-tools} (install platform-tools)"
+fi
+
+EMULATOR=""
+have emulator && EMULATOR=$(command -v emulator)
+[ -z "$EMULATOR" ] && [ -n "$SDK" ] && [ -x "$SDK/emulator/emulator" ] && EMULATOR="$SDK/emulator/emulator"
+if [ -n "$EMULATOR" ]; then
+  AVDS=$(timeout 30 "$EMULATOR" -list-avds 2>/dev/null | sed '/^$/d')
+  if [ -n "$AVDS" ]; then
+    while IFS= read -r avd; do
+      CFG="$HOME/.android/avd/$avd.avd/config.ini"
+      # newer AVDs use abi.type, older ones only record hw.cpu.arch
+      ABI=$(sed -n 's/^abi\.type=//p' "$CFG" 2>/dev/null | head -1)
+      [ -z "$ABI" ] && ABI=$(sed -n 's/^hw\.cpu\.arch=//p' "$CFG" 2>/dev/null | head -1)
+      case "$ABI" in arm64*) ABI=arm64-v8a ;; x86_64|x86) : ;; esac
+      row "avd $avd" "${ABI:-abi unknown — boot it and ask adb}"
+    done <<< "$AVDS"
+    FIRST_AVD=$(printf '%s\n' "$AVDS" | head -1)
+    ok "AVDs present — run bin/build_apk --install --avd (or: ${EMULATOR/#$HOME/\~} -avd $FIRST_AVD &)"
+  else
+    note "emulator installed but no AVDs (avdmanager create avd -n pixel -k \"system-images;android-36;google_apis;x86_64\")"
+  fi
+else
+  note "emulator binary not found — AVD checks skipped"
+fi
+
+# ---------------------------------------------------------------- network
+hdr "google maven reachability"
+GOOGLE_DIRECT_OK=0
+GOOGLE_PROXYED_OK=0
+GOOGLE_TOTAL=0
+NET_HINT=""
+proxy_env=$(env | grep -iE '^(http|https|all|no)_proxy=' | tr '\n' ' ')
+row proxy_env "${proxy_env:-<none>}"
+if [ -f "$HOME/.gradle/gradle.properties" ] && grep -q 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" 2>/dev/null; then
+  row gradle_proxy "$(grep 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" | tr '\n' ' ')"
+else
+  row gradle_proxy "<none>"
+fi
+
+if have curl; then
+  probe() { curl -s -o /dev/null -m 25 -w '%{http_code}' "$@" 2>/dev/null; }
+  printf '  %-52s %s\n' "file" "direct / via-proxy"
+  for path in \
+    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.jar" \
+    "com/android/tools/build/gradle/9.1.1/gradle-9.1.1.pom" \
+    "com/android/tools/build/apksig/9.1.1/apksig-9.1.1.jar" \
+    "com/android/tools/build/apkzlib/9.1.1/apkzlib-9.1.1.jar" ; do
+    url="https://dl.google.com/dl/android/maven2/$path"
+    d=$(probe --noproxy '*' "$url")
+    p=$(probe "$url")
+    GOOGLE_TOTAL=$((GOOGLE_TOTAL + 1))
+    [ "$d" = "200" ] && GOOGLE_DIRECT_OK=$((GOOGLE_DIRECT_OK + 1))
+    [ "$p" = "200" ] && GOOGLE_PROXYED_OK=$((GOOGLE_PROXYED_OK + 1))
+    [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "$(basename "$path")" "$d / $p"
+  done
+  central=$(probe --noproxy '*' "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/2.4.10/kotlin-gradle-plugin-2.4.10.pom")
+  [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "maven central (direct)" "$central"
+  # sdkmanager reads its package list from this same host, under a different path.
+  # If the maven path 404s but this one does not, the block is path-specific and
+  # `--fix` still works; if both fail, Android Studio is the only way to get packages.
+  sdkrepo=$(probe --noproxy '*' "https://dl.google.com/android/repository/repository2-3.xml")
+  SDKREPO_CODE="$sdkrepo"
+  [ "$SHORT" = 1 ] || printf '  %-52s %s\n' "sdk package list (dl.google.com/android/repository)" "$sdkrepo"
+  if [ "$sdkrepo" != "200" ] && [ "$GOOGLE_DIRECT_OK" -eq 0 ]; then
+    note "sdkmanager cannot download either — install packages through Android Studio, or from a network that reaches dl.google.com"
+  fi
+
+  if [ "$GOOGLE_DIRECT_OK" -eq "$GOOGLE_TOTAL" ]; then
+    ok "Google Maven answers 200 for all four files, direct"
+    if [ "$GOOGLE_PROXYED_OK" -lt "$GOOGLE_TOTAL" ]; then
+      note "…but the HTTP proxy in this shell breaks them ($GOOGLE_PROXYED_OK/$GOOGLE_TOTAL via proxy) — do not give Gradle that proxy"
+    fi
+    if grep -q 'systemProp.*proxy' "$HOME/.gradle/gradle.properties" 2>/dev/null; then
+      NET_HINT="cache"
+    else
+      NET_HINT="cache"
+    fi
+  elif [ "$GOOGLE_PROXYED_OK" -eq "$GOOGLE_TOTAL" ] || [ "$GOOGLE_PROXYED_OK" -gt "$GOOGLE_DIRECT_OK" ]; then
+    bad "direct access to dl.google.com fails but the proxy works — configure Gradle's proxy"
+    NET_HINT="proxy"
+  elif [ "$GOOGLE_DIRECT_OK" -gt 0 ]; then
+    bad "some Google Maven files 404 — stale Gradle metadata cache"
+    NET_HINT="cache"
+  else
+    bad "dl.google.com is unreachable for every file ($GOOGLE_TOTAL/$GOOGLE_TOTAL 404 or no answer)"
+    NET_HINT="mirror"
+  fi
+  [ "$central" = "200" ] || note "maven central is also unreachable — suspect the whole network, not Google"
+
+  GOOGLE_MIRROR="https://maven.aliyun.com/repository/google"
+  if [ "$GOOGLE_DIRECT_OK" -lt "$GOOGLE_TOTAL" ] || [ "$MIRROR" = 1 ]; then
+    [ "$SHORT" = 1 ] || { hdr "google maven mirrors"; printf '  %-48s %s\n' "mirror" "agp / gs-jar / gs-plugin / crash"; }
+    BEST_MIRROR=""
+    FALLBACK_MIRROR=""
+    for m in \
+      "https://maven.aliyun.com/repository/google" \
+      "https://mirrors.cloud.tencent.com/nexus/repository/maven-public" \
+      "https://repo.huaweicloud.com/repository/maven" ; do
+      c_agp=$(probe -L --connect-timeout 5 -m 12 "$m/com/android/tools/build/gradle/9.1.1/gradle-9.1.1.pom")
+      c_gs=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/gms/google-services/4.4.4/google-services-4.4.4.pom")
+      c_gsp=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/gms/google-services/com.google.gms.google-services.gradle.plugin/4.4.4/com.google.gms.google-services.gradle.plugin-4.4.4.pom")
+      c_cr=$(probe -L --connect-timeout 5 -m 12 "$m/com/google/firebase/firebase-crashlytics-gradle/3.0.6/firebase-crashlytics-gradle-3.0.6.pom")
+      label="${m#https://}"; label="${label%%/*}"
+      [ "$SHORT" = 1 ] || printf '  %-48s %s / %s / %s / %s\n' "$label" "$c_agp" "$c_gs" "$c_gsp" "$c_cr"
+      if [ -z "$BEST_MIRROR" ] && [ "$c_agp" = "200" ] && [ "$c_gs" = "200" ] && [ "$c_gsp" = "200" ] && [ "$c_cr" = "200" ]; then
+        BEST_MIRROR="$m"
+      elif [ -z "$FALLBACK_MIRROR" ] && [ "$c_agp" = "200" ] && { [ "$c_gs" = "200" ] || [ "$c_gsp" = "200" ]; }; then
+        FALLBACK_MIRROR="$m"
+      fi
+    done
+    [ -n "$BEST_MIRROR" ] && GOOGLE_MIRROR="$BEST_MIRROR" || { [ -n "$FALLBACK_MIRROR" ] && GOOGLE_MIRROR="$FALLBACK_MIRROR"; }
+  fi
+else
+  GOOGLE_MIRROR="https://maven.aliyun.com/repository/google"
+  note "curl not found — reachability checks skipped"
+fi
+
+for f in "$HOME"/.gradle/init.d/*; do
+  [ -f "$f" ] || continue
+  hdr "gradle init scripts (can replace repositories)"
+  row "$(basename "$f")" "$(grep -c . "$f") lines"
+done
+
+# ---------------------------------------------------------------- mirror / fix
+MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle"
+OLD_MIRROR_FILE="$HOME/.gradle/init.d/notely-google-mirror.gradle.kts"
+if [ "$MIRROR" = 1 ]; then
+  mkdir -p "$HOME/.gradle/init.d"
+  if [ -f "$OLD_MIRROR_FILE" ]; then
+    rm -f "$OLD_MIRROR_FILE"
+    printf '\n  \033[33mRemoved\033[0m old %s\n' "$OLD_MIRROR_FILE"
+  fi
+  cat > "$MIRROR_FILE" <<EOF
+// Written by \`bin/android_doctor --mirror\`.
+// Purpose: this network cannot reach dl.google.com, so Google's Maven repository is
+// redirected in-place to a public mirror without adding extra repositories (which
+// would trip RepositoriesMode.FAIL_ON_PROJECT_REPOS / PREFER_SETTINGS in Flutter's
+// included gradle build). Delete this file to go back to dl.google.com.
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+
+def mirrorUrl = "$GOOGLE_MIRROR"
+
+def redirectGoogle = { repos ->
+    repos.all { repo ->
+        if (repo instanceof MavenArtifactRepository) {
+            def u = repo.url?.toString() ?: ""
+            if (u.startsWith("https://dl.google.com") || u.startsWith("http://dl.google.com")) {
+                repo.setUrl(mirrorUrl)
+            }
+        }
+    }
+}
+
+beforeSettings { settings ->
+    redirectGoogle(settings.pluginManagement.repositories)
+    redirectGoogle(settings.dependencyResolutionManagement.repositories)
+    // Some Google Maven mirrors sync plugin JARs without their \`.gradle.plugin\` marker POMs.
+    settings.pluginManagement.resolutionStrategy.eachPlugin { details ->
+        if (details.requested.version) {
+            if (details.requested.id.id == "com.google.gms.google-services") {
+                details.useModule("com.google.gms:google-services:\${details.requested.version}")
+            } else if (details.requested.id.id == "com.google.firebase.crashlytics") {
+                details.useModule("com.google.firebase:firebase-crashlytics-gradle:\${details.requested.version}")
+            }
+        }
+    }
+}
+
+allprojects { project ->
+    redirectGoogle(project.buildscript.repositories)
+    redirectGoogle(project.repositories)
+}
+EOF
+  printf '\n  \033[32mWrote\033[0m %s (mirror: %s)\n' "$MIRROR_FILE" "$GOOGLE_MIRROR"
+  printf '  Remove it with: rm %s\n' "$MIRROR_FILE"
+elif [ -f "$OLD_MIRROR_FILE" ]; then
+  bad "old broken mirror script ${OLD_MIRROR_FILE/#$HOME/\~} — run bin/android_doctor --mirror to replace it"
+fi
+
+# ---------------------------------------------------------------- verdict
+printf '\n\033[1m== verdict\033[0m\n'
+for v in "${verdict_ok[@]}"; do printf '  \033[32mok\033[0m      %s\n' "$v"; done
+for v in "${verdict_note[@]}"; do printf '  \033[33mnote\033[0m    %s\n' "$v"; done
+for v in "${verdict_bad[@]}"; do printf '  \033[31mMISSING\033[0m %s\n' "$v"; done
+
+case "${NET_HINT:-}" in
+  mirror) printf '\n  Google Maven is blocked on this network. Fix: \033[1mbin/android_doctor --mirror\033[0m\n  (writes ~/.gradle/init.d/notely-google-mirror.gradle), then bin/build_apk.\n' ;;
+  cache)  printf '\n  Google Maven is reachable, so the 404s are a stale Gradle cache:\n  rm -rf ~/.gradle/caches/modules-2 && bin/build_apk\n' ;;
+  proxy)  printf '\n  Direct works, the proxy does not (or the other way round). If Gradle needs the proxy, put\n  systemProp.https.proxyHost/port in ~/.gradle/gradle.properties; if it does not, keep it out.\n' ;;
+esac
+
+if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
+  printf '\n  Missing SDK packages: %s\n' "${MISSING_PKGS[*]}"
+  if [ "$FIX" = 1 ] && [ -n "$SDKMANAGER" ]; then
+    # sdkmanager reads its package list from dl.google.com/android/repository — the same
+    # host that is blocked for Maven above. SDK_TEST_BASE_URL points it at a mirror of
+    # that repository; the archive URLs inside the XML are relative, so the downloads
+    # follow the mirror too.
+    if [ "${SDKREPO_CODE:-000}" != "200" ]; then
+      SDK_MIRROR_URL="${SDK_MIRROR_URL:-https://mirrors.cloud.tencent.com/AndroidSDK/}"
+      printf '  dl.google.com/android/repository is blocked here — fetching package lists from %s\n' "$SDK_MIRROR_URL"
+      export SDK_TEST_BASE_URL="$SDK_MIRROR_URL"
+    fi
+
+    # Mirrors often lag behind Google (e.g. no platforms;android-37 yet, only 36 / 36.1).
+    # Pick the closest matching package from the catalogue so one missing version does
+    # not abort the whole `sdkmanager --install`.
+    CATALOGUE=$(timeout 180 "$SDKMANAGER" --list 2>/dev/null | sed -n '/Available Packages:/,$p' | awk '{print $1}' | sed '/^$/d' || true)
+    INSTALL_PKGS=()
+    for pkg in "${MISSING_PKGS[@]}"; do
+      if [ -n "$CATALOGUE" ] && ! printf '%s\n' "$CATALOGUE" | grep -qx "$pkg"; then
+        case "$pkg" in
+          platforms\;android-*)
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^platforms;android-36(\.[0-9]+)?$' | sort -V | head -1 || true)
+            [ -z "$alt" ] && alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^platforms;android-[0-9]+(\.[0-9]+)?$' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            fi
+            ;;
+          build-tools\;*)
+            alt=$(printf '%s\n' "$CATALOGUE" | grep -E '^build-tools;[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+            if [ -n "$alt" ]; then
+              printf '  %s is not in this catalogue → installing %s instead\n' "$pkg" "$alt"
+              pkg="$alt"
+            fi
+            ;;
+        esac
+      fi
+      INSTALL_PKGS+=("$pkg")
+    done
+
+    [ "${SDKREPO_CODE:-000}" != "200" ] && printf '  (same by hand: SDK_TEST_BASE_URL=%s sdkmanager --install %s)\n' "$SDK_MIRROR_URL" "${INSTALL_PKGS[*]}"
+    printf '  Installing with: %s --install %s\n' "$SDKMANAGER" "${INSTALL_PKGS[*]}"
+    yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
+    if ! "$SDKMANAGER" --install "${INSTALL_PKGS[@]}"; then
+      printf '\033[31m  sdkmanager failed — see its output above.\033[0m\n'
+      printf '  Fallbacks: another mirror with --sdk-mirror=<url>, or Android Studio set up with a proxy.\n'
+    fi
+  else
+    printf '  Install them with: sdkmanager --install %s   (or re-run with --fix)\n' "${MISSING_PKGS[*]}"
+  fi
+elif [ "${#verdict_bad[@]}" -eq 0 ]; then
+  printf '\n  Nothing missing: run \033[1mbin/build_apk --install\033[0m (it picks the ABI of the attached device/AVD).\n'
+fi

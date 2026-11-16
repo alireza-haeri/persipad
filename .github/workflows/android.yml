@@ -1,0 +1,337 @@
+name: Android
+
+# Builds the community APK on GitHub's runners and publishes it as a pre-release.
+#
+# Why here and not locally: the sandbox the agent works in has no Flutter SDK and no
+# Android SDK, and `flutter build apk` needs a JDK, the Android SDK, Gradle and a
+# ~1 GB NDK download. All of that is already on ubuntu-latest, so the first APK is a
+# workflow rather than a machine setup (D-038).
+#
+# TRIGGERS
+#   push with `[apk]` in the subject  -> build + publish a pre-release
+#   workflow_dispatch                 -> same, by hand, from the Actions tab
+# A plain push does not build an APK: it costs ~7 minutes and produces an artifact
+# nobody asked for. The marker is read from the subject only, like [test]/[build]
+# (ai/DECISIONS.md D-032).
+#
+# SIGNING
+#   With `ANDROID_KEYSTORE_BASE64` + the three key secrets set, this builds the
+#   release APK signed with that key — the one configuration where every future APK
+#   can update the previous install.
+#   Without them it falls back to a **debug-signed** APK (`--debug`): installable,
+#   but not updatable across builds and not something to put on a store. The release
+#   notes say which one you are looking at, so a debug APK is never mistaken for a
+#   release one.
+#
+# The community flavor is the only one this repo can build: `storypad` needs
+# private_keys/ (dart-defines, keystores). `android/app/src/community/google-services.json`
+# is committed, so Firebase needs no secret here.
+
+on:
+  push:
+    branches:
+      - 'arena/**'
+      - main
+      - develop
+    paths-ignore:
+      - 'ai/**'
+      - '**/*.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+permissions:
+  # `contents: write` is what lets the last step create a release.
+  contents: write
+
+concurrency:
+  # NOT `cancel-in-progress: true`. A GitHub concurrency group is cancelled by *any* new
+  # run in it — including one whose job is skipped because the subject has no `[apk]`.
+  # That is how a 15-minute build in progress was killed by a docs push: the step got
+  # SIGTERM (exit code 143) with no Gradle error, which looked exactly like a broken
+  # runner until the run list showed `cancelled`. Queue instead of cancel: a second APK
+  # build is worth waiting for, and a killed one is worth nothing.
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+  FLAVOR: community
+  # Hosted runners keep ~14 GB free on `/` and ~70 GB on `/mnt`. Gradle and pub write
+  # several GB of caches, so they live on /mnt; the second run died of a full `/`
+  # (SIGTERM, exit 143) even after the image was cleaned.
+  GRADLE_USER_HOME: /mnt/gradle-home
+  PUB_CACHE: /mnt/pub-cache
+
+jobs:
+  apk:
+    name: Build APK
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apk]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        # The image ships ~14 GB free on `/`, and Flutter + the Android SDK + Gradle
+        # caches + a first NDK download sit right at that edge: the first run died in
+        # `mergeCommunityDebugNativeLibs` with "Could not update
+        # ~/.gradle/caches/9.3.1/file-changes/last-build.bin", which is what a full
+        # disk looks like from Gradle's side. Nothing Android needs is removed here.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost \
+                      /usr/local/lib/android/sdk/system-images \
+                      /usr/local/lib/android/sdk/emulator \
+                      /opt/microsoft /usr/share/swift /usr/local/graalvm \
+                      /opt/hostedtoolcache/CodeQL /usr/lib/mono || true
+          sudo apt-get clean
+          docker image prune -af || true
+          # /mnt holds ~70 GB; the caches are pointed there by `env:` above.
+          sudo mkdir -p "$GRADLE_USER_HOME" "$PUB_CACHE"
+          sudo chown -R "$(id -u):$(id -g)" /mnt || true
+          echo '--- after ---'
+          df -h /
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache pub and Gradle
+        # A cold run spends minutes re-downloading the same plugins and Gradle
+        # distributions, and every extra minute is another minute in which the hosted
+        # runner can be reclaimed (two runs died with SIGTERM at ~8 minutes, exit 143,
+        # with no Gradle error at all). Warm caches make the build shorter and the
+        # kill window narrower.
+        uses: actions/cache@v4
+        with:
+          path: |
+            /mnt/pub-cache
+            /mnt/gradle-home
+          key: ${{ runner.os }}-android-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-
+
+      - name: Cap the Gradle heap
+        # android/gradle.properties asks for -Xmx8G -XX:MaxMetaspaceSize=4G. That is a
+        # desktop setting; on a 16 GB runner it leaves nothing for the Kotlin daemon, the
+        # Dart compiler and the agent itself. `$GRADLE_USER_HOME/gradle.properties` wins
+        # over the project's, so the project file stays as it is for local builds.
+        run: |
+          cat > "$GRADLE_USER_HOME/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF
+          cat "$GRADLE_USER_HOME/gradle.properties"
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Prepare dart-defines
+        # android/app/build.gradle.kts reads APP_NAME and the Maps key out of
+        # --dart-define-from-file with defaults, so an empty file is enough for the
+        # community build. bin/dev creates the same file locally.
+        run: |
+          mkdir -p bin/.tmp/private_keys/dart_defines
+          if [ ! -f bin/.tmp/private_keys/dart_defines/$FLAVOR.json ]; then
+            echo '{}' > bin/.tmp/private_keys/dart_defines/$FLAVOR.json
+          fi
+
+      - name: Decide the signing mode
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            KEYSTORE="$RUNNER_TEMP/release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+            {
+              echo "RELEASE_KEYSTORE_PATH=$KEYSTORE"
+              echo "RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+            echo "note=release-signed" >> "$GITHUB_OUTPUT"
+            echo "::notice::Building a release APK signed with the repository keystore."
+          else
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+            echo "note=debug-signed (no ANDROID_KEYSTORE_BASE64 secret)" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: falling back to a debug-signed APK."
+          fi
+
+      - name: Build APK
+        id: build
+        # Compiler/Gradle errors are re-emitted as annotations: a bare "exit 1" from a
+        # 6 minute Gradle run is useless feedback when the log is not readable.
+        run: |
+          set +e
+          flutter build apk --${{ steps.signing.outputs.mode }} \
+            --flavor=$FLAVOR \
+            --target=lib/main_$FLAVOR.dart \
+            --target-platform=android-arm64 \
+            --dart-define-from-file=bin/.tmp/private_keys/dart_defines/$FLAVOR.json \
+            > /tmp/apk.txt 2>&1
+          status=$?
+          tail -80 /tmp/apk.txt
+          if [ $status -ne 0 ]; then
+            echo "::error::flutter build apk failed"
+            grep -E '^e: |error:|FAILURE:|What went wrong|Execution failed|Could not|Unsupported class|No space|failed|> ' /tmp/apk.txt |
+              grep -vE '^\s*$' | head -25 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            echo '--- disk at failure ---'
+            df -h / || true
+            df -i / || true
+            du -sh ~/.gradle /usr/local/lib/android/sdk 2>/dev/null || true
+          fi
+          exit $status
+
+      - name: Diagnose a failed build
+        # When the runner kills the step (exit 143 = SIGTERM, which is what a full disk
+        # or a dead VM looks like) the log is the only witness, and it is not always
+        # readable after the fact. These annotations are.
+        if: always() && steps.build.outcome != 'success'
+        run: |
+          echo "::error::disk, memory and the last lines of the build log"
+          echo "::notice::disk $(df -h / | tail -1) | mem $(free -m | sed -n 2p) | gradle $(du -sh "$GRADLE_USER_HOME" 2>/dev/null | cut -f1)"
+          grep -inE 'error|fail|space|killed|exception|what went wrong|no such|cannot' /tmp/apk.txt 2>/dev/null |
+            tail -12 | while IFS= read -r line; do echo "::error::$line"; done
+          tail -25 /tmp/apk.txt 2>/dev/null | while IFS= read -r line; do echo "::warning::$line"; done
+
+      - name: Locate and check the APK
+        id: apk
+        run: |
+          set -e
+          APK="build/app/outputs/flutter-apk/app-$FLAVOR-${{ steps.signing.outputs.mode }}.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::expected $APK, found:"
+            find build/app/outputs -name '*.apk' || true
+            exit 1
+          fi
+
+          SIZE=$(du -h "$APK" | cut -f1)
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          VERSION=$(grep -m1 '^version: ' pubspec.yaml | cut -d' ' -f2)
+
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "name=storypad-community-${{ steps.signing.outputs.mode }}-${VERSION/\//_}.apk" >> "$GITHUB_OUTPUT"
+
+          echo "APK: $APK ($SIZE)"
+          echo "sha256: $SHA"
+
+      - name: Verify the APK
+        # The only way to prove the artifact without downloading it: read the badge and
+        # the signer on the runner, publish them as annotations (which survive even when
+        # the log is not readable) and put them in the release notes. A wrong package
+        # id or a missing libapp.so fails here instead of on the phone.
+        id: verify
+        run: |
+          set -uo pipefail
+          APK="${{ steps.apk.outputs.path }}"
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          AAPT2="$BUILD_TOOLS/aapt2"
+          [ -x "$AAPT2" ] || AAPT2="$BUILD_TOOLS/aapt"
+          BADGING=$("$AAPT2" dump badging "$APK" 2>/dev/null || true)
+
+          field() { printf '%s\n' "$BADGING" | sed -n "$1" | head -1; }
+          PKG=$(field "s/^package: name='\([^']*\)'.*/\1/p")
+          VNAME=$(field "s/^package: .*versionName='\([^']*\)'.*/\1/p")
+          VCODE=$(field "s/^package: .*versionCode='\([^']*\)'.*/\1/p")
+          MIN=$(field "s/^sdkVersion:'\([^']*\)'.*/\1/p")
+          TGT=$(field "s/^targetSdkVersion:'\([^']*\)'.*/\1/p")
+          ABI=$(field "s/^native-code: //p")
+          SIGNER=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>/dev/null |
+                   sed -n 's/^Signer #1 certificate DN: //p' | head -1)
+
+          LIBAPP=$(unzip -l "$APK" | grep -c 'lib/arm64-v8a/libapp\.so')
+          DEX=$(unzip -l "$APK" | grep -cE 'classes[0-9]*\.dex')
+
+          echo "package=$PKG" >> "$GITHUB_OUTPUT"
+          echo "min=$MIN"   >> "$GITHUB_OUTPUT"
+          echo "target=$TGT" >> "$GITHUB_OUTPUT"
+          echo "abi=$ABI"   >> "$GITHUB_OUTPUT"
+          echo "signer=$SIGNER" >> "$GITHUB_OUTPUT"
+
+          echo "::notice::APK $PKG $VNAME ($VCODE) minSdk=$MIN targetSdk=$TGT abi=[$ABI] signer=[$SIGNER] libapp.so=$LIBAPP dex=$DEX"
+
+          [ "$PKG" = "com.tc.writestory.community" ] || { echo "::error::unexpected package id '$PKG'"; exit 1; }
+          [ "$LIBAPP" -ge 1 ] || { echo "::error::no lib/arm64-v8a/libapp.so in the APK"; exit 1; }
+          [ -n "$SIGNER" ]    || { echo "::error::the APK has no signer"; exit 1; }
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.signing.outputs.mode }}
+          NOTE: ${{ steps.signing.outputs.note }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+          APK_NAME: ${{ steps.apk.outputs.name }}
+          APK_SIZE: ${{ steps.apk.outputs.size }}
+          APK_SHA: ${{ steps.apk.outputs.sha }}
+          VERSION: ${{ steps.apk.outputs.version }}
+          PKG: ${{ steps.verify.outputs.package }}
+          MIN: ${{ steps.verify.outputs.min }}
+          TGT: ${{ steps.verify.outputs.target }}
+          SIGNER: ${{ steps.verify.outputs.signer }}
+        run: |
+          set -e
+          TAG="apk-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+          ASSET_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/$APK_NAME"
+
+          {
+            echo "Community APK built from \`${GITHUB_SHA::7}\` ($(date -u +%Y-%m-%dT%H:%MZ))."
+            echo
+            echo '```'
+            echo "version   $VERSION"
+            echo "build     $MODE"
+            echo "package   $PKG"
+            echo "sdk       min $MIN / target $TGT"
+            echo "signing   $NOTE"
+            echo "signer    $SIGNER"
+            echo "abi       $ABI"
+            echo "size      $APK_SIZE"
+            echo "sha256    $APK_SHA"
+            echo '```'
+            echo
+            echo "Download: <$ASSET_URL>"
+            echo
+            echo "Install with \`adb install -r $APK_NAME\`, or open the file on the device."
+            if [ "$MODE" != "release" ]; then
+              echo
+              echo "> This is a **debug-signed** build: Android treats every new one as a different app,"
+              echo "> so updating requires uninstalling the previous install first. Add the"
+              echo "> \`ANDROID_KEYSTORE_BASE64\`/\`ANDROID_KEYSTORE_PASSWORD\`/\`ANDROID_KEY_ALIAS\`/\`ANDROID_KEY_PASSWORD\`"
+              echo "> secrets to get a release-signed APK instead (ai/DECISIONS.md D-038)."
+            fi
+          } > "$RUNNER_TEMP/notes.md"
+
+          # The asset must carry the name the notes mention: gh keeps the file's own
+          # name, so upload a copy under the display name instead of a `#label`.
+          cp "$APK_PATH" "$RUNNER_TEMP/$APK_NAME"
+
+          gh release create "$TAG" "$RUNNER_TEMP/$APK_NAME" \
+            --title "APK $VERSION ($MODE)" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            || {
+              # A release for this tag already exists (re-runs of the same commit).
+              echo "::warning::release $TAG already exists; uploading the asset to it instead"
+              gh release upload "$TAG" "$RUNNER_TEMP/$APK_NAME" --clobber
+            }
+
+          echo "::notice::Published $TAG with $APK_NAME"

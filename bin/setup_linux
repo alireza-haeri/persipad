@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Idempotent Linux setup for this project.
+#
+#   bin/setup_linux
+#
+# What it does:
+#   1. resolves the Flutter SDK (FLUTTER_BIN env override, then PATH, then
+#      ~/development/flutter_stable - the version we develop against)
+#   2. warns if the SDK is older than the baseline in .tool-versions
+#   3. checks the Fedora/system dev packages Flutter desktop + our plugins need
+#   4. flutter pub get
+#   5. regenerates code (*.g.dart) - required because the repo commits generated code
+#
+# It never uses sudo. Missing system packages are printed as a ready-to-run
+# `sudo dnf install ...` line.
+#
+# Then run the app with:  bin/dev --community-linux
+
+set -uo pipefail
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
+info()  { echo "${BOLD}==>${RESET} $*"; }
+ok()    { echo "${GREEN}  ok${RESET}  $*"; }
+warn()  { echo "${YELLOW} warn${RESET}  $*"; }
+fail()  { echo "${RED}  err${RESET}  $*"; }
+
+BASELINE_FLUTTER="3.50.0"
+BASELINE_DART="3.14.0"
+
+cd "$(dirname "$0")/.." || exit 1
+
+# ---------------------------------------------------------------- 1. Flutter SDK
+info "Resolving Flutter SDK"
+
+FLUTTER=""
+if [ -n "${FLUTTER_BIN:-}" ]; then
+  FLUTTER="$FLUTTER_BIN"
+elif command -v flutter >/dev/null 2>&1; then
+  FLUTTER="$(command -v flutter)"
+elif [ -x "$HOME/development/flutter_stable/bin/flutter" ]; then
+  FLUTTER="$HOME/development/flutter_stable/bin/flutter"
+fi
+
+if [ -z "$FLUTTER" ]; then
+  fail "Flutter not found. Set FLUTTER_BIN, or install the SDK, e.g.:"
+  echo "      git clone -b stable https://github.com/flutter/flutter.git ~/development/flutter_stable"
+  exit 1
+fi
+ok "$FLUTTER"
+
+FLUTTER_VERSION="$("$FLUTTER" --version --machine 2>/dev/null | sed -n 's/.*"frameworkVersion": "\([^"]*\)".*/\1/p')"
+DART_VERSION="$("$FLUTTER" --version --machine 2>/dev/null | sed -n 's/.*"dartSdkVersion": "\([^"]*\)".*/\1/p')"
+[ -z "$FLUTTER_VERSION" ] && FLUTTER_VERSION="$("$FLUTTER" --version 2>/dev/null | head -1 | awk '{print $2}')"
+
+ok "flutter ${FLUTTER_VERSION:-unknown} / dart ${DART_VERSION:-unknown}"
+
+if [ -n "$FLUTTER_VERSION" ] && [ "$(printf '%s\n%s\n' "$BASELINE_FLUTTER" "$FLUTTER_VERSION" | sort -V | head -1)" != "$BASELINE_FLUTTER" ]; then
+  warn "This project is developed against Flutter ${BASELINE_FLUTTER} / Dart ${BASELINE_DART}."
+  warn "Older SDKs fail to compile some packages (super_editor, record, ...). Upgrade if the build breaks in Dart code."
+fi
+
+# ------------------------------------------------- 2. System packages (Fedora-ish)
+info "Checking Linux desktop build dependencies"
+
+missing=()
+check_pkg() { # $1 = pkg-config module, $2 = dnf package
+  command -v pkg-config >/dev/null 2>&1 || { missing+=("pkgconf-pkg-config"); return; }
+  pkg-config --exists "$1" 2>/dev/null || missing+=("$2")
+}
+
+check_pkg gtk+-3.0                gtk3-devel
+check_pkg webkit2gtk-4.1          webkit2gtk4.1-devel
+check_pkg libsecret-1             libsecret-devel
+check_pkg alsa                    alsa-lib-devel
+check_pkg jsoncpp                 jsoncpp-devel
+check_pkg ayatana-appindicator3-0.1 libayatana-appindicator-gtk3-devel
+
+# tool -> dnf package name
+command -v clang      >/dev/null 2>&1 || missing+=("clang")
+command -v cmake      >/dev/null 2>&1 || missing+=("cmake")
+command -v ninja      >/dev/null 2>&1 || missing+=("ninja-build")
+command -v pkg-config >/dev/null 2>&1 || missing+=("pkgconf-pkg-config")
+
+# Optional but commonly required by our plugin set.
+check_pkg libpulse             pulseaudio-libs-devel
+check_pkg gl                   mesa-libGL-devel
+
+if [ ${#missing[@]} -eq 0 ]; then
+  ok "all desktop build dependencies present"
+else
+  # de-duplicate
+  unique_missing=$(printf '%s\n' "${missing[@]}" | sort -u | tr '\n' ' ')
+  warn "missing: ${unique_missing}"
+  if command -v dnf >/dev/null 2>&1; then
+    echo
+    echo "  sudo dnf install -y ${unique_missing}"
+    echo
+  else
+    echo "  (non-Fedora host) install the equivalents, then re-run bin/setup_linux"
+  fi
+fi
+
+# ------------------------------------------------------------ 3. Dart dependencies
+info "flutter pub get"
+"$FLUTTER" pub get || { fail "pub get failed"; exit 1; }
+ok "dependencies resolved"
+
+# ------------------------------------------------------------------ 4. Codegen
+info "Regenerating code (build_runner)"
+if [ -f bin/build_runner ]; then
+  ./bin/build_runner --delete || { fail "build_runner failed"; exit 1; }
+else
+  "$FLUTTER" pub run build_runner build --delete-conflicting-outputs || exit 1
+fi
+ok "generated code up to date"
+
+echo
+echo "${GREEN}${BOLD}Ready.${RESET} Run the app with:"
+echo "    bin/dev --community-linux"
+echo
+echo "If CMake fails with 'Permission denied' under /usr/local:"
+echo "    rm -rf build/linux && bin/dev --community-linux"

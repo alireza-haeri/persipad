@@ -1,0 +1,647 @@
+# Status
+
+**Last updated:** 2026-11-16
+**Current session:** session 11 — docs hygiene, project analysis, then analysis items T-9…T-15
+**Branch:** `arena/c5b3ddac-notely` (branched from `a23869853bd7` of `arena/e3e3866a-notely`)
+**Code tip:** `e2498c5` — 27 commits on top of `a238698`, all pushed. **Linux CI green on the
+final code state** (`43841692813`), and on the full 7-job run `43837873918`.
+**Phase:** 🟢 CI container trustworthy again (editor suite runs, `[full]` means everything,
+green runs are silent); 🟡 first local Fedora APK build still awaiting a verdict from the user
+
+> **Read [`CHANGES.md`](CHANGES.md) first.** It is the Session-11 diff in one narrative file —
+> what changed, why, and the run id that proves each claim.
+
+---
+
+## 🤝 Handoff Snapshot (start here if you are a new agent/session)
+
+1. **What exists right now (code base as of `a238698`, built on `d3d534e`):**
+   - **Desktop (Linux):** Fully working app (`bin/setup_linux`, `bin/dev --community-linux`, `bin/dev -t`) with all Pro features unlocked (`ProEntitlementService.unlockAll`), `PlatformCapabilities` gating, loopback OAuth2 Google Drive (`bin/setup_sync`, E2E credentials pending), `file_picker` media picking, Persian (`fa`) locale across all 21 `translations/*.json` files (626 keys), bundled `Vazirmatn` font, full Shamsi display calendar (storage/queries remain Gregorian), RTL layout/icon fixes, Daily Score add-on + animated charts integrated into one calendar (`SpCalendarDateCell`), toggleable Map add-on, and configurable sidebar ordering.
+   - **Android (`community` flavor):** CI workflow `.github/workflows/android.yml` builds arm64 APKs on `[apk]` commit subjects and publishes GitHub pre-releases (`apk-20261116-0608-f258929`, 138 MB debug APK). Local Fedora build scripts (`bin/build_apk`, `bin/android_doctor`) work behind blocked `dl.google.com` without an NDK or `android-37` (D-040).
+2. **Last known state of the user's Fedora machine (Session 10, unchanged since):**
+   - User pulled `d3d534e`, ran `bin/android_doctor --mirror` (selected 4/4 healthy Tencent mirror `mirrors.cloud.tencent.com/nexus/repository/maven-public`), and ran `bin/build_apk --install --avd=storypad_dev -v`.
+   - **Verified fixed:** the 5m 34s `:app` `sdkmanager` NDK hang is gone (`notelyNdkVersion=none` + `flutter.installedNdkVersions` bypass worked) and Gradle is downloading artifacts cleanly from Tencent.
+   - **Unknown / needs a verdict:** the build was left in cold first-time Gradle plugin configuration (~50% through the ~31 Android plugins in `pubspec.lock`, last seen at `:google_sign_in_android`). Nobody has reported whether it finished, so treat "the local APK loop works end-to-end" as **unverified** until the user says otherwise.
+3. **What is planned next (do not step on these):**
+   - **Wait for Fedora build verdict** (either success + manual AVD check, or any final Gradle/runtime log the user brings back to the original session).
+   - **Lightweight mobile build (`BACKLOG.md` A-3 / `N-015`):** after the first APK runs, the user plans to return to trim heavy/unneeded features/dependencies into a lighter phone build.
+4. **Hard rules & invariants for any agent touching this repo:**
+   - **No Flutter/Dart in sandbox; no `pub.dev` / `dl.google.com` access.** Rely on `.github/workflows/linux.yml` (`Scope` + `Analyze` + sharded `Test`) or user's `bin/dev -t`.
+   - **Never leave `HEAD` depending on un-generated `*.g.dart`:** changing `@CopyWith` or ObjectBox models requires `.github/workflows/codegen.yml` (`[codegen]`) first (`D-016`).
+   - **Keep Gregorian storage / Shamsi display boundary intact** (`CalendarDisplay`, `DateRangeFilterObject`, `SearchFilterObject.encode`, `D-025`..`D-029`).
+   - **Keep all 21 `translations/*.json` key sets identical** (626 keys, enforced by `unused_translations_test.dart`).
+   - **Preserve RTL invariants** (`SpIcons.previous/next`, `AppTheme.rtl`, never abbreviate Persian month names, never wrap row widgets in `OverflowBox`, `DailyScoreScale.gradient(rtl:)`, `D-030`/`D-035`).
+   - **Preserve Fedora Android build hooks** in `android/build.gradle.kts`, `android/app/build.gradle.kts`, `bin/build_apk`, and `bin/android_doctor` (`notelyCompileSdkMinor`, `flutter.installedNdkVersions`, `LibraryExtension.compileSdk >= 36`, Groovy mirror init script — `D-040`).
+
+---
+
+## ✅ Done
+
+### Session 1 — foundation
+- [x] Imported StoryPad v2.34.0 (`cffda48`) into `alireza-haeri/notely`.
+- [x] `ai/` memory folder, architecture map, English docs (D-006).
+
+### Session 2 — Linux dev loop
+- [x] App runs on Linux (verified by you on Fedora).
+- [x] Toolchain baseline: Flutter 3.50.0 / Dart 3.14.0 (D-008).
+- [x] SDK-driven dependency bumps committed (D-009).
+- [x] `bin/dev --community-linux` + `bin/setup_linux` (D-010).
+- [x] Platform scope: Linux only, Android parked (D-007).
+
+### Session 3 — feature parity on Linux
+- [x] **Every Pro feature unlocked** through one reversible switch
+      (`ProEntitlementService.unlockAll`, D-011). This also unlocks Nextcloud and
+      Dropbox sync, which were Pro-only.
+- [x] Upsell surfaces (paywall entries, Pro badge, pro banner) are now driven by
+      `kShowProUpsell` instead of "is the store enabled" — they hide when there is
+      nothing to buy.
+- [x] **Dead "Connect Google Drive" tile removed from Linux:** a platform-capability
+      matrix (`PlatformCapabilities`) disables the tile with an explanation, so Linux
+      keeps Dropbox (loopback OAuth) + Nextcloud (WebDAV) as working sync backends (D-012).
+- [x] New translations for the "not available on this platform" subtitle in all 20 locales.
+- [x] **GitHub Actions CI** (`.github/workflows/linux.yml`): Test (blocking), Build Linux
+      desktop (blocking), Analyze (advisory), running on every push (D-013).
+- [x] 13 new unit tests: entitlement resolution policy + platform capability matrix,
+      including a regression guard that Linux always keeps a working sync backend.
+- [x] **Desktop media picking fixed** (D-015): `pickVideo` and `pickMultipleMedia` threw
+      `UnimplementedError` on Linux because `image_picker_linux` handles a single image
+      only. Linux/Windows now open the OS file dialog via `file_picker`.
+- [x] 5 more tests pinning the media extension lists to `AssetFileTypeService` (a video
+      picked from disk used to be insertable as an image).
+
+### Session 8 — Persian locale
+- [x] `translations/fa.json`: all 602 keys translated (key-set parity enforced by the tests).
+- [x] Registered `fa` for the app picker, Android per-app languages and iOS.
+- [x] Date locale data is initialized at startup; Arabic-script font fallback added.
+- [ ] User review of the wording/glossary — it is one file, cheap to iterate on.
+
+### Session 9 — Persian font bundled + calendar settings
+- [x] **Vazirmatn bundled in the app** (4 faces, 492 KB, OFL included) and kept as the first
+      Arabic-script fallback, so Persian text is identical on every OS instead of depending on
+      whatever the distro has installed (D-023).
+- [x] **Any first day of the week** (Monday…Sunday; Saturday was missing before).
+- [x] **User-defined weekend days** — a `weekendDays` preference plus a settings screen, and the
+      calendar header/day cells now colour *the user's* weekend instead of a hard-coded
+      Saturday+Sunday (D-024). Iran: Friday (or Thursday+Friday); Europe: Saturday+Sunday.
+- [x] `CalendarConfig` — one place to publish session-wide calendar settings for widgets that
+      have no `Provider` (the calendar grid), filled before the first frame.
+- [x] **Shamsi (Solar Hijri) conversion engine** (`PersianCalendar`, hand-written because pub.dev
+      is unreachable) with known-vector, leap-year and 45-year day-by-day round-trip tests.
+- [x] **Shamsi as the displayed calendar (reading flow)** — a `calendarSystem` preference plus
+      `CalendarDisplay` (D-025): storage and queries stay Gregorian, the story list groups by the
+      displayed month, month chips/monogram days/full dates render in Shamsi, and a Shamsi year or
+      month is converted back into an exact Gregorian day range (`date_range` DB filter) before
+      querying.
+- [x] **Shamsi date picker** (`SpDatePickerDialog`, D-026): the story date picker draws the display
+      calendar (grid, header, first day of week, weekend colours) and returns a Gregorian date.
+- [x] **Switching calendar re-anchors on today** instead of keeping a year number that means a
+      different span in the other calendar.
+- [x] Day numbers are now explicit per calendar (`d` / `dayNumber` / `gregorianDay`), which fixed
+      "15 آبان ۱۴۰۵" for a story dated 24 Aban and kept the Gregorian mood grid printing Gregorian days.
+- [x] **Year filters follow the display calendar** (D-027): archive/tag/year tabs and the search
+      filter chips show display years, counted exactly; `CalendarDisplay.yearsFilter` converts them
+      to Gregorian years + `date_ranges` at the query boundary. Calendar switch clears the saved
+      search filter so a stale display year can't empty the list.
+- [x] **Year numerals + a stale-year comparison**: the app-bar year, the empty-state year, the
+      story month header year and the tile monogram day print in the locale's digits
+      (`DateFormatHelper.number`). `onAStoryReloaded` compared a display year with the stored
+      Gregorian year, so an edited story was dropped from (or kept in) the wrong list.
+- [x] **Calendar screen in Shamsi** (D-028): grid (`CalendarDisplay.monthGridDates` through
+      `CalendarDaysGenerator`), header, month picker, day numbers, feelings (`getStoryFeelingByMonth`
+      by range, keyed by display day), period events (`EventsBox` gained `date_range`) and the story
+      lists (`DateRangeFilterObject`). Fixed the `Instance of 'DateTime'` crash by encoding filter
+      maps with `SearchFilterObject.encode` instead of `jsonEncode`.
+- [x] **Stats screen in Shamsi** (D-029): `StatsRange` snaps to display months/years (its
+      start/end/month/years/label/previous/next all go through `CalendarDisplay`), the tab labels and
+      the twelve trend bars count display months, the year picker lists display years, and story
+      queries use exact day ranges.
+- [x] **Month recap tiles in Shamsi** (closes `BACKLOG.md` C-1h): `MonthlyStoryStatsService` groups by
+      display month, counts active days by display day and scores against the display month's length
+      (Aban = 30 days), so the home list shows recaps in both calendars instead of skipping them.
+      Nothing in the app aggregates by the Gregorian `month` column any more.
+- [x] 2 new translation keys in all 21 locales.
+
+### Session 7 — Google Drive works on Linux
+- [x] `GoogleDriveAuthStrategy` split out; mobile keeps `google_sign_in` unchanged (D-019).
+- [x] Loopback OAuth2 client for Google (`GoogleDesktopOAuthService`) — no new dependencies.
+- [x] `GoogleDriveLinuxCloudService` is no longer a stub: it is the real Drive service with
+      the desktop auth strategy.
+- [x] Drive tile enabled on Linux; a missing client id shows a setup checklist instead of a
+      broken browser page.
+- [x] `bin/setup_sync` writes/merges/masks the credentials in gitignored `private_keys/`.
+- [ ] Real end-to-end run with actual credentials (waiting on the user).
+- [ ] Dropbox stays dead until `DROPBOX_APP_KEY` is set — same script, same file.
+
+### Session 6 — CI levels + the app actually boots on Linux
+- [x] **Fixed the crash that prevented the app from starting on Linux** (D-018):
+      `DefaultFirebaseOptions.currentPlatform` throws on Linux and was read eagerly in
+      `main_community`, so `runApp` never happened. Now guarded by a tested capability.
+- [x] CI split into opt-in jobs (D-017): plain push = Analyze only (~2 min); `[test]`,
+      `[build]`, `[full]` add the rest. `build_runner` removed from every job.
+- [x] My own loop: no more long polling of runs — one check later, work in between.
+
+### Session 5 — the fresh-clone run failure
+- [x] Diagnosed your `loadObjectBoxLibraryAndroidCompat` error: the committed
+      `lib/objectbox.g.dart` was generated by objectbox 5.x while the pin is
+      6.0.0-preview.6 (D-009 fallout). Regenerated it on a real toolchain via the new
+      `Codegen` workflow, reviewed the diff, and committed it (D-016).
+- [x] `pubspec.lock` refreshed too (it had been stale by design since D-009).
+- [x] `bin/dev` now names this failure in 1 second instead of letting a build die later;
+      a missing stamp on a fresh clone only prints a note, never blocks.
+- [x] CI reports (advisory) when committed generated code drifts from a fresh run.
+
+### Session 4 — speed
+- [x] CI no longer blocks me: docs-only commits are skipped (`paths-ignore`), the codegen
+      asset graph is cached, and I keep working while a run is in flight (D-014).
+- [x] Formatting gate is advisory again (see "Known debt" below).
+- [x] `bin/check` — local pre-push equivalent of the CI gates (format + analyze + test),
+      so the slow path is the exception.
+- [x] VS Code: a **Community (Linux)** launch config, so F5 runs the app with no terminal
+      command and no `--flavor` mistake.
+
+### Session 11 — docs hygiene + project analysis (2026-11-16)
+- [x] Corrected three stale facts found while reading every file in `ai/` (this was the whole
+      point of the pass — see D-041):
+  - **Branch/tip:** `RULES.md` §1 and `PROGRESS.md` still named `arena/e3e3866a-notely` /
+      `d3d534e`; the session runs on `arena/c5b3ddac-notely` from `a23869853bd7`. `RULES.md` now
+      describes the current branch without pinning a tip that will rot, and `PROGRESS.md`
+      separates "branch", "docs tip" and "last code change".
+  - **Translation keys:** 628 was quoted in `ARCHITECTURE.md` + `PROGRESS.md`; all 21 files
+      actually hold **626** (`len(json.load(open('translations/en.json')))`). `ARCHITECTURE.md`
+      now also says how to re-count instead of expecting the constant to survive a feature.
+  - **JDK:** `ENVIRONMENT.md` stated JDK 17.0.19 as *the* environment while `.tool-versions`
+      pins `java openjdk-21`; the real requirement is 17+ because Gradle targets JVM 17 and CI
+      uses temurin 17. The file now explains the requirement and the two observed versions.
+- [x] New `ai/ANALYSIS.md`: a measured review of the code base (see D-041) — 8 sections, each
+      finding with evidence and a re-measure command.
+- [x] `BACKLOG.md` grew T-9…T-15 from that review; open question 5 (lightweight phone build) now
+      points at the measured input.
+- [x] **Then the analysis's own top items were implemented** (T-9, T-10, T-11 cheap half,
+      T-12, T-14, T-15 first surface):
+  - **T-9 — editor package tests run.** `linux.yml` gained an `Editor package tests` job
+    (~57 files / ~390 cases) and `bin/changed_tests` maps `packages/**` to a new `packages`
+    output instead of treating it as unmapped. Verified on CI `43833412429` (scoped) and the
+    full-suite run; the job appears in the run graph.
+  - **T-10 — backup merge is tested.** `BackupRepository.databases` is now seeded lazily and
+    `overrideDatabases()` gives tests a seam (D-042); `restore_backup_service_test.dart`
+    covers device-newer/backup-newer/equal/missing/missing-timestamps, listener batching and
+    `forceRestore`.
+  - **T-11 (cheap half) — search contract pinned.** `test/core/objects/search_filter_object_test.dart`
+    covers field→query-key mapping, query widening, the Shamsi display-year conversion,
+    `encode`'s DateTime safety and `DateRangeFilterObject`.
+  - **T-12 — default font bundled.** `assets/fonts/Quicksand-Variable.ttf` (OFL, variable
+    300..700, ~122 KB) declared in `pubspec.yaml`; `allowRuntimeFetching` deliberately left
+    alone (D-043).
+  - **T-14 — coverage reported.** Advisory `Coverage` job on `[full]`/PRs: lcov artifact plus a
+    one-line percentage notice, no threshold.
+  - **T-15 (first surface) — the calendar cell speaks.** One `Semantics` label per cell
+    (formatted date, feeling, score) with the inner fragments excluded, plus tests asserting
+    through the semantics tree.
+- [x] **T-15 closed honestly.** The score bar was already fully labelled (`slider: true` with
+      value/increasedValue/decreasedValue and increase/decrease actions) and the "story-list
+      rail" in the original finding does not exist — it was a misreading of the timeline rail.
+      Recorded as a correction in `ANALYSIS.md` §5 and `BACKLOG.md` T-15 instead of inventing
+      work to fill the gap.
+- [x] **Verified the whole thing on CI, and fixed what verifying it exposed**
+      (run `43837873918`: all seven jobs green — Analyze, Scope, Test 1/2, Build Linux
+      desktop, Editor package tests, Coverage).
+  - **My own test bug, caught by CI** (`43832635160`, Test 2): a `DateRangeFilterObject`
+    case asserted a Shamsi conversion while running in Gregorian mode. The test was wrong,
+    not the code — corrected, and the Shamsi path now has an explicit case so the inherited
+    conversion cannot be silently bypassed later.
+  - **`[full]` did not cover the packages** (D-045). The marker that exists to prove a green
+    tree ran both app shards and skipped the editor suite. Also: `.github/workflows/**` was
+    ignored as "cannot affect behaviour", so editing the gate did not run the gate.
+  - **The test job printed a failure annotation on every success** (D-046) — it never got
+    flutter's exit status. Now a green run is silent, a real failure still names the test,
+    and a non-zero exit with no reported test says where to look.
+  - **First measured coverage: 13.9%** (4 527 / 32 634 lines). Recorded in `ANALYSIS.md` §6;
+    no threshold was set, on purpose.
+
+## 🔄 In progress
+
+- [ ] **First local Fedora APK build (`d3d534e`):** `bin/build_apk --install --avd=storypad_dev -v`
+      was running on the user's Fedora machine via the Tencent mirror (the NDK
+      `forceNdkDownload` hang was confirmed resolved). **No verdict has been recorded** — it is
+      unknown whether the build finished, so "the local APK loop works" stays unverified.
+- [ ] **Next planned track (`A-3` / `N-015`):** once the local APK build is verified on device/AVD,
+      scope and build a **lightweight phone version** of the app with the user. Measured input,
+      including why "shrink the APK" is mostly a release-build problem: `ANALYSIS.md` §4.
+
+## ⏳ Remaining (roadmap)
+
+### Phase 1 — verify current Android & Linux builds
+- [x] CI green on `arena/e3e3866a-notely` (`Linux` `43823502245`, `Android` `43812916947`).
+- [ ] Finish running `bin/build_apk --install --avd=storypad_dev -v` on Fedora and verify basic
+      flows on `storypad_dev` / physical Android phone (install, boot, Persian/Shamsi UI, calendar/scores).
+- [ ] On Linux desktop (`bin/dev --community-linux`), verify real Google Drive OAuth credentials
+      (`bin/setup_sync`), Nextcloud bridge (`I-12`), and wording review of `translations/fa.json`.
+
+### Phase 2 — lightweight phone build & Linux gaps
+- [ ] **Lightweight mobile/phone APK (`A-3` / `N-015`):** decide with the user which heavy modules/plugins
+      or locales to keep vs strip/gate for a smaller, faster phone APK.
+- [ ] Reminders/notifications on Linux (`BACKLOG.md` I-12 — needs an app-side scheduler).
+
+### Phase 3 — first new product features / personal redesign
+- [ ] Pick from `BACKLOG.md` (`F-1`…`F-10`); the redesign list is still yours to write.
+
+### Parked / out of scope (do not spend time on)
+- `storypad` upstream flavor (needs `private_keys/`).
+- macOS / Windows / iOS / Web targets.
+- Camera, quick actions, and video compression on Linux (stay guarded behind platform checks).
+
+## 🧹 Known debt (small, tracked)
+
+- ~~Committed `*.g.dart` is stale~~ — **fixed**: regenerated on a real toolchain and merged
+  (D-016). `flutter run` works on a fresh clone again.
+- **Formatting gate is advisory** even though it is currently green (`BACKLOG.md` T-7). The
+  sandbox cannot run `dart format`, so a blocking gate would cost a full round trip per
+  line-break guess.
+- **Desktop multi-select** degrades to a single file dialog (`BACKLOG.md` T-8).
+
+## 📊 Metrics
+
+| Metric | Value |
+|---|---|
+| Dart files (`lib/` + `packages/`) | 1013 |
+| Locale files (`translations/`) | 21 (626 keys each, `fa.json` added) |
+| Bundled fonts | 2 families — Vazirmatn (Persian fallback) + Quicksand (default text, variable) |
+| Active platform targets | **2** (Linux desktop + Android `community` APK) |
+| CI on a plain push | `Scope` (~6s) + `Analyze` (~85s) + scoped `Test` (~1–3 min); `[build]`/`[apk]`/`[codegen]` opt-in |
+| Test files | 110 in `test/` + 57 in `packages/storypad_editor/test/` |
+| Tests that run in CI | **167 files** — 110 root + 57 in `packages/storypad_editor` (T-9, fixed this session) |
+| Jobs in `linux.yml` | 6 — Scope, Analyze, Test (×shards), Editor package tests, Coverage, Build Linux desktop |
+| Pro feature gates opened by one switch | ~30 call sites (`ProEntitlementService.unlockAll`) |
+
+## 🧾 Test log
+
+| Date | Task | Verified by | Result |
+|---|---|---|---|
+| 2026-11-15 | Base app runs as Linux desktop on Fedora | you | ✅ runs; ObjectBox + features work (N-006) |
+| 2026-11-15 | Pro unlock + capability layer + CI | GitHub Actions | ✅ Test + Build green (run `43712927893`) |
+| 2026-11-15 | Desktop media picking (`file_picker`) | GitHub Actions | ✅ all three jobs green (run `43716086122`) |
+| 2026-11-15 | Bundled font + calendar settings (weekends, any first day) | GitHub Actions | ✅ Analyze 80s, Test ×2, Build Linux (run `43727580987`) |
+| 2026-11-15 | Shamsi display mode, picker, filters, calendar, stats, recaps | GitHub Actions | ✅ green across rounds (`43731618364`…`43748544073`) |
+| 2026-11-15 | RTL layout/icons/month-chip + blank home fix | GitHub Actions | ✅ Analyze + Test ×2 green (`43751115475`, `43796471061`) |
+| 2026-11-15 | Daily score add-on + CI scoper (`bin/changed_tests`) | GitHub Actions | ✅ Scope + Analyze + Test ×2 + Build (`43798528975`) |
+| 2026-11-15 | Unified calendar (`SpCalendarDateCell` + `ScoreTrendView`) | GitHub Actions | ✅ Scope + Analyze + Test ×2 (`43800211911`) |
+| 2026-11-16 | Motion polish, day score callout, map add-on, sidebar order, `bin/dev -t` | GitHub Actions | ✅ green (`43801222059`, `43803014131`, `43803391050`, `43803970360`, `43804325119`) |
+| 2026-11-16 | Android `community` arm64 debug APK (138 MB, `f258929`) | GitHub Actions | ✅ build + `aapt2`/`apksigner` verify green (`43812916947`) |
+| 2026-11-16 | Local Android APK scripts + `forceNdkDownload`/`36.1` fixes (`d3d534e`) | GitHub Actions + Sandbox | ✅ Linux CI Scope + Analyze + Test ×2 full suite green (`43823502245`); sandbox `bash -n` + stubbed `flutter`/`curl`/`adb`/`emulator` tests pass |
+| 2026-11-16 | First local Fedora build (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e`) | you (live) | 🟡 in progress (NDK hang fixed; Gradle past `:google_sign_in_android` via Tencent mirror) |
+| 2026-11-16 | Analysis items: editor tests, backup merge, search contract, font, coverage, a11y | GitHub Actions | ✅ scoped run `43833412429` green (Scope 6s, Analyze 90s, Test 65s); full-suite run below |
+| 2026-11-16 | Same, with the new `Editor package tests` + `Coverage` jobs | GitHub Actions | ✅ `43837873918` — all 7 jobs green; editor suite (390 cases) ran for the first time; coverage 13.9% |
+| 2026-11-16 | Final state of the branch | GitHub Actions | ✅ `43841692813` on `7fe4c7a` — green |
+
+> ⚠️ I cannot run `flutter analyze` / `flutter test` in my sandbox (no SDK, pub.dev
+> blocked). CI (`.github/workflows/linux.yml`, `android.yml`) and your Fedora box
+> (`bin/dev -t`, `bin/build_apk`) are the verifiers — see D-013, D-032, D-036, D-040.
+
+### What to run now
+
+```bash
+# On Fedora — Android local build/install (currently running for d3d534e)
+bin/android_doctor --mirror                    # only once if dl.google.com is blocked
+bin/build_apk --install --avd=storypad_dev -v  # builds against local android-36.1 without NDK
+
+# On Fedora — Linux desktop dev & local test gate
+bin/setup_linux                                # only after fresh clone or pubspec changes
+bin/dev --community-linux                      # launch desktop app
+bin/dev -t                                     # fast local analyze + scoped test + build check
+```
+
+### Run log — 2026-11-15 (third round: picker, re-anchor, year filters)
+- `e6eba30` Shamsi date picker + `resetToToday()` on calendar change + per-calendar day
+  numbers — CI `43744135219` green (Analyze 85s, Test (1) 212s, Test (2) 202s).
+- `53c0cf8` year filters in the display calendar (D-027) — CI `43744666417` green
+  (Analyze 76s, Test (1) 161s, Test (2) 199s).
+- `dd445d2`/`42f0b2b` locale digits for year labels + display-year reload check. The first
+  attempt at these broke four files: a sort helper replaced an import window with a list one
+  entry longer than the window, so each file lost its last import (12 analyzer errors, CI
+  `43745093530` red on Analyze).
+- `ff7652d` restores those imports and inserts the new one at its sorted position — CI
+  `43745523681` green (Analyze 81s, Test (1) 213s, Test (2) 212s).
+- Lesson for the next batch: never rewrite an import block by zipping it against a longer
+  list; insert the single new line and leave the existing order alone.
+
+### Run log — 2026-11-15 (fourth round: the whole calendar in Shamsi)
+- `815c5f4` calendar screen pages the display calendar + `SearchFilterObject.encode` fix for the
+  `Instance of 'DateTime'` crash — first CI run (`43746566927`) red on one of the new tests
+  (`years` also contains the second Gregorian year a Shamsi year touches); fixed in `fb5368c`,
+  CI `43746943704` green (Analyze 69s, Test (1) 215s, Test (2) 152s).
+- `0a5f768`/`8181159` stats screen in the display calendar (D-029) — the first run failed Analyze on
+  a missing `easy_localization` import; CI `43747645118` green (Analyze 92s, Test (1) 218s,
+  Test (2) 227s).
+- `9fddf0a`/`d5501ed` month recap tiles in the display calendar (C-1h) — first run failed Analyze
+  because a nullable field is not promoted when indexed (`monthlyStats[...]`); fixed by copying it
+  to a local. CI `43748544073` green (Analyze 68s, Test (1) 162s, Test (2) 222s).
+- Every screen now reads the display calendar; the Gregorian `year`/`month`/`day` columns are only
+  ever a storage detail.
+
+### Run log — 2026-11-15 (fifth round: RTL as a first-class direction)
+Your six reports (swapped month arrows, plain Shamsi picker, timeline rail stuck left, `آبا`
+instead of `آبان`, swapped caret buttons, drawers running off the left edge) all came from code
+that hardcoded *left* where it meant *start* or *back*. D-030 records the rules; the code is
+`73fe70b` + three follow-ups.
+- `73fe70b` the six fixes: `SpIcons.previous/next(context)` (reading-order chevrons everywhere
+  the arrow means back/forward), the story-list rail placed by `AppTheme.rtl`, Persian month names
+  never abbreviated (the month chip grows around the rail, the stats bars scale their labels),
+  caret buttons that act on the side they show, root sidebar + page insets mirrored in RTL, end
+  drawers that keep their own safe area, and the Shamsi picker rebuilt as a Material date picker
+  (rounded sheet, tinted date header, month/year row opening the Shamsi month picker, scrollable
+  body).
+- `820bead` the page-insets widget reads the direction with `Directionality.maybeOf` (its own
+  test pumps it without a `Directionality`), and that test now asserts the RTL mirror.
+- First CI run (`43750284373`) was red on Analyze with three errors: the editor package shadows
+  `TextDirection` in `sp_editor_toolbar.dart`, the caret builder needed `actions` (local to
+  `_buildButtons`), and `BorderRadius.circular` is a factory so it cannot be `const`. Fixed in
+  `4d10e24` — CI `43750757764` green on Analyze (75s). That commit's message had no `[test]`
+  marker, so the suite had not run; `b143fc6` (stats trend labels scaling) carried the marker.
+- CI `43751115475` green: Analyze 83s, Test (1) 212s, Test (2) 204s.
+- The "Verify formatting" step stays advisory and now lists files nobody touched in this round
+  (`stories_box.dart`, `home_view_model.dart`, …), i.e. it is the CI formatter version disagreeing
+  with the committed style, not this change.
+
+### Incident — 2026-11-15: the blank home screen (fixed in `573024a`)
+- After the RTL round every story list rendered nothing: the home screen showed only the
+  timeline side bar and the FAB (its app bar lives in the same viewport, so it went too), and
+  the calendar's notes tab was white.
+- Cause: `_MonthChip` (the month badge on a story-list header) was wrapped in an `OverflowBox`
+  so a full Persian month name could grow symmetrically around the rail. `OverflowBox` defaults
+  to `OverflowBoxFit.max`, which is `sizedByParent` — it takes `constraints.biggest` — and a list
+  gives its rows unbounded height, so the box resolved to `Size(32, infinity)` and failed layout.
+  A failing child takes the whole viewport with it, which is why the app bar vanished too.
+- Fix: the chip is back to the plain `Container` + `FittedBox(scaleDown)` the tile always used,
+  now with the full month name. `test/widgets/story_list/story_month_header_test.dart` pumps two
+  headers in a `SingleChildScrollView` (unbounded height) in LTR and RTL and asserts the Shamsi
+  chip reads `آبان` — that test fails with the old widget.
+- Two follow-up CI rounds were spent on the *test*, not the fix: `context.locale` comes from
+  `EasyLocalization` and throws without that widget, and easy_localization re-exports `intl`,
+  whose `TextDirection` has no `.ltr`/`.rtl` and shadows Material's. Both are now encoded in the
+  test's imports (`show AssetLoader, EasyLocalization`) and its in-memory `AssetLoader`.
+- CI `43796471061` green: Analyze 83s, Test (1) 197s, Test (2) 207s.
+
+### Add-on — 2026-11-15: daily score (rating each day 0–100) and a CI that only runs what it must
+- Shipped the requested add-on (D-031): a toggleable `AddOnType.daily_score` that adds a «امتیاز»
+  segment to the calendar. Rating a day is one drag on `SpDailyScoreBar` — a progress-shaped bar
+  whose track *is* the red→orange→green palette, filled to the value, thumb tinted by the value,
+  mirrored in RTL so 0 is on the right — never a number field. A rated day shows its score on a
+  wash of its own colour; an unrated day shows only the day number (no zero). Two charts, both
+  hand-painted (no chart dependency): this month's line (monotone-cubic, x-spanned over the real
+  month so gaps stay put, segments coloured by the values they join) and the monthly averages
+  (one bar per month that has data). `TodayScoreTile` above the grid rates today in one tap.
+- Storage is `yyyy-MM-dd` keyed Gregorian in a `MapStorage` (D-025), with `DailyScoreProvider`
+  loading it once at startup; display-calendar grouping happens at read time.
+- Tests: `test/providers/daily_score_provider_test.dart` (storage keys, tolerant decode, clamping,
+  "unrated is null not 0", monthly grouping/limit, and the Shamsi mapping of 2026-11-15 →
+  1405/8/24), `test/widgets/scores/sp_daily_score_bar_test.dart` (no `TextInput` on screen, ends
+  report 100/0, every reported value inside 0..100, mirrored in RTL),
+  `test/views/calendar/score/...` (a rated cell shows day + score, an unrated one shows one `Text`,
+  gapped/single-point/RTL line charts paint, monthly bars are named in full), and
+  `test/core/services/scores/daily_score_scale_test.dart` (the palette is red→orange→green, stays
+  saturated, is monotone, and clamps).
+- **Mistake, and its cost:** `17e84fe` added `enableDailyScore` to the `@CopyWith` object and used
+  it immediately, but the generated `.g.dart` can only be produced by the Codegen workflow (no Dart
+  in this sandbox). The branch tip was therefore unbuildable for ~10 minutes: CI said so (Analyze,
+  one error, `43797852596`), and the user hit it locally first:
+  `No named parameter with the name 'enableDailyScore'`. The generated file was fetched from
+  `ci/codegen` (`43797852564`, 140s) and landed in `48694a9`. Rule learned: **never leave the tip
+  depending on a generated file that is still in flight** — either push the field-free code, or
+  trigger codegen on an earlier commit and merge the `.g.dart` before any code uses it.
+- CI scoped to the change (D-032 / supersedes half of D-017): `bin/changed_tests` + a `scope` job
+  publish `mode`/`build`/`shards`/`paths`; the test matrix is one shard for a scoped run and two for
+  a full one, and a docs-only change starts no test job at all. Verified green on `48694a9`
+  (`43798528975`): Scope 5s, Analyze 82s, Test (1) 162s, Test (2) 167s, Build 128s — Build only
+  because that commit's *body* mentioned `[build]`, which is why markers are now read from the
+  subject line alone.
+
+### Incident — 2026-11-15: two calendars, and a cell that hid its own date (fixed in this round)
+- User feedback: "I want my calendar to be one — emojis *and* the score in the main calendar. And
+  the day number disappearing behind an emoji is wrong: keep the emoji, put the number in a small
+  circle underneath, and pick the day's colour from its score."
+- Both complaints were mine: the score add-on had introduced a second grid, and the mood cell had
+  always replaced the day number with the feeling emoji, so a month of faces showed no dates at all.
+- Fix (D-033): `SpCalendarDateCell` is now the only calendar cell — emoji/check in the middle, the
+  day number in a small circle below it (ringed in the score's colour), and the whole cell tinted
+  by the score. The add-on's grid is gone; its segment is «روند» (`ScoreTrendView`: today's rating,
+  the month line, the monthly averages) and the app has one calendar again. Tap still selects a day
+  (stories), long press now rates it, with a one-line hint in the trend segment until the first
+  score exists.
+- Tests: `test/widgets/calendar/sp_calendar_date_cell_test.dart` (a feeling day keeps *both* the
+  emoji and the number, a check day keeps both, a plain day stays one `Text`, the tint appears only
+  when rated, tap and long press stay separate with counts). The deleted
+  `sp_score_calendar_date_cell_test.dart` went with its widget.
+- Keys: `general.score` → `general.trend` (the segment is charts now) and a new
+  `general.score_long_press_hint`; all 21 locale files kept in lockstep (621 keys).
+- Two stumbles on the way, both caught by CI rather than by the user this time:
+  `git mv` of `views/calendar/score` → `views/calendar/trend` left the package URIs *inside* the
+  moved chart files pointing at the old folder (`Target of URI doesn't exist`, 13 analyze errors);
+  swept lib/ and test/ for the old path (`af6d2ef`). And for two runs `actions/checkout` failed with
+  `repository 'https://github.com/alireza-haeri/notely/' not found` in *every* job — not the code: a
+  rerun went through and produced the real errors. When every job fails in ~30s at checkout, read it
+  as infrastructure and rerun before changing anything.
+- CI `43800211911` green on `af6d2ef`: Scope 5s, Analyze 74s, Test (1) 201s, Test (2) 165s (223s
+  total, full suite via `[test]` — the scoped run is for the small follow-ups).
+
+### 2026-11-16 — «قشنگتر»: motion, insets, and a score card over the day's stories (D-034)
+- The calendar worked; it did not look deliberate. Three fixes, all of them the user could see:
+  - **The trend segment was cropped by the sidebar.** `RootPagesMediaQuery` folds the 88pt sidebar
+    into `padding.left/right`, and the segment's `ListView` ignored it, so the charts ran under the
+    rail on a wide window. It now takes those insets (the mood segment already did, via its
+    `SliverPadding`).
+  - **Both charts appeared fully drawn.** Now they draw themselves: the line interpolates every
+    point's height from the baseline (700ms, `easeOutCubic`), its wash fades with the same progress,
+    and the dots land with a small `easeOutBack` overshoot after 45%; the monthly bars grow bottom-up
+    with a stagger (750ms). Each tween is keyed on the *data*, so rating a new day replays the
+    entrance instead of the chart sitting there with stale-looking numbers.
+  - **The score tint snapped in.** `Container` → `AnimatedContainer` (`Durations.medium2`) with one
+    stable key. The lesson is in D-034 §4: keying that container by state (`score == null ? null :
+    ValueKey('score-tint')`) rebuilds it instead of animating it.
+- New: a score card above the story list for the selected day — date, score (or "no score yet") and
+  the day's tint, tapping which opens the same `SpDailyScoreSheet` the long press does. Gated on the
+  add-on being on, absent on the "all stories" page. `SpScoreCallout` is the shared shell, and
+  `TodayScoreTile` in the trend segment is now a thin wrapper around it (`lib/widgets/scores/`), so
+  the two cards cannot drift apart.
+- Tests: `test/widgets/scores/sp_score_callout_test.dart` (the number when rated, an add icon — never
+  a `0` — when not, one tap opens the sheet, a long title ellipsises instead of overflowing, RTL,
+  tint follows the score, out-of-range score is clamped); the chart tests now settle the entrance and
+  assert the bars start at zero height and end at their real value.
+- Stumbles, both caught by CI before the user saw anything: the new callout test bound `_borderColor`'s
+  `Color?` to a `Color` (2 analyze errors, `5aa04f5`); everything else in the round — the chart tweens,
+  the record-destructuring bar loop, the promoted `selectedDay` in the mood column — analyzed clean on
+  the first try. Running it scoped (`mode=changed`, 4 test files, 1 shard) meant the failure came back
+  in ~90s instead of ~3.5 minutes.
+- CI `43801222059` green on the fix (`5aa04f5`…): Scope 4s, Analyze ✓, Test (1) ✓ (1m15s, 4 scoped
+  files), 85s total. Formatting stayed advisory and still lists untouched files
+  (`stories_box.dart`, `search_filter_object.dart`, …) — the CI formatter's tall style does not match
+  the repo's existing formatting, so `bin/format` cannot be reproduced without a local SDK.
+
+### 2026-11-16 — RTL palette, a real switch for the map, and an order for the sidebar (D-035)
+- Four things the calendar got wrong in daily use, plus one new capability the user asked for:
+  - **The score bar read backwards in Persian**: 100 was red and 0 green, while the thumb and the
+    labels read forwards. Cause: the bar maps 0 to the right edge in RTL, but the ramp's ends were
+    resolved by the ambient `TextDirection`, so one half of the widget described the opposite scale.
+    `DailyScoreScale.gradient(rtl:)` now swaps its own ends and `SpDailyScoreBar` paints the ramp under
+    an explicit LTR `Directionality` — the direction is the caller's statement, not the tree's
+    (D-035 §1). Pinned by two unit tests on the ends plus one on the inner direction.
+  - **Turning the score add-on off left the grid tinted.** `scoresByDay` is now empty unless
+    `enableScores` is on, so tint, long press and day card switch off together (D-035 §2).
+  - **The map is an add-on** (`AddOnType.map`, `enableMap`, on unless turned off). Off means: no
+    sidebar item, no mobile timeline item, no map-provider setting, no `places`/`countries` stats, and
+    in notes no location pin and no "add current location" (D-035 §3). Stored places are untouched.
+  - **Sidebar order is a preference**: `SidebarItemId` + `sidebarOrder`, stored as names and repaired
+    on read (`parse`: unknown dropped, missing appended), with a reorder screen in Settings that greys
+    out (but keeps the slot of) items an add-on currently hides (D-035 §4).
+  - **The 12px yellow-and-black strip** around the score card in a short window: a fixed-height
+    sibling above a list that can shrink to zero. The card is skipped below 140pt of body height,
+    where it would be the only thing on screen (D-035 §5).
+- Tests: `test/core/types/sidebar_item_id_test.dart`, `test/widgets/side_items/side_items_test.dart`
+  (stored order, map off, relax-sounds needs pro *and* the add-on, labels/icons from the ids), the
+  gradient ends in both directions, and the bar's inner `Directionality`.
+- Stumble worth remembering: the first commit added `AddOnType.map` while `toggleAddOn`'s switch still
+  had no `.map` case — and that case could not be written until the regenerated `copyWith` existed, so
+  the push went red on a non-exhaustive switch (`65d0763`, Analyze). The `.g.dart` landed in the very
+  next commit (`411291a`) with the setters, and the tip has been green since. The rule: a new enum
+  value and an exhaustive switch over it are one atomic change, so the regeneration has to be fetched
+  *before* the enum grows, not after.
+- CI `43803014131` green on `411291a`: Scope 6s, Analyze ✓, Test (1) ✓ in 2m31s over 40 scoped files,
+  162s total. (`flutter test failed but the JSON reporter reported no failing test` is the same
+  pre-existing annotation the previous green run carries; the job exits success.)
+- Follow-up while auditing "not a trace of the map": the story-tile preferences sheet still offered a
+  "show location" switch whose reader no longer draws anything. Hidden with the add-on (`cb7411e`),
+  preference preserved. CI `43803391050` green: Scope ✓, Analyze ✓, Test (1) ✓ 1m53s, 123s total.
+
+### 2026-11-16 — A local gate, and motion for the calendar (D-036, D-037)
+- **`bin/dev -t`**: the loop no longer has to wait for CI. `-t` (also `--test`, and
+  `-t full` for everything) is stripped before the flavor parsing and, instead of
+  `flutter run`, runs analyze → `bin/changed_tests`' scoped tests → `flutter build linux
+  --debug`, then prints one short report (a line per gate; analyzer errors, failing test
+  blocks and compiler errors when something broke) with full logs in `bin/.tmp/verify/`.
+  A dirty working tree falls back to the whole suite, because an uncommitted edit makes the
+  scoper's selection a guess. Verified with a stubbed `flutter` on PATH: both the failing and
+  the passing report render as intended, and `--community-linux -t` parses correctly.
+- **Motion in the calendar (D-037)** — the mood segment did not animate at all:
+  - the month grid now arrives row by row: one 420ms controller for the whole grid, each
+    row an interval inside it, each cell faded + lifted 6pt with the cell passed as
+    `AnimatedBuilder`'s `child` so it is not rebuilt per frame;
+  - the month title in the app bar cross-fades and slides up when the grid pages under it,
+    keyed on the label (not the widget);
+  - mood ↔ trend ↔ period cross-fade instead of cutting;
+  - the day badge grows 19→22pt and fills on selection, and the "today" ring thickens,
+    both as `AnimatedContainer`s on the same widget rather than a swapped one;
+  - the day's score card is wrapped in `AnimatedSize`, so selecting a day pushes the story
+    list down over 200ms instead of in a single frame.
+- Deliberately not animated: nothing loops (a repeating animation would fight the charts'
+  data-keyed entrances from D-034 and hang every `pumpAndSettle`), and impulse curves stay
+  in the charts where a dot landing is the point.
+- CI for the round: `43803970360` green on `3a08255` (Scope 6s, Analyze ✓, Test 1 1m30s over the
+  two calendar files the scoper picked, 136s total); `43804325119` green on `e96106b` (92s) — a
+  `bin/` + `ai/` change correctly ran Analyze only and skipped the tests entirely (`mode=none`).
+
+### 2026-11-16 — The first APK on GitHub Actions (D-038, D-039)
+- `.github/workflows/android.yml` builds the `community` flavor when the commit subject carries
+  `[apk]` (or by hand from the Actions tab) and publishes an `apk-<UTC date>-<sha7>` pre-release.
+  Every secret-free build says so in its notes.
+- Getting there took five failures, all recorded in D-039 because each one is a rule now:
+  the wrapper was below Flutter 3.50.0's minimum (Gradle 9.2.0 → 9.3.1), AGP was below it too
+  (8.11.1 → 9.1.1), AGP 9 makes `kotlinOptions { jvmTarget }` a compile *error*, AGP 9's legacy
+  DSL rejects `resValue` (both strings are manifest placeholders now), and two runs were SIGTERMed
+  at ~9 minutes because the Gradle/pub caches filled the runner's 14 GB `/` — they live on `/mnt`
+  (70 GB) now.
+- Measured: `43808298535` green, 18 minutes, 207 MB multi-ABI debug APK. After pointing the caches
+  at `/mnt` and restricting to arm64: `43812916947` green, 17 minutes, **138 MB**, asset
+  `storypad-community-debug-2.34.0+834.apk`, package `com.tc.writestory.community`, minSdk 24,
+  targetSdk 36, `lib/arm64-v8a/libapp.so` present.
+- Two papercuts found by reading the published release rather than the build: `gh release create
+  <file>#<label>` keeps the *file's* name (the notes promised a name the asset did not have), and
+  `gh release list --json` is not a flag this `gh` understands — the "superseded by" note on the
+  older release was written twice because of it.
+- Added a verification step: `aapt2 dump badging` + `apksigner verify` on the runner, asserted and
+  re-emitted as annotations, since the artifact cannot be downloaded from this workspace to check
+  it locally.
+- Still manual, by nature: the release keystore (four `ANDROID_KEYSTORE_*` secrets) and installing
+  the APK on a phone.
+
+### 2026-11-16 — Local APK loop (`bin/build_apk`, `bin/android_doctor`)
+- Added `bin/build_apk` (ABI-aware `--abi auto`, `--install`, `--compile-sdk=`, `--no-ndk` /
+  `notelyNdkVersion=none`) and `bin/android_doctor` (pinned SDK/AGP/Gradle check, `dl.google.com`
+  direct vs proxy probe, `--mirror` init script, `--fix` with `SDK_TEST_BASE_URL` mirror) up through
+  `67bac3c` (build against the installed `android-<n>` platform instead of failing on missing `android-37`).
+- Fixed two blockers hit on Fedora when running `emulator -avd storypad_dev &` + `bin/build_apk --install`:
+  - `bin/build_apk` ran under `set -euo pipefail`, and `device_abi()` piped `adb shell getprop`
+    without `|| true`, so whenever `adb` was present and 0 (or 2+) devices were attached,
+    `DEV=$(device_abi)` aborted silently with exit code 1 before printing anything.
+  - `emulator` and `adb` inside `$SDK/{emulator,platform-tools}` are normally not on `PATH` on
+    Fedora; `bin/build_apk` now resolves both (and `FLUTTER_BIN` / `~/development/flutter_stable`),
+    adds `--avd [name]` to boot and wait for `sys.boot_completed` automatically before ABI
+    detection, and waits on `offline` devices before `--install`.
+  - `bin/android_doctor` now resolves `$SDK/platform-tools/adb` too and parses `compileSdk` from
+    the `?: 37` expression added in `67bac3c`.
+- Fixed the Gradle 9.3.1 init-script compile error from `notely-google-mirror.gradle.kts` (which
+  used Groovy-style `{ settings -> }` / `{ project -> }` lambdas in Kotlin DSL):
+  - `bin/android_doctor --mirror` now probes Aliyun/Tencent/Huawei mirrors for AGP 9.1.1,
+    `google-services:4.4.4` (both `.gradle.plugin` marker and JAR POM) and `crashlytics:3.0.6`,
+    prefers 4/4 `200` mirrors (skipping Aliyun when it returns 502 on `.gradle.plugin`), writes
+    Groovy `~/.gradle/init.d/notely-google-mirror.gradle` (rewriting `dl.google.com` in-place via
+    `repositories.all` + mapping `google-services` and `crashlytics` via `eachPlugin`), removes
+    `.gradle.kts`, and `bin/build_apk` guards against it and accepts `-v`/`--verbose`.
+  - `bin/android_doctor --fix` resolves missing `platforms`/`build-tools` against `sdkmanager --list`
+    (so missing `android-37` on a mirror falls back to `android-36`), skips the optional 1 GB NDK,
+    and `bin/build_apk` warns when the local platform is below 36 (required by plugin subprojects).
+- Fixed two Fedora build failures hit once Maven plugin resolution succeeded (`assembleCommunityDebug`
+  hanging 5m34s at `android/build.gradle.kts:31` on `sdkmanager` exit 1):
+  - **Flutter 3.50 `forceNdkDownload` NDK provisioning hang:** Flutter's Gradle plugin ignores
+    omitted `ndkVersion` (AGP defaults to `28.2.13676358`) and invokes `sdkmanager --install
+    ndk;28.2.13676358` unless `flutter.installedNdkVersions` contains that version. When
+    `notelyNdkVersion=none`, `android/build.gradle.kts` now sets `flutter.installedNdkVersions` on
+    `:app` (`extraProperties`) and `android/app/build.gradle.kts` sets the matching placeholder
+    `ndkVersion` so `forceNdkDownload` returns immediately without running `sdkmanager` or
+    injecting synthetic CMake.
+  - **Minor SDK platform (`android-36.1`) selection:** `bin/build_apk` now detects `android-<N>.<M>`
+    platforms alongside `android-<N>` (preferring `36.1` over `34`), passes `notelyCompileSdk` +
+    `notelyCompileSdkMinor`, and `android/app/build.gradle.kts` + `android/build.gradle.kts` apply
+    `compileSdkMinor` (via `com.android.build.api.dsl.LibraryExtension` on matching plugin
+    subprojects) so AGP compiles against `platforms/android-36.1` instead of invoking `sdkmanager`
+    for missing `android-36`.
+- Verified in sandbox against stubbed `flutter`/`java`/`adb`/`emulator`/`sdkmanager`/`curl`
+  (`bash -n`, `--help`, 0-device `--abi auto`, missing `PATH` tools, `--avd --install`, mirror
+  502/200 selection, `android-34` + `android-36.1` platform selection + `--compile-sdk=36.1`,
+  `notelyNdkVersion=none` + `notelyCompileSdkMinor` env forwarding) and committed/pushed at
+  `d3d534e`. `Linux` CI (`43823502245`) passed full suite (`Scope` + `Analyze` + `Test (1)` +
+  `Test (2)`).
+- Live Fedora check (`bin/build_apk --install --avd=storypad_dev -v` on `d3d534e` with Tencent
+  mirror): confirmed the 5m34s `:app` `sdkmanager` NDK hang is gone; Gradle passed `:geolocator_android`
+  / `:google_maps_flutter_android` and was configuring `:google_sign_in_android` (~50% through ~31
+  Android plugins) while downloading Maven/Kotlin artifacts cleanly. Waiting for the build +
+  `storypad_dev` AVD install to finish; next goal after verification is a lightweight phone build
+  (`BACKLOG.md` A-3 / `N-015`).
+
+### Session 11 — verification log (what was actually proven, and by which run)
+
+Two runs matter; everything else was either superseded by a later push
+(`cancel-in-progress`) or belonged to another branch.
+
+| Run | Commit | Result |
+|---|---|---|
+| `43837873918` | `13e656b` | **7/7 green** — Analyze, Scope, Test (1)+(2), Build Linux desktop, Editor package tests, **Coverage**. The first run in this repo's history where the editor package's 390 cases executed alongside the app shards. |
+| `43841692813` | `7fe4c7a` | **green** — the final code state (Analyze, Scope, Test (1) scoped to `backup_repository_test.dart`). |
+
+**A trap worth writing down.** While checking `43841886680` I read a real
+`ReminderNavigationService.copyFor` failure and started to fix code this session
+never touched. That run belongs to `arena/e3e3866a-notely` (commit `b210885`), the
+parallel session's branch. `gh api .../actions/runs?per_page=N` is repo-wide, not
+branch-scoped: filter on `head_branch` **before** reading an annotation. The
+reminder failure is real for that branch and is not caused by anything here.
+
+**A `part of` file shares its library's imports — 180 files do this here.**
+Removing two imports from `stories_box.dart` as "unused" broke
+`helpers/stories_box_transformer.dart` (`part of '../stories_box.dart';`), which uses
+both of them; Analyze failed with two `Undefined class` errors and the commit was
+reverted. Grepping a single file for a symbol is **not** enough in this code base:
+`grep -rl "part of '.*<file>.dart'" lib/` before deleting an import.
+
+**An empty commit runs nothing.** `72eb3d2` (`chore(ci): ... [full]`) is a valid
+empty commit and sits at the branch tip, but GitHub reports no run for it because
+a push with no file changes matches `paths-ignore` and never starts a workflow.
+`[full]` still needs a real file change to take effect — worth remembering before
+writing "verified on CI" next to a marker that never fired.

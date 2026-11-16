@@ -1,0 +1,121 @@
+import 'dart:isolate';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:storypad/core/databases/models/story_content_db_model.dart';
+import 'package:storypad/core/databases/models/story_page_db_model.dart';
+import 'package:storypad/core/objects/story_page_object.dart';
+import 'package:storypad/widgets/rich_editor/sp_editor_controller.dart';
+import 'package:storypad/core/services/generate_body_plain_text_service.dart';
+
+class StoryPageObjectsMap {
+  final Map<int, StoryPageObject> _map = {};
+
+  StoryPageObject? operator [](int key) => _map[key];
+
+  void operator []=(int key, StoryPageObject value) {
+    _map.remove(key)?.bodyController.editor.documentRevision.removeListener(_reportEdit);
+    _map[key] = value;
+    value.bodyController.editor.documentRevision.addListener(_reportEdit);
+  }
+
+  Iterable<int> get keys => _map.keys;
+
+  StoryPageObject get first => _map.values.first;
+
+  StoryPageObject? remove(Object? key) {
+    final page = _map.remove(key);
+    page?.bodyController.editor.documentRevision.removeListener(_reportEdit);
+    page?.dispose();
+    return page;
+  }
+
+  /// Called after any page's content changes -- also a page whose editor is off screen, edited from the toolbar (e.g.
+  /// a photo added once swiped to the next page), which nothing else reports. An editing view starts its save from it.
+  VoidCallback? onEdited;
+
+  void _reportEdit() => onEdited?.call();
+
+  void dispose() {
+    for (final key in [..._map.keys]) {
+      remove(key);
+    }
+  }
+
+  /// Whether any page has an edit the story's content hasn't taken yet (see [StoryPageObject.hasPendingEdit]) -- also
+  /// one made from a toolbar while its page was off screen, which starts no save of its own.
+  bool get hasPendingEdits => _map.values.any((page) => page.hasPendingEdit);
+
+  /// [content] with the pages edited since last read (see [StoryPageObject.markEdited]) read from their editors, or
+  /// [content] itself when none was.
+  StoryContentDbModel withPendingEdits(StoryContentDbModel content) {
+    final edited = [
+      for (final page in _map.values)
+        if (page.hasPendingEdit) page,
+    ];
+    if (edited.isEmpty) return content;
+
+    final pages = [...content.richPages ?? <StoryPageDbModel>[]];
+    for (final page in edited) {
+      final index = pages.indexWhere((e) => e.id == page.id);
+      final model = page.takeEdit();
+      if (index != -1) pages[index] = model;
+    }
+    return content.withPages(pages);
+  }
+
+  void setTitleVisibleFraction(int key, double visibleFraction) {
+    _map[key]?.titleVisibleFraction = visibleFraction;
+  }
+
+  void add({
+    required StoryPageDbModel richPage,
+    required bool readOnly,
+  }) async {
+    this[richPage.id] = StoryPageObject(
+      key: GlobalKey(),
+      page: richPage,
+      bodyController: SpEditorController(
+        markdown: richPage.markdown,
+        selection: const TextSelection.collapsed(offset: 0),
+        readOnly: readOnly || richPage.isUnsupported,
+      ),
+      bodyFocusNode: FocusNode(),
+    );
+  }
+
+  static Future<StoryPageObjectsMap> fromContent({
+    required StoryContentDbModel content,
+    required bool readOnly,
+    StoryPageObjectsMap? initialPagesMap,
+  }) async {
+    final result = await Isolate.run(() {
+      final plainTextResult = GenerateBodyPlainTextService.call(content.richPages);
+      return plainTextResult?.richPagesWithCounts;
+    });
+
+    StoryPageObjectsMap map = StoryPageObjectsMap();
+
+    for (int i = 0; i < (content.richPages?.length ?? 0); i++) {
+      final richPage = content.richPages![i];
+
+      final richTextController = SpEditorController(
+        markdown: richPage.markdown,
+        selection: initialPagesMap?[richPage.id]?.bodyController.selection ?? const TextSelection.collapsed(offset: 0),
+        // A story with a page from a newer app version is read-only as a whole: saving any of it would rewrite that
+        // page's story (assets, title, counts) from what this version can't fully read.
+        readOnly: readOnly || content.hasUnsupportedPages,
+      );
+
+      map[richPage.id] = StoryPageObject(
+        key: GlobalKey(),
+        page: result?[i] ?? richPage,
+        stored: richPage,
+        bodyController: richTextController,
+        bodyFocusNode: FocusNode(),
+      );
+    }
+
+    return map;
+  }
+}
