@@ -165,6 +165,11 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
   base64 -w0 release.jks        # paste as ANDROID_KEYSTORE_BASE64
   ```
 
+- **On your own machine, skip CI:** `bin/build_apk` does the whole thing —
+  prerequisite checks (Flutter, `ANDROID_HOME`, JDK 17), the empty dart-defines file,
+  the build, the path/size/sha256, and with `--install` an `adb install -r` that
+  explains `INSTALL_FAILED_UPDATE_INCOMPATIBLE` instead of just failing. ~2 minutes the
+  first time, ~40 s warm: use it for the loop, CI for the artifact you keep.
 - `storypad` (the upstream flavor) is **not** buildable here: it needs `private_keys/`.
 - Local builds are possible with a full Flutter + Android SDK, via
   `bin/build_release_android` — but it expects the `private_keys/` submodule and

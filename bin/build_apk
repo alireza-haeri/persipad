@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# build_apk — build the Android APK for this checkout, and install it if asked.
+#
+#   bin/build_apk                 # community flavor, debug, arm64, print the path
+#   bin/build_apk --install       # ...and `adb install -r` it on the attached device
+#   bin/build_apk --release       # release build (needs the RELEASE_KEYSTORE_* env vars)
+#   bin/build_apk --abi all       # every ABI instead of arm64-v8a
+#   bin/build_apk --flavor storypad   # needs private_keys/ (see ai/ENVIRONMENT.md)
+#
+# Why this exists next to .github/workflows/android.yml: CI takes ~15 minutes per
+# attempt and grades you only at the end; a laptop takes ~2 minutes the first time and
+# ~40 seconds after that, with the APK and `adb` on the same machine. CI is for
+# artifacts you want to keep, this is for the loop you are in now (D-038).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+FLAVOR=community
+MODE=debug
+ABI=arm64
+INSTALL=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --install) INSTALL=1 ;;
+    --release) MODE=release ;;
+    --debug)   MODE=debug ;;
+    --flavor)  FLAVOR="${2:?--flavor needs a value}"; shift ;;
+    --flavor=*) FLAVOR="${1#*=}" ;;
+    --abi)     ABI="${2:?--abi needs a value}"; shift ;;
+    --abi=*)   ABI="${1#*=}" ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "bin/build_apk: unknown argument '$1' (try --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------- prerequisites
+command -v flutter >/dev/null || die "flutter is not on PATH — install Flutter 3.50.0+ (ai/ENVIRONMENT.md §2.1)."
+
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+  for guess in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" /usr/lib/android-sdk; do
+    [ -d "$guess" ] && { SDK="$guess"; break; }
+  done
+fi
+[ -n "$SDK" ] && [ -d "$SDK" ] || die "no Android SDK found — set ANDROID_HOME (Android Studio installs it under ~/Android/Sdk)."
+
+command -v java >/dev/null || die "no java — the Android build needs a JDK 17+."
+JAVA_MAJOR=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)
+[ "${JAVA_MAJOR:-0}" -ge 17 ] 2>/dev/null || die "JDK ${JAVA_MAJOR:-unknown} is too old — the Android build needs 17+."
+
+if [ "$FLAVOR" != "community" ] && [ ! -d bin/.tmp/private_keys ]; then
+  die "flavor '$FLAVOR' needs bin/.tmp/private_keys (keystores, dart-defines). Only 'community' builds without them."
+fi
+
+# ---------------------------------------------------------------- dart-defines
+DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
+mkdir -p "$(dirname "$DEFINES")"
+[ -f "$DEFINES" ] || echo '{}' > "$DEFINES"
+
+# ---------------------------------------------------------------- signing
+ENV_ARGS=()
+if [ "$MODE" = "release" ]; then
+  if [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then
+    cat >&2 <<'EOF'
+release builds need a keystore. Either export the four variables
+
+  RELEASE_KEYSTORE_PATH=/abs/path/release.jks
+  RELEASE_KEYSTORE_PASSWORD=...
+  RELEASE_KEY_ALIAS=upload
+  RELEASE_KEY_PASSWORD=...
+
+or create one once (and keep it — losing it changes your app's identity):
+
+  keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
+          -validity 10000 -alias upload
+
+Use --debug if you just want something to install right now.
+EOF
+    exit 1
+  fi
+fi
+
+TOOLCHAIN=""
+case "$ABI" in
+  all)   TOOLCHAIN="" ;;
+  arm64) TOOLCHAIN="--target-platform=android-arm64" ;;
+  *)     TOOLCHAIN="--target-platform=android-$ABI" ;;
+esac
+
+# ---------------------------------------------------------------- build
+say "Building $FLAVOR ($MODE, $ABI)…"
+# shellcheck disable=SC2086 # $TOOLCHAIN is deliberately word-split (empty for --abi all)
+flutter build apk --"$MODE" \
+  --flavor="$FLAVOR" \
+  --target="lib/main_$FLAVOR.dart" \
+  --dart-define-from-file="$DEFINES" \
+  $TOOLCHAIN
+
+APK="build/app/outputs/flutter-apk/app-$FLAVOR-$MODE.apk"
+[ -f "$APK" ] || die "the build finished but $APK is missing — check the output above."
+
+say "APK"
+printf '  file    %s\n' "$APK"
+printf '  size    %s\n' "$(du -h "$APK" | cut -f1)"
+printf '  sha256  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)"
+
+# ---------------------------------------------------------------- install
+if [ "$INSTALL" = 1 ]; then
+  command -v adb >/dev/null || die "adb is not on PATH — it ships with the Android SDK platform-tools."
+  DEVICES=$(adb devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')
+  [ "$DEVICES" -ge 1 ] || die "no device in 'adb devices' — plug the phone in and enable USB debugging."
+  say "Installing on $DEVICES device(s)…"
+  # A debug-signed APK cannot replace a differently-signed install: say so instead of
+  # letting `adb install -r` fail with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+  if ! adb install -r "$APK" 2>&1 | tee /tmp/adb-install.log | grep -q Success; then
+    if grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' /tmp/adb-install.log; then
+      die "the phone has this app installed from a different signing key — run 'adb uninstall com.tc.writestory.$FLAVOR' first (it deletes the app's data too)."
+    fi
+    die "adb install failed — see the lines above."
+  fi
+  say "Installed. Launch it from the app drawer."
+else
+  printf '\n  install with: adb install -r %s\n' "$APK"
+fi
