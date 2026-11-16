@@ -86,15 +86,15 @@ class BackupRepository {
   static List<BaseDbAdapter> _databasesOverride = const [];
 
   static List<BaseDbAdapter> _seedDatabases() => [
-    PreferenceDbModel.db,
-    StoryDbModel.db,
-    TagDbModel.db,
-    TagCategoryDbModel.db,
-    EventDbModel.db,
-    TemplateDbModel.db,
-    AssetDbModel.db,
-    RelaxSoundMixModel.db,
-  ];
+        PreferenceDbModel.db,
+        StoryDbModel.db,
+        TagDbModel.db,
+        TagCategoryDbModel.db,
+        EventDbModel.db,
+        TemplateDbModel.db,
+        AssetDbModel.db,
+        RelaxSoundMixModel.db,
+      ];
 
   /// The tables a backup reads and writes.
   ///
