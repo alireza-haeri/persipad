@@ -61,8 +61,15 @@ android {
         versionName = flutter.versionName
 
         // --dart-define-from-file=configs/example.json
-        resValue("string", "app_name", dartDefines["APP_NAME"] ?: "StoryPad C.")
-        resValue("string", "google_map_api_key", dartDefines["GOOGLE_MAPS_ANDROID_API_KEY"] ?: "")
+        //
+        // These two used to be `resValue(...)`. AGP 9 disables custom *resource* values
+        // in the legacy DSL ("defaultConfig contains custom resource values, but the
+        // feature is disabled"), and the manifest is the only reader of both, so they
+        // are manifest placeholders now — the same mechanism `appLogo` below already
+        // uses. The dart-define defaults are unchanged, so the storypad flavor keeps
+        // overriding its own name and Maps key exactly as before.
+        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "StoryPad C."
+        manifestPlaceholders["googleMapsApiKey"] = dartDefines["GOOGLE_MAPS_ANDROID_API_KEY"] ?: ""
     }
 
     signingConfigs {
