@@ -186,7 +186,7 @@ adb -s <serial> push build/app/outputs/flutter-apk/app-community-debug.apk /sdca
 #    (no cable at all: copy it through MTP, or send the file to yourself)
 
 # 3. no local build: Actions → Android → "Run workflow" (or a `[apk]` commit subject)
-#    publishes a pre-release whose asset is the arm64 community APK (#? D-038)
+#    publishes a pre-release whose asset is the arm64 community APK (D-038)
 ```
 
 Notes that have cost time before:
