@@ -242,7 +242,7 @@ class _VoiceRecordingContentState extends State<_VoiceRecordingContent> {
         if (recordingResult != null)
           SpVoicePlayer.file(
             filePath: recordingResult!.filePath,
-            initialDuration: Duration(seconds: durationInMs),
+            initialDuration: Duration(milliseconds: recordingResult!.durationInMs),
           ),
         const SizedBox(height: 32.0),
         buildPlaybackActions(context),

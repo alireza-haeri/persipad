@@ -213,6 +213,11 @@ class _VideoPageScaffoldState extends State<_VideoPageScaffold> {
   }
 
   Future<void> _initController(File file) async {
+    // `video_player` has no Linux/Windows backend: initializing a controller
+    // there only throws `MissingPluginException`. [_buildUnsupportedFallback]
+    // renders instead, with an "Open" button that hands the file to the
+    // system player.
+    if (!PlatformCapabilities.videoPlaybackOnThisDevice) return;
     if (controller != null || _failed) return;
     _file = file;
     await _createController(file, autoplay: true);
@@ -411,11 +416,45 @@ class _VideoPageScaffoldState extends State<_VideoPageScaffold> {
     );
   }
 
+  /// Shown where the platform has no `video_player` backend (Linux, Windows).
+  /// Instead of a spinner that never resolves, the file is handed to the
+  /// system video player through `url_launcher` -- on Linux that is `xdg-open`.
+  Widget _buildUnsupportedFallback(File? file) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(SpIcons.imageNotSupported, color: Colors.white, size: 40.0),
+            const SizedBox(height: 12.0),
+            Text(
+              tr('page.video_playback_unsupported.message'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            if (file != null) ...[
+              const SizedBox(height: 16.0),
+              FilledButton.tonal(
+                onPressed: () => UrlOpenerService.launchUrl(Uri.file(file.path)),
+                child: Text(tr('button.open')),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBody(BuildContext context) {
     return SpDbAssetLoader.withUser(
       relativePath: widget.item.tag,
       builder: (context, file, error) {
         if (file != null) _initController(file);
+
+        if (!PlatformCapabilities.videoPlaybackOnThisDevice) {
+          return _buildUnsupportedFallback(file);
+        }
 
         // `_failed` covers a file that loaded fine but can't be decoded --
         // same dead end for the user as a file that never loaded, so it gets

@@ -1227,3 +1227,67 @@ Template:
   `StoryStatsService._elapsedDays`, and `persian_calendar_test.dart`).
 - **Consequences:** Date calculations behave identically in `Asia/Tehran`, UTC, and every other
   DST-observing timezone.
+
+## D-050 — Desktop voice playback runs on a system CLI player; video opens externally (2026-11-16)
+- **Status:** accepted
+- **Context:** The first real Fedora run of `bin/dev --community-linux` (log in this session)
+  produced `MissingPluginException(No implementation found for method init on channel
+  com.ryanheise.just_audio.methods)` for every mounted voice note, twice each (the widget
+  retried once). `pubspec.lock` has no `just_audio` Linux backend and no `video_player`
+  Linux backend either — Google ships neither. Voice notes are the app's own recording
+  format (`.m4a`), so "no audio on desktop" is a data-access bug, not a cosmetic one.
+- **Decision:**
+  1. `lib/core/services/linux_voice_player_backend.dart` plays voice notes by running a
+     system CLI player as a child process, preferring `ffplay` → `mpv` → `cvlc` →
+     `gst-play-1.0` → `paplay`. Pause is `SIGSTOP`, resume is `SIGCONT` (so a pause keeps
+     its position even on the players that cannot start mid-file); seek relaunches at the
+     offset for the players that accept one; duration comes from `ffprobe` when installed
+     and otherwise from the length stored with the note.
+  2. `SpVoicePlayer` never constructs `just_audio`'s `AudioPlayer` on Linux — the class's
+     constructor alone opens the missing `MethodChannel`. Everything else (position,
+     speed cycling, drag-to-scrub) drives the same UI through the backend callbacks.
+  3. `video_player` has no Linux/Windows backend, so `PlatformCapabilities.videoPlayback`
+     is false there: preview tiles stay static (no `initialize()` attempt) and the
+     full-screen video page shows an explanation plus an **Open** button that hands the
+     file to the system player through `url_launcher` (`xdg-open`).
+  4. `bin/setup_linux` checks for an audio player (and `ffprobe`) and prints the `dnf`
+     line when missing, so "voice notes are silent" is diagnosable on the machine rather
+     than in a log.
+- **Consequences:** No new dependency and no C++ plugin — `pubspec.yaml` is untouched, so
+  the committed codegen stays valid. Speed/seek degrade gracefully (1x / restart) on
+  `gst-play-1.0`, which is all a stock Fedora has until `ffmpeg-free` is installed; the
+  backend warns once per tool instead of silently lying about the speed label.
+  Covered by `test/core/services/linux_voice_player_backend_test.dart`.
+
+## D-051 — "Imported nothing" is not an import: sync must not reload the home screen (2026-11-16)
+- **Status:** accepted
+- **Context:** In the same Fedora log, an up-to-date sync printed `Everything is up to date
+  (0 year(s) to download)` → `BackupImporterService#start completed: No backup contents to
+  import.` and was still followed by `Reload home from HomeViewModel#_listenToRestoreService`
+  plus a full `loadNextPage year=1405` — on every cold start. `BackupRepository.syncService`
+  set `didImport = true` unconditionally after step 3, and `BackupImporterService.start`
+  returned `true` both when it short-circuited (nothing to import) and when it imported
+  zero records.
+- **Decision:** `BackupImporterService.start` returns `totalChangesCount > 0` (and `false`
+  on the nothing-to-import path); it only calls `restoreService.notify()` when it actually
+  changed something. `BackupRepository.syncService` sets `didImport = step3Result.data == true`
+  and only re-reads `lastDbUpdatedAtByYear` when records changed. `BackupProvider` then
+  skips its batch `restoreService.notify()` for no-op syncs.
+- **Consequences:** A sync that changes nothing costs no home reload and no re-query.
+  Covered by `test/core/services/backups/sync_steps/backup_importer_service_test.dart`.
+
+## D-052 — Story lists watch a filter notifier, not the whole view model (2026-11-16)
+- **Status:** accepted
+- **Context:** Opening the mood calendar logged `📂 Load SpStoryListWithQuery from
+  SpStoryListWithQueryState#initState` immediately followed by `... #watch`: the same list
+  ran its queries twice, ~40ms apart. The list's `watch:` was the calendar view model, and
+  the view model notifies for reasons that do not change the filter — the most common one
+  at mount being `DailyScoreProvider.load()` finishing (reading the provider is what
+  creates it, and it notifies when storage has been read).
+- **Decision:** `MoodCalendarViewModel` exposes `storyFilterNotifier` (a small
+  `ChangeNotifier`) and the calendar's `SpStoryList.withQuery` watches *that*; only real
+  filter changes (`onChanged` scope change, `refreshList`) notify it. `_reloadScores` also
+  returns early when the score map it computed equals the one already shown.
+- **Consequences:** Score/feeling refreshes repaint the grid without re-querying stories.
+  The other screens (`archives`, `show_tag`, `throwback`) already watched their view model
+  for filter-shaped reasons only, so they are unchanged.

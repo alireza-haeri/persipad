@@ -70,7 +70,9 @@ check_pkg() { # $1 = pkg-config module, $2 = dnf package
 }
 
 check_pkg gtk+-3.0                gtk3-devel
-check_pkg webkit2gtk-4.1          webkit2gtk4.1-devel
+# No webkit2gtk check: nothing in linux/flutter/generated_plugins.cmake links
+# WebKitGTK any more (it was an old webview dependency). Asking for
+# webkit2gtk4.1-devel made a clean Fedora box look broken for no reason.
 check_pkg libsecret-1             libsecret-devel
 check_pkg alsa                    alsa-lib-devel
 check_pkg jsoncpp                 jsoncpp-devel
@@ -99,6 +101,36 @@ else
   else
     echo "  (non-Fedora host) install the equivalents, then re-run bin/setup_linux"
   fi
+fi
+
+# ------------------------------------------------- 2b. Voice playback (desktop)
+# `just_audio` has no Linux implementation, so lib/core/services/
+# linux_voice_player_backend.dart plays voice notes through a system CLI player
+# and reads durations with ffprobe. At least one player has to exist, otherwise
+# every voice note in the app is silent (and only says so in the log).
+info "Checking desktop audio playback"
+if command -v ffplay >/dev/null 2>&1 || command -v gst-play-1.0 >/dev/null 2>&1 ||
+  command -v mpv >/dev/null 2>&1 || command -v cvlc >/dev/null 2>&1 || command -v paplay >/dev/null 2>&1; then
+  if command -v ffplay >/dev/null 2>&1; then
+    ok "voice playback via ffplay"
+  elif command -v gst-play-1.0 >/dev/null 2>&1; then
+    ok "voice playback via gst-play-1.0"
+  elif command -v mpv >/dev/null 2>&1; then
+    ok "voice playback via mpv"
+  elif command -v cvlc >/dev/null 2>&1; then
+    ok "voice playback via cvlc"
+  else
+    ok "voice playback via paplay"
+  fi
+else
+  warn "no CLI audio player found - voice notes will not play on this machine."
+  echo "      sudo dnf install -y ffmpeg-free        # recommended: also decodes m4a/AAC"
+  echo "      (or: gstreamer1-plugins-base-tools, mpv, vlc, pulseaudio-utils)"
+fi
+
+if ! command -v ffprobe >/dev/null 2>&1; then
+  warn "ffprobe not found - voice note durations fall back to the length stored with the note."
+  echo "      sudo dnf install -y ffmpeg-free"
 fi
 
 # ------------------------------------------------------------ 3. Dart dependencies

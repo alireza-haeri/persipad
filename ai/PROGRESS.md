@@ -559,3 +559,39 @@ that hardcoded *left* where it meant *start* or *back*. D-030 records the rules;
   (`flutter.installedNdkVersions`) and `LibraryExtension` plugins (aligning `:jni`) and clamps
   `compileSdk` to `notelyCompileSdk`. Next step: run `bin/android_doctor --fix` and re-run
   `bin/build_apk --install --avd=storypad_dev`; then proceed to the lightweight phone build (`A-3`).
+
+### Session 12 — Fedora/Android runtime logs: fixes (2026-11-16)
+
+The user ran both commands from Session 11 on their Fedora 44 box and pasted the full
+logs (`bin/dev --community-linux`, `bin/build_apk --install --avd=storypad_dev`). Both
+worked — the app booted, loaded `fa`, rendered 11 stories in Shamsi `1405`, and synced
+Google Drive — but the logs exposed seven defects. All are fixed on
+`arena/446a6eb3-notely`; see `DECISIONS.md` D-050…D-052 for the two design-shaped ones.
+
+| # | Symptom in the log | Cause | Fix |
+|---|---|---|---|
+| 1 | `MissingPluginException ... com.ryanheise.just_audio.methods`, twice per mounted voice note | `just_audio` 0.10.6 has no Linux backend; `SpVoicePlayer` built `AudioPlayer()` eagerly | `LinuxVoicePlayerBackend` (system CLI player) on Linux; `AudioPlayer` never constructed there (**D-050**) |
+| 2 | Voice-note length shown as ~50 minutes right after recording | `sp_voice_recording_sheet.dart` passed `Duration(seconds: durationInMs)` | `Duration(milliseconds: recordingResult!.durationInMs)` |
+| 3 | Voice-note progress bar filled from the left in Persian | `Positioned(left: 0)` | `Positioned.directional(textDirection: ..., start: 0)` |
+| 4 | `The target platform "linux" is not yet supported by this package.` + `💫 App Update Status: null null` | `InAppUpdateProvider` probed Play/App Store on Linux | `PlatformCapabilities.storeUpdates` gate: the check is Android/iOS only, and is now skipped — not failed — elsewhere |
+| 5 | Raw `{ALTERNATIVE_TO_URL, ..., RELAX_SOUND_FREE_SET_VARIANT, ...}` dumped on every start | `RemoteConfigService` printed every fetched key, including ones this build dropped | Filter to registered keys, log through `AppLogger.d` |
+| 6 | `Everything is up to date` was followed by `Reload home from HomeViewModel#_listenToRestoreService` | step 3 reported "did import" while importing 0 records | `didImport = step3Result.data == true` (**D-051**) |
+| 7 | `📂 Load SpStoryListWithQuery` logged twice on opening the mood calendar | the list watched the whole view model, which notifies when `DailyScoreProvider` finishes loading | `storyFilterNotifier` (**D-052**) |
+
+Also, from the same two commands:
+- `bin/dev` now resolves `$FLUTTER_BIN` / `~/development/flutter_stable` itself (the user
+  had to prepend `PATH=`), and no longer prints the two-line "no codegen stamp" note when
+  the committed generated files are present.
+- `bin/build_apk --install --launch` launches the app after installing (the log ended with
+  a hand-written `adb shell monkey -p ...`).
+- `bin/setup_linux` no longer asks for `webkit2gtk4.1-devel` (nothing links WebKitGTK any
+  more) and now reports which CLI player will play voice notes, with the `dnf` line when
+  there is none.
+- Video attachments on Linux/Windows: static tiles + "Open in the system player" instead of
+  a `MissingPluginException` (`video_player` has no backend there either).
+- `show_tag` / `throwback` `goToNewPage` only refresh when a story was actually saved.
+
+Not fixed, on purpose: the `Gtk-WARNING ... 'border-spacing' is not a valid property name`
+lines come from the user's GTK theme, and the Gradle 9.3.1 / AGP 9.1.1 / Kotlin 2.4.10
+"will soon be dropped" warnings are genuine upgrade work (`BACKLOG`), not runtime bugs —
+passing `--android-skip-build-dependency-validation` would only hide them.

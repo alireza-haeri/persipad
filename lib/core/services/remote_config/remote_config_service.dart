@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
 
 part './remote_config_object.dart';
 
@@ -116,9 +117,16 @@ class RemoteConfigService {
     await kRemoteConfigAdaptor.initialize(defaults);
     notifyListeners();
 
+    final allowedKeys = {for (final element in _registeredKeys) element.key};
     kRemoteConfigAdaptor.onConfigUpdated.listen(
       (updatedKeys) {
-        debugPrint(updatedKeys.toString());
+        // The config file still carries keys this build no longer knows about
+        // (e.g. RELAX_SOUND_FREE_SET_VARIANT). Printing the raw payload dumped
+        // a set of dead keys into the console on every cold start, so only
+        // registered keys count as an update worth reacting to or logging.
+        final relevantKeys = updatedKeys.intersection(allowedKeys);
+        if (relevantKeys.isEmpty) return;
+        AppLogger.d('RemoteConfig#initialize applied ${relevantKeys.length} key(s): $relevantKeys');
         notifyListeners();
       },
       onError: (error) {

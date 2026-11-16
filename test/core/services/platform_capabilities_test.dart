@@ -44,4 +44,23 @@ void main() {
       expect(PlatformCapabilities.firebase(isLinux: false), isTrue);
     });
   });
+
+  group('PlatformCapabilities.storeUpdates', () {
+    test('is limited to the platforms that own a store (android/ios)', () {
+      expect(PlatformCapabilities.storeUpdates(isAndroid: true, isIOS: false), isTrue);
+      expect(PlatformCapabilities.storeUpdates(isAndroid: false, isIOS: true), isTrue);
+      expect(PlatformCapabilities.storeUpdates(isAndroid: false, isIOS: false), isFalse);
+    });
+  });
+
+  group('PlatformCapabilities.videoPlayback', () {
+    test('has no native backend on linux or windows', () {
+      expect(PlatformCapabilities.videoPlayback(isLinux: true, isWindows: false), isFalse);
+      expect(PlatformCapabilities.videoPlayback(isLinux: false, isWindows: true), isFalse);
+    });
+
+    test('works on android, ios, macos and web', () {
+      expect(PlatformCapabilities.videoPlayback(isLinux: false, isWindows: false), isTrue);
+    });
+  });
 }

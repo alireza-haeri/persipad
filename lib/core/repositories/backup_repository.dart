@@ -278,10 +278,12 @@ class BackupRepository {
         return BackupResult.failure(step3Result.error!);
       }
 
-      didImport = true;
+      didImport = step3Result.data == true;
 
-      // Re-fetch local timestamps after import (Step 3 may have updated DB with remote data)
-      lastDbUpdatedAtByYear = await getLastDbUpdatedAtByYear();
+      // Re-fetch local timestamps after import only when records actually changed.
+      if (didImport) {
+        lastDbUpdatedAtByYear = await getLastDbUpdatedAtByYear();
+      }
     } else {
       AppLogger.d('No backups to sync for ${service.serviceType.displayName} - already up to date');
     }

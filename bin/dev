@@ -34,6 +34,14 @@
 
 source "$(dirname "$0")/helpers"
 
+# Resolve Flutter SDK automatically when ~/development/flutter_stable is used
+# without being exported in the caller's interactive shell PATH.
+if [ -n "${FLUTTER_BIN:-}" ] && [ -x "$FLUTTER_BIN" ]; then
+  export PATH="$(dirname "$FLUTTER_BIN"):$PATH"
+elif ! command -v flutter >/dev/null 2>&1 && [ -x "$HOME/development/flutter_stable/bin/flutter" ]; then
+  export PATH="$HOME/development/flutter_stable/bin:$PATH"
+fi
+
 # `-t` / `-t full` switch this script from "run the app" to "verify the checkout".
 # They are pulled out of the arguments first, so the flavor parsing below never sees
 # them (and `flutter run` never receives them).
@@ -76,8 +84,13 @@ assert_codegen_is_fresh() {
   if [ ! -f "$stamp" ]; then
     # No stamp yet: the committed generated code is shipped fresh (see the Codegen
     # workflow), so this must not block a first run. Only a *mismatch* is fatal.
-    echo "note: no codegen stamp in this checkout - assuming the committed generated code is current."
-    echo "      If the build fails on a *.g.dart, run: bin/setup_linux"
+    # Stay quiet when the generated files are actually there -- a first checkout
+    # always lacks the stamp (it is gitignored), and printing a two-line warning
+    # on every single run taught the user to ignore it.
+    if [ ! -f "lib/core/databases/models/story_db_model.g.dart" ] || [ ! -f "lib/objectbox-model.json" ]; then
+      echo "note: generated code is missing from this checkout."
+      echo "      Run: bin/setup_linux    (or: bin/build_runner --delete)"
+    fi
     return 0
   fi
 

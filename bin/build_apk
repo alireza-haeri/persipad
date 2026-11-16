@@ -3,6 +3,7 @@
 #
 #   bin/build_apk                    # community flavor, debug, ABI chosen for you
 #   bin/build_apk --install          # ...and `adb install -r` it on the device/AVD
+#   bin/build_apk --install --launch # ...and launch the app on the device/AVD
 #   bin/build_apk --install --avd    # boot an AVD if nothing is attached, then install
 #   bin/build_apk --install --avd=storypad_dev
 #   bin/build_apk --release          # release build (needs the RELEASE_KEYSTORE_* env vars)
@@ -29,12 +30,14 @@ FLAVOR=community
 MODE=debug
 ABI=auto
 INSTALL=0
+LAUNCH=0
 AVD=""
 VERBOSE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) INSTALL=1 ;;
+    --launch)  INSTALL=1; LAUNCH=1 ;;
     --release) MODE=release ;;
     --debug)   MODE=debug ;;
     -v|--verbose) VERBOSE="-v" ;;
@@ -423,7 +426,14 @@ $(adb devices)"
     fi
     die "adb install failed — see the lines above."
   fi
-  say "Installed. Launch it from the app drawer."
+  if [ "$LAUNCH" = 1 ]; then
+    PKG_NAME="$(get_package_name "$FLAVOR")"
+    adb "${ADB_TARGET[@]}" shell am start -n "$PKG_NAME/com.tc.writestory.MainActivity" >/dev/null 2>&1 ||
+      adb "${ADB_TARGET[@]}" shell monkey -p "$PKG_NAME" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+    say "Installed and launched on ${ADB_TARGET[1]}."
+  else
+    say "Installed. Launch it from the app drawer (or pass --launch)."
+  fi
 else
   printf '\n  install with: adb install -r %s\n' "$APK"
 fi

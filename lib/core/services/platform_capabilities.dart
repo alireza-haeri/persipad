@@ -14,6 +14,7 @@ class PlatformCapabilities {
   static bool get isAndroid => !kIsWeb && Platform.isAndroid;
   static bool get isIOS => !kIsWeb && Platform.isIOS;
   static bool get isMacOS => !kIsWeb && Platform.isMacOS;
+  static bool get isWindows => !kIsWeb && Platform.isWindows;
 
   /// Whether [type] can sign in and move files on a platform.
   ///
@@ -41,6 +42,33 @@ class PlatformCapabilities {
 
   /// [cloudSync] for the platform we are actually running on.
   static bool get firebaseOnThisDevice => firebase(isLinux: isLinux);
+
+  /// Whether App Store / Play Store update checks can run at all.
+  ///
+  /// `new_version_plus` and `in_app_update` only talk to the Play Store and
+  /// the App Store. On Linux/macOS/Windows they print
+  /// `The target platform "linux" is not yet supported by this package.` and
+  /// then report `null null` on every cold start, so the check is skipped
+  /// entirely there instead of failing noisily.
+  static bool storeUpdates({
+    required bool isAndroid,
+    required bool isIOS,
+  }) => isAndroid || isIOS;
+
+  static bool get storeUpdatesOnThisDevice => storeUpdates(isAndroid: isAndroid, isIOS: isIOS);
+
+  /// Whether `video_player` has a native implementation on a platform.
+  ///
+  /// It ships Android/iOS/macOS/web backends only -- on Linux and Windows
+  /// `VideoPlayerController.initialize()` throws a `MissingPluginException`
+  /// over the `flutter.io/videoPlayer` channel, so callers must fall back to
+  /// something else (a static tile, or opening the file externally).
+  static bool videoPlayback({
+    required bool isLinux,
+    required bool isWindows,
+  }) => !isLinux && !isWindows;
+
+  static bool get videoPlaybackOnThisDevice => videoPlayback(isLinux: isLinux, isWindows: isWindows);
 
   static bool cloudSyncOnThisDevice(BackupServiceType type) => cloudSync(
     type: type,

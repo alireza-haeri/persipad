@@ -443,6 +443,7 @@
   "page.video_compression.message": "Keeping the quality while saving space. Long clips can take a moment.",
   "page.video_compression.progress_args": "Video {SP_CURRENT} of {SP_TOTAL}",
   "page.video_compression.title": "Compressing Video",
+  "page.video_playback_unsupported.message": "Video playback isn't available on this platform. Open it in your device's video player instead.",
   "plural.day_ago.one": "1 day ago",
   "plural.day_ago.other": "{} days ago",
   "plural.entry.one": "1 entry",
