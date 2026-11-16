@@ -134,6 +134,7 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
     row sdkmanager "$SDKMANAGER"
     INSTALLED=$(timeout 180 "$SDKMANAGER" --list_installed 2>/dev/null | sed -n '/Installed packages:/,$p' | sed '1d' | awk '{print $1}' | sed '/^$/d')
     row platforms "$(printf '%s\n' "$INSTALLED" | grep '^platforms;android-' | sed 's/platforms;android-//' | sort -n | tr '\n' ' ')"
+    row platform_dirs "$(ls "$SDK/platforms" 2>/dev/null | tr '\n' ' ')"
     row build_tools "$(printf '%s\n' "$INSTALLED" | grep '^build-tools;' | sed 's/build-tools;//' | sort -V | tr '\n' ' ')"
     row ndk "$(printf '%s\n' "$INSTALLED" | grep '^ndk;' | sed 's/ndk;//' | sort -V | tr '\n' ' ')"
     row cmake "$(printf '%s\n' "$INSTALLED" | grep '^cmake;' | sed 's/cmake;//' | sort -V | tr '\n' ' ')"

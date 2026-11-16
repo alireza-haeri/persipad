@@ -7,6 +7,8 @@
 #   bin/build_apk --abi all          # every ABI (biggest, slowest, always installable)
 #   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
+#   bin/build_apk --compile-sdk=36   # build against the platform this machine has
+#   bin/build_apk --no-ndk           # nothing here compiles C/C++; skip the NDK requirement
 #
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
 # mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
@@ -33,6 +35,11 @@ while [ $# -gt 0 ]; do
     --flavor=*) FLAVOR="${1#*=}" ;;
     --abi)     ABI="${2:?--abi needs a value}"; shift ;;
     --abi=*)   ABI="${1#*=}" ;;
+    --compile-sdk)   export ORG_GRADLE_PROJECT_notelyCompileSdk="${2:?--compile-sdk needs a value}"; shift ;;
+    --compile-sdk=*) export ORG_GRADLE_PROJECT_notelyCompileSdk="${1#*=}" ;;
+    --ndk)     export ORG_GRADLE_PROJECT_notelyNdkVersion="${2:?--ndk needs a value}"; shift ;;
+    --ndk=*)   export ORG_GRADLE_PROJECT_notelyNdkVersion="${1#*=}" ;;
+    --no-ndk)  export ORG_GRADLE_PROJECT_notelyNdkVersion=none ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "bin/build_apk: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
@@ -113,6 +120,29 @@ case "$ABI" in
     ;;
 esac
 
+# ---------------------------------------------------------------- adapt to this SDK
+# CI installs android-37 and the NDK the Flutter SDK pins. A local machine behind a
+# network that cannot reach dl.google.com may have neither, and a build against what it
+# does have is far more useful than a download error. Explicit flags win over this.
+if [ -z "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && [ -d "$SDK/platforms" ]; then
+  if [ ! -d "$SDK/platforms/android-37" ]; then
+    BEST=$(ls "$SDK/platforms" 2>/dev/null | sed -n 's/^android-\([0-9][0-9]*\)$/\1/p' | sort -n | tail -1)
+    if [ -n "$BEST" ]; then
+      export ORG_GRADLE_PROJECT_notelyCompileSdk="$BEST"
+      warn "android-37 is not installed → building against android-$BEST (CI uses 37; pass --compile-sdk=37 when you have it)."
+    else
+      warn "no android-<n> platform under $SDK/platforms — run bin/android_doctor --fix first."
+    fi
+  fi
+fi
+
+if [ -z "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ]; then
+  if [ -z "$(ls -A "$SDK/ndk" 2>/dev/null)" ]; then
+    export ORG_GRADLE_PROJECT_notelyNdkVersion=none
+    warn "no NDK installed → building without one (nothing in this app compiles C/C++; undo with --ndk=<version>)."
+  fi
+fi
+
 # ---------------------------------------------------------------- dart-defines
 DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
 mkdir -p "$(dirname "$DEFINES")"
@@ -139,6 +169,9 @@ EOF
 fi
 
 # ---------------------------------------------------------------- build
+[ -n "${ORG_GRADLE_PROJECT_notelyCompileSdk:-}" ] && say "compileSdk override: $ORG_GRADLE_PROJECT_notelyCompileSdk"
+[ -n "${ORG_GRADLE_PROJECT_notelyNdkVersion:-}" ] && say "ndkVersion override: $ORG_GRADLE_PROJECT_notelyNdkVersion"
+
 say "Building $FLAVOR ($MODE, $CHOSEN)…"
 # shellcheck disable=SC2086 # $TOOLCHAIN is deliberately word-split (empty for --abi all)
 flutter build apk --"$MODE" \
