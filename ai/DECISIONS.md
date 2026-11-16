@@ -1291,3 +1291,58 @@ Template:
 - **Consequences:** Score/feeling refreshes repaint the grid without re-querying stories.
   The other screens (`archives`, `show_tag`, `throwback`) already watched their view model
   for filter-shaped reasons only, so they are unchanged.
+
+## D-053 — An unreachable Google is a network error, not a failed sign-in (2026-11-16)
+- **Status:** accepted
+- **Context:** Signing in on the Android emulator showed the user
+  `Sign-in failed: ClientException with SocketException: Failed host lookup:
+  'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)`.
+  The message names an OAuth endpoint, so it reads like a broken client id or a rejected
+  consent — but it is DNS: the AVD had no resolver. Three separate flaws turned that into
+  a misleading screen: `GoogleDesktopOAuthService` let `package:http`'s transport
+  exceptions escape unwrapped, `GoogleDriveCloudService.signIn`/`reauthenticateIfNeeded`
+  folded anything non-auth into `AuthException(signInFailed)`, and `BackupProvider.signIn`
+  printed `result.error!.message` verbatim. Worse, the same escape happened during
+  `BackupRepository.initialize()` (an expired token + no network), i.e. a throw inside
+  app startup.
+- **Decision:**
+  1. Every token/userinfo HTTP call in `GoogleDesktopOAuthService` goes through one `_send`
+     wrapper with a 30s timeout; `SocketException`, `http.ClientException`,
+     `TlsException` and `TimeoutException` become `GoogleOAuthException(error: 'offline')`
+     (`isOffline`). HTTP status codes keep their existing, specific errors, and Google's
+     `invalid_grant` still means "sign in again" (returns null).
+  2. `GoogleDesktopAuthStrategy` translates offline failures into
+     `exp.NetworkException`: `signIn` reports it instead of `AuthException`, `refresh`
+     throws it (so `BackupRepository.checkConnection` maps it to
+     `BackupConnectionStatus.noInternet`, the mapping it already had), and `restore`
+     *keeps* the stored account instead of calling `_forget()` — a tunnel must not sign
+     the user out.
+  3. `GoogleDriveCloudService.initialize` catches everything and leaves the account
+     unauthenticated, so a storage or network hiccup cannot abort app startup; `signIn`
+     and `reauthenticateIfNeeded` pass `NetworkException` through untouched.
+  4. `BackupProvider.signIn` shows the existing translated string
+     `snack_bar.no_internet` for `BackupErrorType.network` and marks the service
+     `noInternet`; every other failure keeps its specific message.
+  5. `bin/build_apk --dns-server=<ip>` (or `NOTELY_DNS_SERVER`) passes `-dns-server` to
+     the emulator, warns when the host resolves through a stub resolver, and pings
+     `oauth2.googleapis.com` from the guest right after boot. `bin/local_verify` forwards
+     the flag.
+- **Consequences:** The user is told "No internet connection!" and offered a connection
+  fix instead of being handed a Dart exception; the account survives an offline start;
+  the emulator DNS problem is diagnosed by the build script. Covered by
+  `test/core/services/google_desktop_oauth_service_test.dart` (offline mapping, plus the
+  `invalid_grant`/401 paths staying distinct) and
+  `test/core/services/google_drive_auth_strategy_test.dart` (`restore`/`refresh`/`signIn`
+  behaviour and the startup guard). See `ai/ENVIRONMENT.md` §2.2c.
+
+## D-054 — Missing artwork sources are a skip, not a codegen failure (2026-11-16)
+- **Status:** accepted
+- **Context:** `bin/setup_linux` (via `bin/build_runner`) printed
+  `Error: Directory ../static/sources/story_backgrounds not found` and
+  `err build_runner failed` on a machine where the `static.storypad.me` artwork submodule
+  is not checked out — even though `lib/gen/story_backgrounds.dart` is committed and
+  perfectly usable.
+- **Decision:** `bin/backgrounds_generation/generate.dart` prints a skip note and exits 0
+  when the source directory is absent; the committed output is left untouched.
+- **Consequences:** Codegen and the whole setup path work in a plain checkout of this repo;
+  regenerating the backgrounds still requires the submodule.

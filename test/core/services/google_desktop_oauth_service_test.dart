@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
 
 void main() {
@@ -185,6 +187,81 @@ void main() {
       await expectLater(
         service.authenticate(),
         throwsA(isA<GoogleOAuthException>().having((e) => e.isNotConfigured, 'isNotConfigured', isTrue)),
+      );
+    });
+  });
+
+  // The emulator bug these cover: with no working DNS the app reported
+  // `ClientException with SocketException: Failed host lookup:
+  // 'oauth2.googleapis.com' (OS Error: No address associated with hostname,
+  // errno = 7)` verbatim, which points at the wrong thing entirely.
+  group('GoogleDesktopOAuthService with no network', () {
+    const config = GoogleDesktopOAuthConfig(clientId: 'id', clientSecret: 'secret');
+    final token = GoogleDesktopToken(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    );
+
+    GoogleDesktopOAuthService serviceThatThrows(Object error) => GoogleDesktopOAuthService(
+      config: config,
+      openBrowser: (_) async => false,
+      client: MockClient((request) async => throw error),
+    );
+
+    final Matcher isOffline = isA<GoogleOAuthException>()
+        .having((e) => e.isOffline, 'isOffline', isTrue)
+        .having((e) => e.isNotConfigured, 'isNotConfigured', isFalse)
+        .having((e) => e.message, 'message', contains("Couldn't reach Google"));
+
+    test('reports a dead host lookup while refreshing as offline, not as an OAuth error', () async {
+      final service = serviceThatThrows(
+        const SocketException(
+          "Failed host lookup: 'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)",
+        ),
+      );
+
+      await expectLater(service.refresh(token: token), throwsA(isOffline));
+    });
+
+    test('reports a dropped connection (http.ClientException) as offline too', () async {
+      final service = serviceThatThrows(http.ClientException('Connection closed before full header was received'));
+
+      await expectLater(service.refresh(token: token), throwsA(isOffline));
+    });
+
+    test('reports an unreachable userinfo endpoint as offline as well', () async {
+      final service = serviceThatThrows(const SocketException('Failed host lookup'));
+
+      await expectLater(service.fetchUserInfo('access'), throwsA(isOffline));
+    });
+
+    test('still returns null (not an error) when Google says the refresh token is dead', () async {
+      // `invalid_grant` means "sign in again" and must not be confused with a
+      // transient network failure — that distinction is the whole point.
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        openBrowser: (_) async => false,
+        client: MockClient((request) async => http.Response('{"error":"invalid_grant"}', 400)),
+      );
+
+      expect(await service.refresh(token: token), isNull);
+    });
+
+    test('still reports a real HTTP failure from userinfo as a userinfo error', () async {
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        openBrowser: (_) async => false,
+        client: MockClient((request) async => http.Response('unauthorized', 401)),
+      );
+
+      await expectLater(
+        service.fetchUserInfo('access'),
+        throwsA(
+          isA<GoogleOAuthException>()
+              .having((e) => e.error, 'error', 'userinfo_failed')
+              .having((e) => e.isOffline, 'isOffline', isFalse),
+        ),
       );
     });
   });

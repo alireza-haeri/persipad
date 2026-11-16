@@ -64,7 +64,17 @@ class GoogleDriveCloudService extends BackupCloudService {
   // load data locally
   @override
   Future<void> initialize() async {
-    _currentUser = await auth.restore();
+    try {
+      _currentUser = await auth.restore();
+    } catch (e) {
+      // This runs while the app is still starting up (`BackupRepositoryInitializer`),
+      // so anything escaping here would abort startup — a storage hiccup or an
+      // unexpected OAuth failure must instead just leave the account
+      // unauthenticated: local notes keep working, and the backup screen offers
+      // sign-in again.
+      AppLogger.d('$runtimeType#initialize could not restore the account: $e');
+      _currentUser = null;
+    }
   }
 
   @override
@@ -100,6 +110,10 @@ class GoogleDriveCloudService extends BackupCloudService {
       return true;
     } on exp.AuthException {
       rethrow;
+    } on exp.NetworkException {
+      // Keep the type: `checkConnection` turns it into a "no internet" status,
+      // whereas an AuthException would read as "sign in again".
+      rethrow;
     } catch (e) {
       throw exp.AuthException(
         'Reauthentication failed: $e',
@@ -122,6 +136,7 @@ class GoogleDriveCloudService extends BackupCloudService {
       return true;
     } catch (e) {
       if (e is exp.AuthException) rethrow;
+      if (e is exp.NetworkException) rethrow;
 
       throw exp.AuthException(
         'Sign-in failed: $e',

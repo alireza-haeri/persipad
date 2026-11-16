@@ -28,10 +28,16 @@ class _FakeTokenStore implements GoogleDesktopTokenStore {
 class _FakeUserStore implements GoogleDesktopUserStore {
   GoogleUserObject? user;
 
+  /// Lets a test simulate a storage failure during startup.
+  Object? readError;
+
   _FakeUserStore([this.user]);
 
   @override
-  Future<GoogleUserObject?> read() async => user;
+  Future<GoogleUserObject?> read() async {
+    if (readError != null) throw readError!;
+    return user;
+  }
 
   @override
   Future<void> write(GoogleUserObject value) async => user = value;
@@ -41,7 +47,7 @@ class _FakeUserStore implements GoogleDesktopUserStore {
 }
 
 class _FakeOAuth implements GoogleOAuthClient {
-  _FakeOAuth({this.isConfigured = true, this.renewal, this.signedInToken, this.signInError});
+  _FakeOAuth({this.isConfigured = true, this.renewal, this.signedInToken, this.signInError, this.refreshError});
 
   @override
   final bool isConfigured;
@@ -49,6 +55,9 @@ class _FakeOAuth implements GoogleOAuthClient {
   GoogleDesktopToken? renewal;
   GoogleDesktopToken? signedInToken;
   GoogleOAuthException? signInError;
+
+  /// Thrown by [refresh] — the offline/DNS case.
+  Object? refreshError;
 
   int refreshCalls = 0;
   int authenticateCalls = 0;
@@ -64,6 +73,7 @@ class _FakeOAuth implements GoogleOAuthClient {
   @override
   Future<GoogleDesktopToken?> refresh({required GoogleDesktopToken token}) async {
     refreshCalls++;
+    if (refreshError != null) throw refreshError!;
     return renewal;
   }
 
@@ -258,6 +268,110 @@ void main() {
 
       expect(oauth.revokeCalls, 1);
       expect(tokens.token, isNull);
+    });
+  });
+
+  // A device that cannot resolve Google's host — offline, or an emulator whose
+  // DNS is broken — used to surface as `AuthException(signInFailed)` carrying
+  // the raw `ClientException with SocketException … errno = 7`, i.e. as a
+  // credentials problem the user could not act on.
+  group('offline handling', () {
+    const offlineError = GoogleOAuthException(
+      "Couldn't reach Google (Failed host lookup).",
+      error: GoogleOAuthException.offline,
+    );
+
+    test('restore keeps the account when the renewal cannot reach Google', () async {
+      final tokens = _FakeTokenStore(_token(expired: true));
+      final users = _FakeUserStore(_user());
+      final oauth = _FakeOAuth(refreshError: offlineError);
+
+      final restored = await GoogleDesktopAuthStrategy(oauth: oauth, tokens: tokens, users: users).restore();
+
+      expect(oauth.refreshCalls, 1);
+      expect(restored?.email, 'someone@example.com');
+      // Signing the user out because the train went into a tunnel would be a bug.
+      expect(tokens.token, isNotNull);
+      expect(users.user, isNotNull);
+    });
+
+    test('restore keeps the account on any transient renewal failure, not just DNS', () async {
+      // Only `null` from refresh() means "the grant is dead"; a 5xx or a TLS
+      // failure must not log the user out either.
+      final tokens = _FakeTokenStore(_token(expired: true));
+      final users = _FakeUserStore(_user());
+
+      final restored = await GoogleDesktopAuthStrategy(
+        oauth: _FakeOAuth(
+          refreshError: const GoogleOAuthException('Google token request failed (503)', error: 'token_request_failed'),
+        ),
+        tokens: tokens,
+        users: users,
+      ).restore();
+
+      expect(restored?.email, 'someone@example.com');
+      expect(tokens.token, isNotNull);
+      expect(users.user, isNotNull);
+    });
+
+    test('refresh reports a network exception, not an auth one', () async {
+      final strategy = GoogleDesktopAuthStrategy(
+        oauth: _FakeOAuth(refreshError: offlineError),
+        tokens: _FakeTokenStore(_token(expired: true)),
+        users: _FakeUserStore(_user()),
+      );
+
+      await expectLater(strategy.refresh(_user()), throwsA(isA<exp.NetworkException>()));
+    });
+
+    test('signIn reports a network exception, so the UI can say "no internet"', () async {
+      final strategy = GoogleDesktopAuthStrategy(
+        oauth: _FakeOAuth(signInError: offlineError),
+        tokens: _FakeTokenStore(),
+        users: _FakeUserStore(),
+      );
+
+      await expectLater(strategy.signIn(), throwsA(isA<exp.NetworkException>()));
+    });
+
+    test('GoogleDriveCloudService keeps the network type when signing in', () async {
+      final service = GoogleDriveCloudService(
+        auth: GoogleDesktopAuthStrategy(
+          oauth: _FakeOAuth(signInError: offlineError),
+          tokens: _FakeTokenStore(),
+          users: _FakeUserStore(),
+        ),
+      );
+
+      await expectLater(service.signIn(), throwsA(isA<exp.NetworkException>()));
+    });
+
+    test('GoogleDriveCloudService keeps the network type when reauthenticating', () async {
+      final service = GoogleDriveCloudService(
+        auth: GoogleDesktopAuthStrategy(
+          oauth: _FakeOAuth(refreshError: offlineError),
+          tokens: _FakeTokenStore(_token(expired: true)),
+          users: _FakeUserStore(_user()),
+        ),
+      );
+      await service.initialize();
+
+      await expectLater(service.reauthenticateIfNeeded(), throwsA(isA<exp.NetworkException>()));
+    });
+
+    test('a failed restore does not throw out of initialize (app startup)', () async {
+      final service = GoogleDriveCloudService(
+        auth: GoogleDesktopAuthStrategy(
+          oauth: _FakeOAuth(),
+          tokens: _FakeTokenStore(_token()),
+          users: _FakeUserStore(_user())..readError = StateError('secure storage unavailable'),
+        ),
+      );
+
+      await service.initialize();
+
+      expect(service.currentUser, isNull);
+      expect(service.isSignedIn, isFalse);
     });
   });
 

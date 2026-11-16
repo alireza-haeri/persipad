@@ -5,6 +5,7 @@ import 'package:storypad/core/objects/backup_exceptions/backup_exception.dart' a
 import 'package:storypad/core/objects/google_user_object.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/storages/base_object_storages/object_storage.dart';
 import 'package:storypad/core/storages/google_user_storage.dart';
 import 'package:storypad/core/storages/storage_adapters/base_storage_adapter.dart';
@@ -24,7 +25,10 @@ abstract class GoogleDriveAuthStrategy {
   bool get isConfigured => true;
 
   /// Loads the stored account, renewing its token first if it has expired.
-  /// Returns null when there is nothing usable (no account, or a dead token).
+  /// Returns null when there is nothing usable (no account, or a dead token —
+  /// Google's `invalid_grant`). A renewal that fails for a transient reason
+  /// (no network, a 5xx) keeps the stored account with its stale token instead
+  /// of signing the user out; the next [refresh] tries again.
   Future<GoogleUserObject?> restore();
 
   /// Interactive sign-in. Throws [exp.AuthException] on failure.
@@ -80,7 +84,21 @@ class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
 
     if (!token.isExpired) return user;
 
-    final renewed = await _renew(user: user, token: token);
+    final GoogleUserObject? renewed;
+    try {
+      renewed = await _renew(user: user, token: token);
+    } on GoogleOAuthException catch (e) {
+      // "The account is gone" is expressed as a null renewal, not as a throw, so
+      // anything raised here is transient: no DNS (an emulator with a broken
+      // resolver looks exactly like this), a timeout, a 5xx. Losing the account
+      // over that would sign the user out because the laptop closed. The stored
+      // (slightly stale) account keeps the UI showing the right e-mail, and the
+      // next checkConnection() retries the renewal and reports "no internet"
+      // until it works again.
+      AppLogger.d('$runtimeType#restore kept the stored account after a failed renewal: ${e.message}');
+      return user;
+    }
+
     if (renewed == null) {
       await _forget();
       return null;
@@ -109,6 +127,8 @@ class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
       await _users.write(user);
       return user;
     } on GoogleOAuthException catch (e) {
+      if (e.isOffline) throw _offline(e.message, context: 'signIn');
+
       throw exp.AuthException(
         e.message,
         e.isNotConfigured ? exp.AuthExceptionType.signInRequired : exp.AuthExceptionType.signInFailed,
@@ -136,7 +156,19 @@ class GoogleDesktopAuthStrategy implements GoogleDriveAuthStrategy {
     if (token == null) return null;
     if (!token.isExpired) return current;
 
-    return _renew(user: current, token: token);
+    try {
+      return await _renew(user: current, token: token);
+    } on GoogleOAuthException catch (e) {
+      // Reported as a network problem rather than an auth one, so callers can
+      // say "no internet" (BackupConnectionStatus.noInternet) instead of asking
+      // the user to sign in again for a connection they cannot fix that way.
+      if (e.isOffline) throw _offline(e.message, context: 'refresh');
+      rethrow;
+    }
+  }
+
+  exp.NetworkException _offline(String message, {required String context}) {
+    return exp.NetworkException(message, context: context, serviceType: BackupServiceType.google_drive);
   }
 
   /// Exchanges the refresh token for a new access token and persists both the
