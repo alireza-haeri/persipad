@@ -9,6 +9,7 @@ import 'package:storypad/providers/relax_sounds_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
+import 'package:storypad/providers/daily_score_provider.dart';
 
 // global providers
 class ProviderScope extends StatelessWidget {
@@ -50,6 +51,14 @@ class ProviderScope extends StatelessWidget {
         ListenableProvider<RelaxSoundsProvider>(
           lazy: true,
           create: (context) => RelaxSoundsProvider(),
+        ),
+        // Loaded eagerly rather than lazily: the calendar's score segment can be
+        // the first screen after a cold start (it is a segment of the calendar
+        // sheet), and a lazily-created provider would paint an empty month first
+        // and then pop the scores in.
+        ListenableProvider<DailyScoreProvider>(
+          lazy: false,
+          create: (context) => DailyScoreProvider()..load(),
         ),
       ],
       child: child,

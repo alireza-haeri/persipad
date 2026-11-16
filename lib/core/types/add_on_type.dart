@@ -6,7 +6,8 @@ import 'package:storypad/widgets/sp_icons.dart';
 
 enum AddOnType {
   relax_sounds(icon: SpIcons.musicNote, weekdayColor: 4),
-  period_calendar(icon: SpIcons.waterDrop, designForFemale: true, weekdayColor: 7);
+  period_calendar(icon: SpIcons.waterDrop, designForFemale: true, weekdayColor: 7),
+  daily_score(icon: SpIcons.gauge, weekdayColor: 2);
 
   final IconData icon;
   final bool designForFemale;
@@ -24,6 +25,8 @@ enum AddOnType {
         return tr("paywall_features.relax_sounds.title");
       case AddOnType.period_calendar:
         return tr("list_tile.period_calendar.title");
+      case AddOnType.daily_score:
+        return tr("list_tile.daily_score.title");
     }
   }
 
@@ -33,6 +36,8 @@ enum AddOnType {
         return tr('paywall_features.relax_sounds.subtitle');
       case AddOnType.period_calendar:
         return tr('list_tile.period_calendar.subtitle');
+      case AddOnType.daily_score:
+        return tr('list_tile.daily_score.subtitle');
     }
   }
 }

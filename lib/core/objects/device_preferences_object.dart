@@ -66,6 +66,7 @@ class DevicePreferencesObject {
   // Add ons
   final bool? enableRelaxSounds;
   final bool? enablePeriodCalendar;
+  final bool? enableDailyScore;
 
   /// Device-local reminder configurations. `null` means never configured.
   /// Reminders are intentionally not synced across devices (OS notifications
@@ -83,6 +84,7 @@ class DevicePreferencesObject {
     this.fontWeightIndex,
     this.enableRelaxSounds,
     this.enablePeriodCalendar,
+    this.enableDailyScore,
     this.reminders,
     ThemeMode? themeMode,
     this.timeFormat,

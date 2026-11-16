@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 
 enum CalendarSegmentId {
   mood,
-  period;
+  period,
+  score;
 
   String translatedName(BuildContext context) {
     switch (this) {
@@ -11,6 +12,8 @@ enum CalendarSegmentId {
         return tr('general.mood');
       case CalendarSegmentId.period:
         return tr('list_tile.period_calendar.title');
+      case CalendarSegmentId.score:
+        return tr('general.score');
     }
   }
 }

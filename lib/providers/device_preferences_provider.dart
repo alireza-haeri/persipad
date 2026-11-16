@@ -37,6 +37,9 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
   bool enablePeriodCalendar(BuildContext context) =>
       preferences.enablePeriodCalendar ?? context.read<InAppPurchaseProvider>().periodCalendar;
 
+  /// Opt-in like every other add-on, but free: no purchase gate, no default-on.
+  bool get enableDailyScore => preferences.enableDailyScore ?? false;
+
   /// Effective time format — falls back to the device's 24-hour setting when
   /// the user hasn't customized [DevicePreferencesObject.timeFormat].
   TimeFormatOption timeFormatOf(BuildContext context) => TimeFormatOption.resolve(context, preferences.timeFormat);
@@ -284,6 +287,9 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
         break;
       case .period_calendar:
         _preferences = _preferences.copyWith(enablePeriodCalendar: enabled);
+        break;
+      case .daily_score:
+        _preferences = _preferences.copyWith(enableDailyScore: enabled);
         break;
     }
 

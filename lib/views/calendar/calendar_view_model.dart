@@ -41,6 +41,7 @@ class CalendarViewModel extends ChangeNotifier with DisposeAwareMixin {
 
       // Use read (no need to listen) as this view is opened as sheet, so the enabled status is ready before this page is being built.
       if (viewContext.read<DevicePreferencesProvider>().enablePeriodCalendar(viewContext)) CalendarSegmentId.period,
+      if (viewContext.read<DevicePreferencesProvider>().enableDailyScore) CalendarSegmentId.score,
     ];
   }
 

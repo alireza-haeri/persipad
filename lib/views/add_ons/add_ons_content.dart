@@ -1,5 +1,20 @@
 part of 'add_ons_view.dart';
 
+/// Whether [addOn] is currently enabled.
+///
+/// One place for the whole file: adding an add-on means adding a case here and
+/// a `toggleAddOn` case in [DevicePreferencesProvider], instead of remembering
+/// an OR-chain in two widgets. (The chain was how `_AddOnSwitchTile` used to
+/// drift out of sync with `_AddOnTile`.)
+bool _isAddOnEnabled(BuildContext context, AddOnType addOn) {
+  final provider = context.read<DevicePreferencesProvider>();
+  return switch (addOn) {
+    AddOnType.relax_sounds => provider.enableRelaxSounds,
+    AddOnType.period_calendar => provider.enablePeriodCalendar(context),
+    AddOnType.daily_score => provider.enableDailyScore,
+  };
+}
+
 class _AddOnsContent extends StatelessWidget {
   const _AddOnsContent(this.viewModel);
 
@@ -37,6 +52,11 @@ class _AddOnTile extends StatelessWidget {
         return SpDemoImagesSheet.relaxSoundDemoImages;
       case .period_calendar:
         return SpDemoImagesSheet.periodCalendarDemoImages;
+      case .daily_score:
+        // No screenshots exist for this add-on yet, and an empty demo list is
+        // not harmless: SpDemoImages reserves 320px even with nothing in it. An
+        // empty list therefore means "no demo sheet" — see [openTap] below.
+        return const [];
     }
   }
 
@@ -47,13 +67,14 @@ class _AddOnTile extends StatelessWidget {
     // DevicePreferencesProvider directly — see _RemindersContent for the same pattern.
     final provider = context.read<DevicePreferencesProvider>();
 
-    bool enabled =
-        (provider.enableRelaxSounds && addOn == AddOnType.relax_sounds) ||
-        (provider.enablePeriodCalendar(context) && addOn == AddOnType.period_calendar);
+    bool enabled = _isAddOnEnabled(context, addOn);
 
     // The switch reflects the true enabled state but doesn't toggle directly —
     // tapping it (like tapping the tile) opens the sheet, where the real
     // switch lives. Keeps this consistent with the reminders list tiles.
+    //
+    // An add-on without demo screenshots has no sheet to open, so its tile and
+    // switch toggle in place instead of opening an empty one.
     void openSheet() {
       SpDemoImagesSheet(
         demoImages: _demoImagesFor(addOn),
@@ -61,8 +82,12 @@ class _AddOnTile extends StatelessWidget {
       ).show(context: context);
     }
 
+    void toggleInPlace() => provider.toggleAddOn(addOn, !enabled);
+
+    final VoidCallback onTap = _demoImagesFor(addOn).isEmpty ? toggleInPlace : openSheet;
+
     return ListTile(
-      onTap: openSheet,
+      onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       leading: SpSettingIconBadge(
         weekday: addOn.weekdayColor,
@@ -70,7 +95,7 @@ class _AddOnTile extends StatelessWidget {
       ),
       title: _AddOnTitle(addOn: addOn),
       subtitle: Text(addOn.description),
-      trailing: Switch.adaptive(value: enabled, onChanged: (_) => openSheet()),
+      trailing: Switch.adaptive(value: enabled, onChanged: (_) => onTap()),
     );
   }
 }
@@ -96,10 +121,7 @@ class _AddOnSwitchTileState extends State<_AddOnSwitchTile> {
   @override
   void initState() {
     super.initState();
-    final provider = context.read<DevicePreferencesProvider>();
-    _enabled =
-        (provider.enableRelaxSounds && widget.addOn == AddOnType.relax_sounds) ||
-        (provider.enablePeriodCalendar(context) && widget.addOn == AddOnType.period_calendar);
+    _enabled = _isAddOnEnabled(context, widget.addOn);
   }
 
   void _setEnabled(bool value) {

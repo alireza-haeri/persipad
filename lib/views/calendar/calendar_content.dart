@@ -23,6 +23,9 @@ class _CalendarContent extends StatelessWidget {
       CalendarSegmentId.period => PeriodCalendarView(
         monthYearNotifier: viewModel.monthYearNotifier,
       ),
+      CalendarSegmentId.score => ScoreCalendarView(
+        monthYearNotifier: viewModel.monthYearNotifier,
+      ),
     };
   }
 
@@ -103,7 +106,14 @@ class _CalendarContent extends StatelessWidget {
           }
         },
         children: {
-          for (final segment in viewModel.segments) segment: Text(segment.translatedName(context)),
+          // Three segments (mood / period / score) can be wider than a small
+          // phone. Each label is left free to shrink instead of overflowing —
+          // the same lesson as D-030 §4: never make a row of text unbounded.
+          for (final segment in viewModel.segments)
+            segment: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(segment.translatedName(context)),
+            ),
         },
       );
     } else {
@@ -120,7 +130,10 @@ class _CalendarContent extends StatelessWidget {
           for (final segment in viewModel.segments)
             ButtonSegment<CalendarSegmentId>(
               value: segment,
-              label: Text(segment.translatedName(context)),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(segment.translatedName(context)),
+              ),
             ),
         ],
       );
