@@ -421,6 +421,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     final manual = Future<void>.delayed(manualPromptDelay).then<Uri>((_) async {
       if (completer.isCompleted) return Completer<Uri>().future;
 
+      AppLogger.d(
+        'Google sign-in: no redirect after ${manualPromptDelay.inSeconds}s — '
+        'offering the manual fallback.',
+      );
+
       final pasted = (await prompt(redirectArrived))?.trim() ?? '';
       if (pasted.isNotEmpty) {
         AppLogger.d('Google sign-in: manual fallback received a pasted address.');
