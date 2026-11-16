@@ -126,6 +126,9 @@ class DateRangeFilterObject extends SearchFilterObject {
 
   @override
   Map<String, dynamic> toDatabaseFilter() {
-    return {...super.toDatabaseFilter()!, 'date_range': [start, end]};
+    return {
+      ...super.toDatabaseFilter()!,
+      'date_range': [start, end],
+    };
   }
 }

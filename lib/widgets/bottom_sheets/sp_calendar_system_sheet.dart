@@ -42,9 +42,7 @@ class SpCalendarSystemSheet extends BaseBottomSheet {
 
                 return ListTile(
                   title: Text(label),
-                  subtitle: option == CalendarSystemOption.defaultValue
-                      ? Text(tr('general.default'))
-                      : null,
+                  subtitle: option == CalendarSystemOption.defaultValue ? Text(tr('general.default')) : null,
                   trailing: Visibility(
                     visible: option == selectedValue,
                     child: SpFadeIn.fromBottom(

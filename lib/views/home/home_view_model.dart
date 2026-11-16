@@ -170,9 +170,7 @@ class HomeViewModel extends ChangeNotifier with DisposeAwareMixin {
     final boundary = _pendingBoundaryMonth;
     if (boundary == null) return allUnpinnedStories;
 
-    return allUnpinnedStories
-        .where((story) => CalendarDisplay.monthKeyOf(story.displayPathDate) != boundary)
-        .toList();
+    return allUnpinnedStories.where((story) => CalendarDisplay.monthKeyOf(story.displayPathDate) != boundary).toList();
   }
 
   List<HomeItem> _buildItems(List<StoryDbModel> renderableStories) {

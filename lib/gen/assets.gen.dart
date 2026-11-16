@@ -59,10 +59,7 @@ class $TranslationsGen {
   String get fa => 'translations/fa.json';
 
   /// List of all assets
-  List<String> get values => [
-    en,
-    fa,
-  ];
+  List<String> get values => [en, fa];
 }
 
 class $AssetsEmoji64Gen {

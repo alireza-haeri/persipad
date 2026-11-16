@@ -39,7 +39,9 @@ void main() {
     });
 
     test('a year filter is the plain storage year', () {
-      expect(CalendarDisplay.yearsFilter([2026]), {'years': [2026]});
+      expect(CalendarDisplay.yearsFilter([2026]), {
+        'years': [2026],
+      });
       expect(CalendarDisplay.displayYearsOf([2026]), [2026]);
       expect(CalendarDisplay.displayYearsCovering(DateTime(2026, 3, 1), DateTime(2026, 3, 31)), [2026]);
     });

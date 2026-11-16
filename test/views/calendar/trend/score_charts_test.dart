@@ -134,7 +134,5 @@ void main() {
 }
 
 Finder _barFinder() {
-  return find
-      .descendant(of: find.byType(ScoreMonthlyAverageChart), matching: find.byType(FractionallySizedBox))
-      .first;
+  return find.descendant(of: find.byType(ScoreMonthlyAverageChart), matching: find.byType(FractionallySizedBox)).first;
 }

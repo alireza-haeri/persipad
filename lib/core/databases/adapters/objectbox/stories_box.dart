@@ -390,7 +390,10 @@ class StoriesBox extends BaseBox<StoryObjectBox, StoryDbModel> {
     final counts = <int, int>{
       for (final year in displayYears)
         year: buildQuery(
-          filters: {...baseFilters, ...CalendarDisplay.yearsFilter([year])},
+          filters: {
+            ...baseFilters,
+            ...CalendarDisplay.yearsFilter([year]),
+          },
         ).build().count(),
     };
 

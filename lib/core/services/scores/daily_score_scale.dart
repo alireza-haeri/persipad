@@ -52,9 +52,7 @@ class DailyScoreScale {
   /// widget tree above it.
   static LinearGradient gradient({double opacity = 1.0, bool vertical = false, bool rtl = false}) {
     final Alignment start = vertical ? Alignment.topCenter : (rtl ? Alignment.centerRight : Alignment.centerLeft);
-    final Alignment finish = vertical
-        ? Alignment.bottomCenter
-        : (rtl ? Alignment.centerLeft : Alignment.centerRight);
+    final Alignment finish = vertical ? Alignment.bottomCenter : (rtl ? Alignment.centerLeft : Alignment.centerRight);
 
     return LinearGradient(
       begin: start,
