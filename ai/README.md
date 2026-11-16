@@ -21,6 +21,7 @@ where we stand.
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Code map of StoryPad so we don't re-explore the repo every time |
 | [`ENVIRONMENT.md`](ENVIRONMENT.md) | What the sandbox can and cannot do, plus local build/run commands |
 | [`BACKLOG.md`](BACKLOG.md) | Candidate features and tech debt, with status labels |
+| [`ANALYSIS.md`](ANALYSIS.md) | Measured findings: what could be better next, with evidence + a re-measure command (D-041) |
 | [`notes/`](notes/) | Raw, dated notes of what you asked for |
 
 ## Update ritual
@@ -40,3 +41,4 @@ At the end of every task:
 | 2026-11-15 | Rewritten in English (see D-006) |
 | 2026-11-15 | Linux-only dev scope, toolchain baseline, one-command dev loop (D-007 … D-010) |
 | 2026-11-16 | Refreshed docs through Session 10 (Shamsi/RTL, Daily Score, CI/local Android APK, agent handoff) |
+| 2026-11-16 | Session 11: branch/tip, translation key count (626) and JDK facts corrected; `ANALYSIS.md` added (D-041) |

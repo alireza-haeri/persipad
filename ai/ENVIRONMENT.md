@@ -186,9 +186,14 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
   - First cold build downloads Maven/Gradle artifacts once; warm incremental builds take
     under a minute.
 - **Verified Fedora Android environment (`/mnt/MyData/Develop/Projects/notely`):**
-  JDK `17.0.19` (`amazon-corretto`), `ANDROID_HOME=~/Android/Sdk`, `platforms: android-34`
-  and `android-36.1` (no `android-36` or `android-37`), `build-tools: 36.1.0 37.0.0`,
-  no `ndk` / no `cmake`, AVD `storypad_dev` (`x86_64`), active Gradle mirror: Tencent.
+  JDK `17.0.19` (`amazon-corretto`) — note that `.tool-versions` pins `java openjdk-21`,
+  so a box that honours asdf/mise may run JDK 21: also fine, because Gradle/AGP target
+  JVM 17 (`sourceCompatibility`/`targetCompatibility`/`jvmTarget` = `VERSION_17` in
+  `android/app/build.gradle.kts`), `bin/android_doctor` only requires **17+**, and CI uses
+  `temurin` **17**. A JDK below 17 is the only unsupported case.
+  `ANDROID_HOME=~/Android/Sdk`, `platforms: android-34` and `android-36.1` (no `android-36`
+  or `android-37`), `build-tools: 36.1.0 37.0.0`, no `ndk` / no `cmake`, AVD `storypad_dev`
+  (`x86_64`), active Gradle mirror: Tencent.
 - `storypad` (the upstream flavor) is **not** buildable here: it needs `private_keys/`.
 - Local store builds via `bin/build_release_android` expect `private_keys/` and
   `codemagic-cli-tools`, and upload to Play/Firebase. The `community` workflow and

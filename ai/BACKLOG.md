@@ -82,6 +82,13 @@ Generic journaling-app ideas; your preferences set the priority.
 | T-3 | `bin/docs` points to a `docs/` folder that doesn't exist in this version | Dead reference |
 | T-4 | Two separate Google Drive paths (standard + Linux) | Duplicate-bug risk (see D-021 for why Android must also align on OAuth client if Drive sync is shared) |
 | T-5 | `.github/workflows/ci.yml` comes from upstream, targets `develop`, and assumes an Android-era setup | Same as I-10 |
+| T-9 | `🔜` Editor package's 390 tests never run (CI + `bin/changed_tests` ignore `packages/**`) | The persisted content format is the most dangerous area and its suite is switched off — see `ANALYSIS.md` §1 |
+| T-10 | `🔜` No tests for backup merge decisions (`restoreOnlyNewData`, latest-checker, backup file versions) | The one bug class that silently loses notes; pure logic over two timestamps — see `ANALYSIS.md` §2 |
+| T-11 | `⏸` Search: linear `contains` scan on an unindexed field, reindex attempted on every open, no search tests | Split: cheap `SearchFilterObject`/`buildQuery` tests now, search quality later behind a decision — see `ANALYSIS.md` §3 |
+| T-12 | `⏸` Theme fonts are fetched over the network at first use (`GoogleFonts.getTextTheme`, no bundling, `kDefaultFontFamily = 'Quicksand'`) | Contradicts offline-first; bundle the offered families and set `allowRuntimeFetching = false` — see `ANALYSIS.md` §5 |
+| T-13 | `💡` Android workflow has no `paths-ignore`; docs pushes still occupy a run slot and can cancel an `[apk]` build (D-039) | Mirror `linux.yml`'s `ai/**`/`*.md` ignore |
+| T-14 | `💡` No coverage reporting on any active workflow | `--coverage` + lcov artifact on `[full]`; no threshold enforcement |
+| T-15 | `💡` Essentially no `Semantics`/`Tooltip` on our own custom widgets (calendar cell, score bar, story rail) | Cheap accessibility win in exactly the places Flutter cannot guess for us |
 
 ## 3. Open questions
 
@@ -93,6 +100,10 @@ Generic journaling-app ideas; your preferences set the priority.
 5. How aggressive should we be when building the **lightweight phone version** (A-3 / N-015):
    which heavy plugins/features (Maps, Firebase/Crashlytics, RevenueCat/IAP, Video/Audio,
    Relax Sounds, unused locales, etc.) can be trimmed vs kept?
+   — **Measured input for this is `ANALYSIS.md` §4:** the APK's size is a *debug build* problem
+   first (release signing is the biggest lever), and the genuinely removable set is small
+   (`cloud_firestore`, `google_maps_flutter_ios_sdk10`, `cupertino_icons`, the paywall/review
+   surfaces). Maps/audio/relax-sounds are features, not fat.
 
 ## Sync roadmap after D-021
 

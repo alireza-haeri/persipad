@@ -1009,3 +1009,22 @@ Template:
   while CI leaves all three `notely*` properties unset and continues building against `android-37` + NDK.
   Warning for future edits: never remove `notelyCompileSdkMinor` or `flutter.installedNdkVersions` without
   preserving offline/local Fedora builds, and require `--ndk=<version>` if a C/C++-compiling plugin is ever added.
+
+## D-041 — The project analysis is a living document, and its facts are re-measured, not remembered (2026-11-16)
+- **Status:** accepted
+- **Context:** the user asked for an assessment of what else the project could improve. Two
+  habits had already produced wrong facts in `ai/`: a translation key count that was copied
+  forward (628 in three files, actually **626**), and a JDK version that described a machine
+  rather than the build's requirement (`17.0.19` vs `.tool-versions` `openjdk-21`, while Gradle
+  targets JVM 17 and `bin/android_doctor` only asks for 17+). A one-off chat answer would repeat
+  the same mistake in a place nobody can check.
+- **Decision:**
+  1. `ai/ANALYSIS.md` is the home for "what could be better next": findings with **evidence**
+     (file, count, script output), a cost/benefit, and a backlog id where one already exists.
+     It is refreshed in place; obsolete findings are removed, not stacked.
+  2. Every number in `ai/` must name how to re-measure it (a command or a test), the way
+     `ARCHITECTURE.md` now does for the translation key count.
+  3. Nothing in the analysis is a commitment. Scheduling still happens by moving an item into
+     `BACKLOG.md`/`PROGRESS.md` with the usual labels.
+- **Consequences:** the next agent starts from measured facts instead of prose, and a stale
+  number is a bug with an obvious fix rather than a matter of trust.

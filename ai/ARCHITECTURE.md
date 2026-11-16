@@ -15,7 +15,7 @@ the practical cheat sheet for day-to-day work. Numbers refreshed on 2026-11-16
 | Database | ObjectBox (`6.0.0-preview.6`; legacy SQLite adapter still present) |
 | State | Provider + ChangeNotifier, three levels: Global / View / Widget |
 | Pattern | MVVM across 3–4 files: `Model` / `View` / `ViewContent` / `ViewModel` |
-| i18n | `easy_localization`, **21** files in `translations/` (628 keys each, `fa.json` added) |
+| i18n | `easy_localization`, **21** files in `translations/` (626 keys each, `fa.json` added) |
 | Codegen | `build_runner` → `json_serializable`, `copy_with_extension`, `objectbox_generator`, `flutter_gen` |
 
 ## Entry points and boot
@@ -136,7 +136,7 @@ Quick map of everything we added or rewired on top of StoryPad `v2.34.0`:
   - `lib/core/services/backups/google_drive_auth_strategy.dart` + `google_desktop_oauth_service.dart` + `google_drive_linux_cloud_service.dart` (loopback PKCE OAuth2 on Linux; `bin/setup_sync`).
   - Desktop media picking in `AppFilePickerService` via `file_picker`.
 - **Persian (fa), bundled font & RTL:**
-  - `translations/fa.json` + all 21 locales kept in exact 628-key parity (`unused_translations_test.dart`).
+  - `translations/fa.json` + all 21 locales kept in exact 626-key parity (`unused_translations_test.dart`). The key count moves whenever a feature adds/removes strings — it is a fact to re-count (`python3 -c "import json;print(len(json.load(open('translations/en.json'))))"`), not a constant.
   - `assets/fonts/Vazirmatn-*.ttf` + `OFL.txt` + `kScriptFontFamilyFallback` in `lib/core/constants/app_constants.dart`.
   - RTL helpers: `SpIcons.previous(context)` / `SpIcons.next(context)`, `AppTheme.rtl(context)`, `RootPagesMediaQuery`, full Persian month names (never abbreviated).
 - **Shamsi (Solar Hijri) display calendar (`D-024`…`D-029`):**

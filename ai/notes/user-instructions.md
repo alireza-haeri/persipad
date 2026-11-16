@@ -184,6 +184,20 @@ must report through **annotations** (`gh run view` shows them) and be judged by 
 
 ---
 
+## Session 11 — 2026-11-16
+
+### N-016 — Read all of `ai/`, fix the three inconsistencies, then analyse what to improve
+> «آره این سه مورد رو مرتب کن و یه تحلیلی انجام بده ببین دیگه چه کار هایی میتونیم روی پروژه انجام بدیم که بهتر بشه.»
+
+**Status:** ✅ done → D-041; findings in [`../ANALYSIS.md`](../ANALYSIS.md); backlog T-9…T-15
+**Fixes:** branch/tip in `RULES.md`+`PROGRESS.md`, translation key count 628→626 in
+`ARCHITECTURE.md`+`PROGRESS.md`, JDK 17-vs-21 explanation in `ENVIRONMENT.md`.
+**Note:** the analysis is all evidence-backed, and it changes no product behaviour. The one
+thing it recommends doing *first* is enabling the editor package's 390 existing tests in CI
+(T-9) — existing protection that is currently switched off, not new work.
+
+---
+
 ## Template for a new note
 
 ```md
