@@ -449,7 +449,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         ? 'Return to StoryPad to finish signing in.'
         : 'Google did not complete authorization. Return to StoryPad and try again.';
 
-    return '<!doctype html><meta charset="utf-8"><title>StoryPad</title>'
+    return '<!doctype html><meta charset="utf-8"><title>PersiPad</title>'
         '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
         '<h2>$heading</h2><p>$detail</p></body>';
   }

@@ -83,7 +83,7 @@ android {
         // in the legacy DSL ("defaultConfig contains custom resource values, but the
         // feature is disabled"), and the manifest is the only reader, so it is a
         // manifest placeholder now — the same mechanism `appLogo` below already uses.
-        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "StoryPad C."
+        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "PersiPad"
 
         // `--target-platform=android-arm64` only selects Flutter's engine and Dart
         // snapshot. Plugin .so files are packaged for **every** ABI regardless, which

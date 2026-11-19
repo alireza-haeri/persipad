@@ -19,19 +19,19 @@ class _CommunityContent extends StatelessWidget {
         ),
         children: [
           const _CommunityCard(),
-          if (RemoteConfigService.policyPrivacyUrl.get().trim().isNotEmpty == true)
+          if (kProjectRepositoryUrl.isNotEmpty)
             ListTile(
               leading: const Icon(SpIcons.policy),
               title: Text(tr("general.privacy_policy")),
               trailing: Icon(SpIcons.next(context)),
-              onTap: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.policyPrivacyUrl.get()),
+              onTap: () => UrlOpenerService.openInCustomTab(context, kProjectRepositoryUrl),
             ),
-          if (RemoteConfigService.sourceCodeUrl.get().trim().isNotEmpty == true)
+          if (kProjectRepositoryUrl.isNotEmpty)
             ListTile(
               leading: const Icon(SpIcons.code),
               title: Text(tr("list_tile.source_code.title")),
               subtitle: Text(tr("list_tile.source_code.subtitle")),
-              onTap: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.sourceCodeUrl.get()),
+              onTap: () => UrlOpenerService.openInCustomTab(context, kProjectRepositoryUrl),
             ),
           const Divider(),
           ListTile(

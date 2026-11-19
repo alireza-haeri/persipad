@@ -255,7 +255,7 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "path=$APK" >> "$GITHUB_OUTPUT"
-          echo "name=storypad-community-${{ steps.signing.outputs.mode }}-${VERSION/\//_}.apk" >> "$GITHUB_OUTPUT"
+          echo "name=persipad-community-${{ steps.signing.outputs.mode }}-${VERSION/\//_}.apk" >> "$GITHUB_OUTPUT"
 
           echo "APK: $APK ($SIZE)"
           echo "sha256: $SHA"

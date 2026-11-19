@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
   s.description      = <<-DESC
   The editor's right-click menu as a native NSMenu, with the Services submenu.
                        DESC
-  s.homepage         = 'https://github.com/theachoem/storypad'
+  s.homepage         = 'https://github.com/alireza-haeri/persipad'
   s.license          = { :type => 'Proprietary' }
   s.author           = 'StoryPad'
   s.source           = { :path => '.' }

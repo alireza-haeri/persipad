@@ -95,7 +95,7 @@ Generic journaling-app ideas; your preferences set the priority.
 
 ## 3. Open questions
 
-1. Product name — `notely`, or keep StoryPad?
+1. Product name — PersiPad (chosen; see `GOAL.md`).
 2. Keep the Pro/paywall or unlock everything? (On Linux IAP doesn't work at all, so a
    gate would be dead weight there.)
 3. 21 languages, or just fa/en?
