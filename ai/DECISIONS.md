@@ -1522,3 +1522,20 @@ Template:
   mirror rule — no regression in either direction.
 - **Consequences:** a scoped run costs a few files more, and stops being able to skip the one
   test that would catch a break in the file that changed.
+
+## D-062 — Back up and sync device settings with the existing global backup bucket (2026-11-19)
+- **Status:** accepted
+- **Context:** the diary database tables were backed up, but most settings were stored only in
+  local `SharedPreferences`; a full backup or Google Drive sync could not restore them on
+  another installation. The app's locale is stored separately by EasyLocalization.
+- **Decision:** persist a JSON snapshot of `DevicePreferencesObject` plus the selected locale in
+  a reserved `PreferenceDbModel` record (`preferences` table, non-yearly/global bucket). Normal
+  full backups and Google Drive sync then include the record without changing the backup file
+  format. Apply imported snapshots to local preferences, calendar state, and app locale. On
+  sync, seed a missing snapshot only **after** remote changes are imported, so a new device's
+  defaults cannot take precedence over settings already in Drive.
+- **Fresh-install defaults:** Persian UI and Solar Hijri display calendar; Friday is the weekend
+  day and Saturday starts the week; Daily Score is enabled unless the user explicitly disabled it.
+- **Consequences:** settings changes mark the global bucket dirty and sync through the existing
+  path. Device-only data outside `DevicePreferencesObject` is not covered by this record.
+  Verify restore on a second installation when available.

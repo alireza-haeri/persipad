@@ -5,14 +5,17 @@
 
 ## 1. Git & branch rules
 
-- We **always** work on the current active branch of the session (`main` holds the
-  integrated baseline; per-session Arena branches — the current one is
-  **`arena/085071d0-notely`**, branched from `arena/2ef5bee5-notely` at `15b28ac` —
-  merge back into `main` via PR once verified). Never switch to, create, push to, or
-  rename another branch unless you are explicitly working in a new session attached
-  to that branch.
+- We **always** work on the current active branch named by Arena's session context
+  (`main` holds the integrated baseline; per-session Arena branches merge back into
+  `main` via PR once verified). Never switch to, create, push to, or rename another
+  branch unless you are explicitly working in a new session attached to that branch.
 - Commits are small and focused. Messages in English, Conventional Commits style:
   `feat: ...`, `fix: ...`, `docs(ai): ...`, `refactor: ...`, `chore: ...`.
+- **After each completed requested change/task, commit and push the result to the
+  current active branch before replying.** Do not leave completed changes only in the
+  local checkout. Never push to another branch. If a push is blocked (for example,
+  remote changes or an authentication problem), explain the blocker and do not claim
+  the change was pushed.
 - The upstream history is pinned as a reference point (commit `cffda48`). We never
   rebase or force-push over it.
 - Generated files (`.dart_tool/`, `build/`, `*.g.dart`) are only committed when the

@@ -130,7 +130,12 @@ class DevicePreferencesObject {
        mapStyle = mapStyle ?? SpMapStyle.streets;
 
   factory DevicePreferencesObject.initial() {
-    return DevicePreferencesObject();
+    return DevicePreferencesObject(
+      firstDayOfWeek: FirstDayOfWeekOption.saturday,
+      calendarSystem: CalendarSystemOption.persian,
+      weekendDays: const [DateTime.friday],
+      enableDailyScore: true,
+    );
   }
 
   Map<String, dynamic> toJson() => _$DevicePreferencesObjectToJson(this);

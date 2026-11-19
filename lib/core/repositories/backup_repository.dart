@@ -30,6 +30,7 @@ import 'package:storypad/core/services/backups/sync_steps/backup_latest_checker_
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_uploader_service.dart';
 import 'package:storypad/core/services/internet_checker_service.dart';
+import 'package:storypad/core/storages/device_preferences_storage.dart';
 import 'package:storypad/core/types/backup_result.dart';
 
 /// [hasInternet] false makes [statusByService] moot — nothing can succeed
@@ -288,6 +289,14 @@ class BackupRepository {
       }
     } else {
       AppLogger.d('No backups to sync for ${service.serviceType.displayName} - already up to date');
+    }
+
+    // Legacy installations already have their preferences locally but not yet
+    // in the backup database. Seed that one global record after importing any
+    // remote settings, so a new device's defaults never replace cloud settings.
+    if (databases.any((database) => identical(database, PreferenceDbModel.db))) {
+      final didSeedSettings = await DevicePreferencesStorage.appInstance.ensureBackupSnapshotExists();
+      if (didSeedSettings) lastDbUpdatedAtByYear = await getLastDbUpdatedAtByYear();
     }
 
     // Step 4: Upload new yearly backups to THIS service

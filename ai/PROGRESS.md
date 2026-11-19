@@ -1,11 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-16 (session 19)
-> Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
+**Last updated:** 2026-11-19 (session 20)
+> Historical integration notes and branch snapshots below describe earlier work; Arena's latest session context is authoritative for the active branch.
 
-**Current session:** session 19 — phone sign-in: loopback ordering fixed (D-058) **and** a paste-the-address fallback added (D-060), so a browser that cannot reach the app is no longer a dead end
-**Branch:** `arena/085071d0-notely`, branched from the tip of `arena/2ef5bee5-notely` (`15b28ac`)
-**Phase:** 🚧 One concrete blocker left, and it is not in the app: the AVD is behind a fake-IP DNS, so the app's token exchange cannot reach Google while Chrome's own secure DNS can. Fix is a proxy/DNS setting (`D-056`, `NEXT.md` §1).
+**Current session:** session 20 — device preference backup/sync and Persian-first defaults (`D-062`)
+**Branch:** `arena/7ba21f51-notely`, branched from `main` at `a87f0147ad786e37c7c38255c24d1cfe1171469c`
+**Phase:** 🚧 Implementation and AI rules updated; `git diff --check` passes. Flutter/Dart are unavailable in the sandbox, so tests/analyze are pending. The user will verify on the Android phone using a Debug APK; Release was confirmed faster and is not the current dev loop.
 
 ---
 
@@ -866,3 +866,18 @@ mistake, not an instruction.
 selected only two backup tests, because the scoper's mirror rule is a directory rule and the
 OAuth test sits one level above its mirror. A green run that never loaded the relevant test is
 worse than a red one. Fixed and verified locally by running `bin/changed_tests --files …`.
+
+### Session 20 — Full settings backup and Persian-first defaults (2026-11-19)
+
+- **Implemented:** serialize `DevicePreferencesObject` and selected locale into a reserved
+  record in the existing global `preferences` database table. Existing full-backup and
+  Google Drive sync paths therefore carry the settings. Restore applies the snapshot locally;
+  first sync seeds legacy local settings only after importing remote data, avoiding default
+  settings overwriting an existing cloud snapshot.
+- **Fresh-install defaults:** Persian language, Persian calendar, Friday weekend, Saturday
+  week start, and Daily Score enabled. Explicitly saved Daily Score `false` remains respected.
+- **Rule from user:** commit and push each completed requested task to the active branch before
+  reporting completion; captured in `ai/RULES.md` and `ai/notes/user-instructions.md`.
+- **Verification:** `git diff --check` passed. Flutter/Dart tests and formatting could not be
+  run because the SDK is absent from this sandbox. User-side Debug build and Google Drive
+  cross-device restore remain to be exercised.

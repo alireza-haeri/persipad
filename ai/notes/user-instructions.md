@@ -283,6 +283,17 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 
 ---
 
+## Session 15 — 2026-11-19
+
+### N-022 — Push each completed change and record it as a standing AI rule
+> «چرا تغیراتت رو پوش نمیکنی؟ توی قوانین ai بنویس که باید push انجام بشه بعد از هر تغیر»
+
+**Status:** ✅ recorded in [`../RULES.md`](../RULES.md); the current implementation is included in this task's commit and push to the active Arena branch.
+**What I understood:** each completed requested change/task must be committed and pushed to the current active branch before I report it done. Never switch branches; if GitHub blocks the push, state that explicitly rather than implying success.
+**Correction:** I left the previous implementation only in the shared checkout because I treated persistence as sufficient. That was not enough; I will now push each completed task.
+
+---
+
 ## Template for a new note
 
 ```md
