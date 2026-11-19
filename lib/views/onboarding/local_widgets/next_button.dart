@@ -18,7 +18,7 @@ class _NextButton extends StatelessWidget {
               disabledColor: Theme.of(context).disabledColor,
               sizeStyle: CupertinoButtonSize.medium,
               child: Text(tr("button.next")),
-              onPressed: () => viewModel.next(context),
+              onPressed: viewModel.canProceed ? () => viewModel.next(context) : null,
             );
           } else {
             return SizedBox(
@@ -26,7 +26,7 @@ class _NextButton extends StatelessWidget {
               child: FilledButton(
                 style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0))),
                 child: Text(tr("button.next")),
-                onPressed: () => viewModel.next(context),
+                onPressed: viewModel.canProceed ? () => viewModel.next(context) : null,
               ),
             );
           }

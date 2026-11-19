@@ -292,6 +292,15 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 **What I understood:** each completed requested change/task must be committed and pushed to the current active branch before I report it done. Never switch branches; if GitHub blocks the push, state that explicitly rather than implying success.
 **Correction:** I left the previous implementation only in the shared checkout because I treated persistence as sufficient. That was not enough; I will now push each completed task.
 
+### N-023 — Add synced gender selection for the matching icon
+> «یه چیز دیگه ای که نیازه تنظیم جنسیته. این قابلیت توی برنامه اصلی هست. نسخه ما این رو نداره فکر کنم. و اینکه باید توی sync این قضیه هم قرار بگیره. و اینکه توی لود اولیه من باید مشخص کنم که جنسیتم چیه تا آیکونی که به من نشون میده درست حسابی باشه.»
+>
+> Clarification selected: «زن / مرد».
+
+**Status:** ✅ included in this task's commit and push to the active branch.
+**Ref:** `D-063`
+**Scope:** ask in the existing first-run onboarding, allow changing it in Settings, persist it in the backed-up preferences table, and use the corresponding existing in-app illustration. Gender is not sent to analytics; the community launcher icon stays unchanged.
+
 ---
 
 ## Template for a new note

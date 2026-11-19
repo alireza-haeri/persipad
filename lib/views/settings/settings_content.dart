@@ -20,6 +20,7 @@ class _SettingsContent extends StatelessWidget {
               title: Text(context.tr("general.customization")),
               onTap: () => const AppearanceRoute().push(context),
             ),
+            const GenderTile(weekday: 2),
             buildAppLockTile(context, weekday: 2),
             // Only where a sidebar exists: on a phone this setting would configure
             // something the user cannot see.

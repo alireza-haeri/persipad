@@ -18,6 +18,14 @@ class AppLogoService {
     return await _AppLogoStorage().readEnum() ?? AppLogo.storypad_1_0;
   }
 
+  /// Keeps the in-app profile illustration consistent with the selected gender
+  /// without recording gender in analytics. This is intentionally a visual
+  /// preference; the community build's launcher icon remains its neutral icon.
+  Future<void> setProfileIllustration(AppLogo logo) async {
+    await _AppLogoStorage().writeEnum(logo);
+    kAppLogo = logo;
+  }
+
   Future<bool> set(AppLogo logo) async {
     if (logo == AppLogo.values.first) {
       return reset();

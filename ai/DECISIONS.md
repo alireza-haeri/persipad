@@ -1539,3 +1539,17 @@ Template:
 - **Consequences:** settings changes mark the global bucket dirty and sync through the existing
   path. Device-only data outside `DevicePreferencesObject` is not covered by this record.
   Verify restore on a second installation when available.
+
+## D-063 — Ask for binary gender and use the matching in-app illustration (2026-11-19)
+- **Status:** accepted
+- **Context:** the community flavor hid the upstream logo selector behind the branded-app
+  check. The upstream source contains male/female logo illustrations, but no separate synced
+  gender preference. The user confirmed the desired choices are woman/man and that selection
+  should determine the displayed illustration.
+- **Decision:** require one of the two choices during first-run onboarding, use the existing
+  female/male logo artwork as the in-app profile illustration, and expose the same choice in
+  Settings for later changes. Persist the choice as `PreferenceDbModel` id 5 in the global
+  preferences table, so full backup and Drive sync include it. On restore, refresh the provider
+  and the local illustration. Do not send gender to analytics.
+- **Consequences:** no new artwork or native launcher-icon aliases are added; community's
+  launcher icon remains unchanged, while in-app logo surfaces follow the selection.

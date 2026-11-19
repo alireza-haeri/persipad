@@ -18,6 +18,7 @@ import 'package:storypad/views/sidebar_order/sidebar_order_view.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';
 import 'package:storypad/views/settings/local_widgets/default_story_preferences_tile.dart';
+import 'package:storypad/views/settings/local_widgets/gender_tile.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_section_title.dart';
 import 'package:storypad/widgets/sp_setting_icon_badge.dart';

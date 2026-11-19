@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/types/gender_option.dart';
+import 'package:storypad/providers/gender_provider.dart';
 import 'package:storypad/views/languages/languages_view.dart';
 import 'package:storypad/widgets/sp_fade_in.dart';
 import 'package:provider/provider.dart';
@@ -33,7 +35,10 @@ class OnboardingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<OnboardingViewModel>(
-      create: (context) => OnboardingViewModel(params: params),
+      create: (context) => OnboardingViewModel(
+        params: params,
+        genderProvider: context.read<GenderProvider>(),
+      ),
       builder: (context, child) {
         return _OnboardingContent(Provider.of(context));
       },

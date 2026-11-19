@@ -1,11 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-19 (session 20)
+**Last updated:** 2026-11-19 (session 21)
 > Historical integration notes and branch snapshots below describe earlier work; Arena's latest session context is authoritative for the active branch.
 
-**Current session:** session 20 — device preference backup/sync and Persian-first defaults (`D-062`)
+**Current session:** session 21 — gender selection mapped to in-app illustration and included in backup/sync (`D-063`)
 **Branch:** `arena/7ba21f51-notely`, branched from `main` at `a87f0147ad786e37c7c38255c24d1cfe1171469c`
-**Phase:** 🚧 Implementation and AI rules updated; `git diff --check` passes. Flutter/Dart are unavailable in the sandbox, so tests/analyze are pending. The user will verify on the Android phone using a Debug APK; Release was confirmed faster and is not the current dev loop.
+**Phase:** 🚧 Implementation and translation parity checks pass; Flutter/Dart tests and formatting are pending because the SDK is unavailable in the sandbox. The user verifies on the Android phone using a Debug APK; Release was confirmed faster and is not the current dev loop.
 
 ---
 
@@ -881,3 +881,13 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 - **Verification:** `git diff --check` passed. Flutter/Dart tests and formatting could not be
   run because the SDK is absent from this sandbox. User-side Debug build and Google Drive
   cross-device restore remain to be exercised.
+
+### Session 21 — Gender selection and matching illustration (2026-11-19)
+
+- **Implemented:** first-run onboarding requires woman/man selection, shows the corresponding
+  existing illustration, and updates the in-app logo. Settings can change the choice later.
+- **Sync:** gender is a normal `preferences` table record (id 5), so existing global/full backup
+  and Google Drive sync import/export it; restore refreshes the app's local illustration.
+  Gender is not logged to analytics; the community launcher icon remains unchanged.
+- **Tests/checks:** added pure mapping/parsing tests. Translation JSON parses and `en`/`fa` key
+  sets match (494 each); `git diff --check` passes. Flutter tests/analyzer/formatter unavailable.
