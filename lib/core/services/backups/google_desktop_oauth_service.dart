@@ -446,8 +446,8 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   String _completionPage({required bool authorizationReceived}) {
     final heading = authorizationReceived ? 'Authorization received' : 'Sign-in not completed';
     final detail = authorizationReceived
-        ? 'Return to StoryPad to finish signing in.'
-        : 'Google did not complete authorization. Return to StoryPad and try again.';
+        ? 'Return to PersiPad to finish signing in.'
+        : 'Google did not complete authorization. Return to PersiPad and try again.';
 
     return '<!doctype html><meta charset="utf-8"><title>PersiPad</title>'
         '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'

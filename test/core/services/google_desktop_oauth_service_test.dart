@@ -256,7 +256,7 @@ void main() {
       // The tab must be answered while it is open, not when the app comes back.
       expect(page, startsWith('HTTP/1.1 200'));
       expect(page, contains('Authorization received'));
-      expect(page, contains('Return to StoryPad to finish signing in.'));
+      expect(page, contains('Return to PersiPad to finish signing in.'));
       expect(page, isNot(contains('Signed in')));
     });
 
