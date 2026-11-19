@@ -1346,3 +1346,179 @@ Template:
   when the source directory is absent; the committed output is left untouched.
 - **Consequences:** Codegen and the whole setup path work in a plain checkout of this repo;
   regenerating the backgrounds still requires the submodule.
+
+## D-055 — The AVD gets a real resolver automatically; a running emulator is diagnosed (2026-11-16)
+- **Status:** accepted
+- **Context:** D-053 made the *message* honest and added `--dns-server`, but fixing the
+  emulator still depended on the user remembering a flag. The failure had already cost two
+  sessions' worth of confusion, and the person hitting it is the person least interested in
+  emulator boot flags. Worse, the flag only applies at boot: an AVD started from Android
+  Studio (the common case) can never be repaired by `bin/build_apk`, and its broken DNS shows
+  up minutes later as a sign-in failure.
+- **Decision:**
+  1. When the host resolves names only through a loopback stub (`/etc/resolv.conf` → `127.0.0.53`,
+     the default on Fedora with systemd-resolved) and no `--dns-server` was passed,
+     `bin/build_apk` reads the host's **real upstream** resolvers with `resolvectl dns`
+     (or `systemd-resolve --status`) and boots the AVD with `-dns-server <them>`. Falling
+     back to `8.8.8.8,1.1.1.1` when that cannot be read.
+  2. An explicitly passed `--dns-server` still wins; `--no-dns-server` opts out of the
+     automatic behaviour entirely. Both are printed, so the boot command is never mysterious.
+  3. When `--install` targets an **already running** emulator (`ro.kernel.qemu=1`) that cannot
+     resolve `oauth2.googleapis.com`, the script names the exact recovery:
+     `adb -s <serial> emu kill && bin/build_apk --install --avd=<name>`.
+- **Consequences:** `bin/build_apk --install --avd=storypad_dev` now works on a stock Fedora
+  box without any DNS knowledge, which is the whole point of the one-command loop (D-010,
+  D-040). The alternative — leaving the flag opt-in — was rejected: the tool can detect the
+  condition reliably, so making a human repeat it is just a second failure mode.
+  Upstream resolvers are preferred over public ones so a network that blocks `8.8.8.8`
+  (or a split-horizon DNS) keeps working.
+
+## D-056 — A "healthy" ping is not healthy DNS: classify the AVD's answer (2026-11-16)
+- **Status:** accepted
+- **Context:** After D-055, the user's first real sign-in attempt on the AVD got *past* DNS:
+  the browser opened, the Google account was accepted, and the app then reported
+  "No internet connection!" — i.e. the redirect arrived and the **token exchange** to
+  `oauth2.googleapis.com` was the call that failed. `adb shell ping -c1 oauth2.googleapis.com`
+  resolved it to **198.18.0.60 with ttl 255 in 1 ms**: a benchmark-range address answered
+  locally, not Google. That is a fake-IP DNS (Clash/mihomo-style TUN, default pool
+  `198.18.0.1/16`) sitting in front of the host's resolver. Chrome could still log in
+  because it runs its own secure DNS; the app uses the system resolver, got the fake
+  address, and its HTTPS went nowhere.
+  **The D-055 check said nothing, because it only asked "does ping exit 0".**
+- **Decision:** replace that check with `emulator_dns_verdict`, which classifies the
+  *address* the guest resolved — `ok <ip>`, `fake <ip>` (RFC1918, `100.64/10`, `169.254/16`,
+  `127/8`, and the `198.18/15` benchmarking pool), or `unresolvable` — and print a
+  case-specific remedy: proxy `fake-ip-filter`/`redir-host` (best), the guest's Private DNS
+  setting (no reboot), or an explicit `--dns-server`.
+- **Consequences:** the tool can no longer report a fake-IP guest as healthy, which is
+  exactly the false negative that cost this session. It also names the *real* remaining
+  suspect in one line instead of leaving "no internet" to guesswork. Covered by the stubbed
+  `adb` scenarios (fake / real / no answer → three different messages). Nothing here claims
+  sign-in works: the app still cannot reach Google while the guest resolves a fake address.
+
+## D-057 — APK size is a build-type question; make it measurable, then cut it (2026-11-16)
+- **Status:** accepted
+- **Context:** The user built with `--abi all` (the previous arm64 debug APK was useless on a
+  real phone) and got **238 MB**, then asked whether the final app can be lighter. Nothing in
+  that number is a feature: `assets/` is 2.0 MB, `translations/` 920 KB and the committed
+  `.g.dart` 344 KB (`ANALYSIS.md` §4). A debug APK carries four copies of the Flutter engine
+  (one per ABI) plus the Dart VM kernel snapshot and no AOT code, is not minified, and embeds
+  ~40 plugins' Java/Kotlin. `--release` changes all of that at once, but the release path
+  required a keystore the user has not created — a 10-minute detour for a size question.
+- **Decision:**
+  1. **`bin/apk_report`** — a breakdown of any APK by group (`lib/<abi>`, `dex`, `res/`,
+     `assets/`, `META-INF/`) and by file, with the ABI count and a build-type hint. Measuring
+     takes a second and cannot be argued with; guessing has already cost this project
+     sessions (§4 of `ANALYSIS.md`).
+  2. **`bin/build_apk --release --sign-debug`** — a real release build (AOT, tree-shaken)
+     signed with the standard Android debug key that already exists in `~/.android/`, so the
+     size question is answerable *now*, without secrets. The compromise is only the
+     signature, and it is stated loudly: a later build signed with the user's own key cannot
+     update this install in place.
+  3. **R8 + resource shrinking on for release** (`isMinifyEnabled`, `isShrinkResources`,
+     `android/app/proguard-rules.pro`). Dart is already tree-shaken by AOT; this removes
+     unused Java/Kotlin and resources from plugins. Escape hatch if a plugin needs a keep
+     rule and `minifyReleaseWithR8` fails: `-PnotelyMinify=false`, documented in the build
+     file next to the flag.
+  4. **`--split-debug-info=build/symbols`** on release builds: the Dart symbol table is what
+     `flutter symbolize` needs and nothing on a phone reads it, so it lives outside the APK.
+  5. **Fixed while here:** `--abi arm64` / `arm` / `armv7` — the values `--help` and the error
+     message advertise — fell through to `unknown --abi`, because only the device ABI names
+     (`arm64-v8a`, `armeabi-v7a`) were mapped. The aliases now work, which matters because
+     "build one ABI, not four" is the second-largest size lever.
+- **Consequences:** The expected ladder is 238 MB (debug, 4 ABIs) → ~120 MB (debug, one ABI)
+  → roughly 30–45 MB (release, one ABI + R8), and only the last two steps are worth arguing
+  about. No Dart code changed, so behaviour is identical; a release build is **not** verified
+  here (no SDK in the sandbox), which is why the escape hatch exists.
+
+## D-058 — The loopback listener is attached before the browser opens (2026-11-16)
+- **Status:** accepted
+- **Context:** On the **phone**, signing in ended with Chrome parked on
+  `http://127.0.0.1:44399/?state=…&code=4/0AUn6…` — a page that spun forever. The redirect
+  had arrived; nothing answered it. In `authenticate()` the order was *bind the server →
+  open the browser → await the redirect*, and `_awaitRedirect` was what called
+  `server.listen`. A connection that lands in that window is accepted by the kernel
+  (so the browser does not error) and then sits unanswered until the listener attaches. On
+  the emulator Chrome was cold and slow, so the order never mattered; on a phone with a warm
+  browser and an account that only needs a tap, the redirect can beat the listener.
+- **Decision:** listen **first**, then open the browser, then await the redirect. The
+  completer is created before `_openBrowser`, the subscription is cancelled and the server
+  closed in `finally`, and the 5-minute `redirectTimeout` timer only starts once a browser
+  actually exists (it used to start before, so a failed launch still left a timer behind).
+  `_awaitRedirect` became `_listenForRedirect` for that reason.
+- **Diagnostics:** one `AppLogger.d` line per loopback request — `code: true/false`,
+  `error: true/false`, `alreadyCompleted: …`. Never the code itself: it is a credential
+  (RULES §2). With that line in a logcat, "the browser never reached the app" and "it reached
+  the app and the app failed afterwards" stop looking the same.
+- **Consequences:** the tab shows "Signed in / you can close this" *while it is open*, which
+  is what the user is waiting for. Covered by two new tests that perform the redirect from
+  inside the `openBrowser` call — the first would deadlock under the old order — using a raw
+  socket rather than `HttpClient`, because `flutter_test`'s HttpOverrides answers every
+  request with 400 and would hide the very bug being tested.
+- **Still possible after this:** a device that *freezes* the app while the browser is in the
+  foreground (some OEMs), or a phone-side VPN that refuses loopback. Those would show as "no
+  loopback request" in the log, and the remedy is a paste-the-redirect-URL fallback — not
+  written yet, because guessing which one is happening is exactly what this log line exists
+  to stop.
+
+## D-059 — Gradle gets the ABI too, not just Flutter (2026-11-16)
+- **Status:** accepted
+- **Context:** The first real release build measured **40.5 MB** (`--release --sign-debug
+  --abi arm64`), which is inside the 25–40 MB expectation and 5.9x smaller than the 237 MB
+  debug artifact. But `bin/apk_report` showed `lib/x86_64` (2.6 MB) and `lib/armeabi-v7a`
+  (1.7 MB) still inside it — every entry there a `libobjectbox-jni.so`. `--abi arm64` maps to
+  Flutter's `--target-platform=android-arm64`, which only picks the engine and Dart snapshot;
+  plugin `.so` files are packaged for all ABIs unless Gradle's `abiFilters` says otherwise.
+  ~4.3 MB of libraries the phone can never load.
+- **Decision:** `bin/build_apk` derives the ABI from the `--target-platform` it already chose
+  and exports `ORG_GRADLE_PROJECT_notelyAbi`; `android/app/build.gradle.kts` applies it as
+  `ndk { abiFilters }`. `--abi all` leaves it unset on purpose, and `auto` follows the
+  attached device (so the x86_64 emulator still gets a build it can run).
+- **Consequences:** a phone release carries one ABI of everything. Expected ~36 MB; the
+  measurement is the user's next build. No Dart behaviour changes.
+
+## D-060 — A paste-the-address fallback for the one step the app cannot control (2026-11-16)
+- **Status:** accepted
+- **Context:** The phone kept parking Chrome on `http://127.0.0.1:<port>/?code=…` even after
+  `D-058` moved the listener before the browser opens. That fix is right and tested, but it
+  cannot cover the cases where the redirect never reaches the app at all: an OEM that freezes
+  background apps the moment the browser comes forward, or a phone-side VPN that owns the
+  routing table and refuses loopback. In both, the user has a valid `code` sitting in the
+  address bar and no way to hand it to the app — a dead end that no amount of ordering fixes.
+- **Decision:** the loopback wait races an optional manual prompt.
+  1. `GoogleDesktopOAuthService.manualRedirectPrompt` (static, set by the UI layer) is invoked
+     once `manualPromptDelay` (12 s) passes with no redirect. It receives a
+     `Future<void> redirectArrived` so a dialog can close itself if the loopback wins late.
+  2. Whatever it returns is parsed exactly like a loopback redirect: `parseRedirectCode` — so
+     the `state` check and the `no_code` error still apply, and a stale address from another
+     attempt is refused with `invalid_state` rather than silently accepted.
+  3. A cancelled prompt does **not** abort the flow; it returns to waiting for the loopback
+     until `redirectTimeout`. The normal path never sees a dialog.
+  4. `BackupProvider.signIn` installs the prompt around `repository.signIn` and clears it in a
+     `finally`; the dialog is the app's own `AlertDialog` with one text field (3 translated
+     keys in `en`/`fa`), not a webview, and it never logs the code.
+- **Consequences:** RFC 8252 §7.3's manual redirect, implemented as a fallback rather than the
+  main path. Sign-in now completes on devices where the browser cannot reach the app, at the
+  cost of one dialog that only appears when the page is stuck. Covered by three tests
+  (pasted address succeeds; no code → `no_code`; foreign state → `invalid_state`).
+
+## D-061 — CI scoping must include the test file that carries the changed file's name (2026-11-16)
+- **Status:** accepted
+- **Context:** `bin/changed_tests` maps `lib/a/b/c.dart` onto the nearest existing `test/a/b`
+  directory. That is a *directory* rule, and a test is not always in the mirrored directory:
+  `lib/core/services/backups/google_desktop_oauth_service.dart` mirrors to
+  `test/core/services/backups/`, while its test is one level up at
+  `test/core/services/google_desktop_oauth_service_test.dart`. Run `43882897833` proved the
+  cost: it changed that file (a log line in the fallback path) and selected only two backup
+  tests — a green run that never loaded the OAuth tests at all. The user asked for CI to prove
+  the fix; a scoper that silently skips the relevant test defeats exactly that.
+- **Decision:** `same_name_tests()` adds every `test/**/<changed-name>_test.dart` to the
+  selection, unioned with the mirror rule and the cross-cutting table (deduped by `expand`).
+- **Verified locally** (the script needs only git + Python, so this is checkable in the sandbox):
+  with `--files lib/core/services/backups/google_desktop_oauth_service.dart` the old script
+  printed the two backup tests, the new one prints those *plus*
+  `test/core/services/google_desktop_oauth_service_test.dart`. `lib/providers/backup_provider.dart`
+  still selects `test/providers/**`, and a file with no test of its own still falls back to the
+  mirror rule — no regression in either direction.
+- **Consequences:** a scoped run costs a few files more, and stops being able to skip the one
+  test that would catch a break in the file that changed.

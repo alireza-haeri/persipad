@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# apk_report — where the megabytes in an APK actually are.
+#
+#   bin/apk_report                              # newest APK under build/app/outputs
+#   bin/apk_report path/to/app-community-release.apk
+#   bin/apk_report --files 25                   # show 25 biggest entries instead of 10
+#
+# Why this exists: "the APK is 238 MB" is a number, not a diagnosis. The same app
+# is ~4x smaller as a release build and ~2x smaller again per ABI, and the parts
+# that dominate (engine, Dart snapshot, dex, native plugin libs) are decided by the
+# *build type*, not by features. Measuring takes a second; guessing has already
+# cost this project two sessions (ANALYSIS.md §4).
+#
+# Pure `unzip`, so it works on the machine that already has the APK.
+set -uo pipefail
+
+APK=""
+FILES=10
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --files) FILES="${2:?--files needs a number}"; shift ;;
+    --files=*) FILES="${1#*=}" ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "bin/apk_report: unknown option '$1'" >&2; exit 2 ;;
+    *) APK="$1" ;;
+  esac
+  shift
+done
+
+if [ -z "$APK" ]; then
+  APK=$(ls -t build/app/outputs/flutter-apk/*.apk 2>/dev/null | head -1 || true)
+  [ -n "$APK" ] || {
+    echo "bin/apk_report: no APK given and none found under build/app/outputs/flutter-apk/" >&2
+    echo "usage: bin/apk_report [path/to.apk]" >&2
+    exit 2
+  }
+fi
+[ -f "$APK" ] || { echo "bin/apk_report: no such file: $APK" >&2; exit 2; }
+command -v unzip >/dev/null 2>&1 || { echo "bin/apk_report: needs unzip" >&2; exit 1; }
+
+TOTAL=$(stat -c %s "$APK" 2>/dev/null || stat -f %z "$APK")
+
+fmt() { awk -v b="$1" 'BEGIN { printf "%.1f MB", b / 1048576 }'; }
+
+echo
+printf '  apk    %s\n' "$APK"
+printf '  file   %s on disk (%s bytes)\n' "$(fmt "$TOTAL")" "$TOTAL"
+
+unzip -l "$APK" 2>/dev/null | awk -v files="/tmp/apk_report_files.$$" -v groups="/tmp/apk_report_groups.$$" '
+  NR > 3 && $1 ~ /^[0-9]+$/ && NF >= 4 {
+    size = $1; name = $4
+    if (name == "" || name ~ /\/$/) next   # directory entries carry no payload
+    if (name ~ /^lib\//) {
+      split(name, parts, "/"); group = "lib/" parts[2] "  (native)"
+    } else if (name ~ /^classes[0-9]*\.dex$/) {
+      group = "dex  (Java/Kotlin)"
+    } else if (name ~ /^res\//) {
+      group = "res/  (resources)"
+    } else if (name ~ /^assets\/flutter_assets\//) {
+      # Dart code and its snapshots, not the app pictures: in a debug build
+      # this is mostly kernel_blob.bin, which every phone pays for and nobody needs.
+      group = "assets/flutter_assets/  (Dart code + snapshots)"
+    } else if (name ~ /^assets\//) {
+      group = "assets/  (images, fonts, translations)"
+    } else if (name ~ /^META-INF\//) {
+      group = "META-INF/  (signature, rules)"
+    } else if (name ~ /^AndroidManifest\.xml$/) {
+      group = "AndroidManifest.xml"
+    } else {
+      group = "other"
+    }
+    byGroup[group] += size
+    unpacked += size
+    if (name ~ /(kernel_blob\.bin|isolate_snapshot_data|isolate_snapshot_instr|vm_snapshot_data|vm_snapshot_instr|libVkLayer_khronos_validation\.so)$/) {
+      debugOnly += size
+    }
+    printf "%d\t%s\n", size, name > files
+  }
+  END {
+    close(files)
+    for (g in byGroup) printf "%d\t%s\n", byGroup[g], g > groups
+    print unpacked "\t__UNPACKED__" > groups
+    print debugOnly "\t__DEBUGONLY__" > groups
+    close(groups)
+  }
+'
+
+UNPACKED=$(awk -F'\t' '$2 == "__UNPACKED__" {print $1}' /tmp/apk_report_groups.$$ 2>/dev/null | head -1)
+UNPACKED=${UNPACKED:-0}
+DEBUG_ONLY=$(awk -F'\t' '$2 == "__DEBUGONLY__" {print $1}' /tmp/apk_report_groups.$$ 2>/dev/null | head -1)
+DEBUG_ONLY=${DEBUG_ONLY:-0}
+grep -v -e '__UNPACKED__' -e '__DEBUGONLY__' /tmp/apk_report_groups.$$ > /tmp/apk_report_groups.$$.2 2>/dev/null || true
+mv /tmp/apk_report_groups.$$.2 /tmp/apk_report_groups.$$ 2>/dev/null || true
+printf '  unpack %s of entries; percentages are of that\n' "$(fmt "${UNPACKED:-0}")"
+
+echo
+echo "  by group"
+sort -rn /tmp/apk_report_groups.$$ | awk -v total="${UNPACKED:-1}" '
+  { printf "   %5.1f%%  %9.1f MB  %s\n", ($1 * 100) / total, $1 / 1048576, substr($0, index($0, $2)) }
+'
+
+echo
+echo "  biggest files"
+sort -rn /tmp/apk_report_files.$$ 2>/dev/null | head -"$FILES" | awk '
+  { printf "   %9.1f MB  %s\n", $1 / 1048576, substr($0, index($0, $2)) }
+'
+
+ABIS=$(unzip -l "$APK" 2>/dev/null | awk '$4 ~ /^lib\// { split($4, p, "/"); print p[2] }' | sort -u)
+ABI_COUNT=$(printf '%s\n' "$ABIS" | sed '/^$/d' | wc -l | tr -d ' ')
+if [ "${DEBUG_ONLY:-0}" -gt 0 ]; then
+  echo
+  printf '  debug-only payload: %s (kernel_blob / Dart snapshots / Vulkan validation layer)\n' "$(fmt "$DEBUG_ONLY")"
+  echo "  none of that exists in a release build: it is AOT-compiled, so there is no kernel"
+  echo "  snapshot to ship and no validation layer to load."
+fi
+echo
+if [ "$ABI_COUNT" -gt 1 ]; then
+  echo "  this APK carries $ABI_COUNT ABIs ($(printf '%s' "$ABIS" | tr '\n' ' '))— one phone needs one:"
+  echo "    bin/build_apk --abi arm64        # or --abi all only when you must share it"
+else
+  echo "  ABIs: $(printf '%s' "$ABIS" | tr '\n' ' ')"
+fi
+case "$APK" in
+  *-debug.apk)
+    echo "  this is a DEBUG build: Dart runs on the VM, so it carries a kernel snapshot and"
+    echo "  no AOT-compiled code. The same tree as a release build is several times smaller"
+    echo "  and much faster; see bin/build_apk --release --sign-debug (no keystore needed)."
+    ;;
+esac
+echo
+
+rm -f /tmp/apk_report_groups.$$ /tmp/apk_report_files.$$

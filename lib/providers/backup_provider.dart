@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/mixins/debounched_callback.dart';
 import 'package:storypad/core/objects/cloud_service_user.dart';
@@ -12,6 +13,7 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/assets/db_asset_loader_service.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
+import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
 import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
@@ -247,10 +249,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       return;
     }
 
-    final result = await SpAppLockWrapper.disableAppLockIfHas(
-      context,
-      callback: () => repository.signIn(serviceType),
-    );
+    final result = await _signInWithFallback(context, serviceType);
 
     if (result.isSuccess == true) {
       AnalyticsService.instance.logSignInWithGoogle();
@@ -277,6 +276,103 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     }
 
     notifyListeners();
+  }
+
+  /// Runs the sign-in with the loopback escape hatch installed: if the browser
+  /// never reaches the app's local server, the user can paste the address from the
+  /// browser instead of being stuck on a page that spins forever (`D-058`, `D-060`).
+  Future<BackupResult<bool>> _signInWithFallback(BuildContext context, BackupServiceType serviceType) async {
+    if (repository.getService(serviceType) is GoogleDriveCloudService) {
+      GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) =>
+          _askForRedirectUri(context, redirectArrived);
+    }
+
+    try {
+      return await SpAppLockWrapper.disableAppLockIfHas(
+        context,
+        callback: () => repository.signIn(serviceType),
+      );
+    } finally {
+      GoogleDesktopOAuthService.manualRedirectPrompt = null;
+    }
+  }
+
+  /// The browser tab is stuck on `http://127.0.0.1:<port>/?code=…`: offer to finish
+  /// the sign-in from the address bar. Returns null when the user would rather keep
+  /// waiting, which leaves the loopback server running.
+  Future<String?> _askForRedirectUri(BuildContext context, Future<void> redirectArrived) async {
+    if (!context.mounted) return null;
+
+    // The user has just copied the address out of the browser, so most of the time
+    // it is already on the clipboard: prefill it and the dialog is one tap.
+    final controller = TextEditingController();
+    controller.text = await _redirectAddressFromClipboard();
+    controller.selection = TextSelection.collapsed(offset: controller.text.length);
+
+    try {
+      final dialog = showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          // The loopback can still win after the dialog opened; close it then.
+          redirectArrived.then((_) {
+            if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          });
+
+          return AlertDialog(
+            title: Text(tr('dialog.google_drive_redirect.title')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('dialog.google_drive_redirect.description')),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  minLines: 1,
+                  maxLines: 3,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    hintText: tr('dialog.google_drive_redirect.hint'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(tr('button.cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+                child: Text(tr('button.confirm')),
+              ),
+            ],
+          );
+        },
+      );
+
+      return await dialog;
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  /// What the browser has on its clipboard, if it looks like a loopback redirect.
+  /// Anything else is ignored: pasting a note's text into this field is a mistake,
+  /// not an instruction.
+  Future<String> _redirectAddressFromClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (text.startsWith('http://127.0.0.1') || text.startsWith('http://localhost')) return text;
+    } catch (error) {
+      AppLogger.d('$runtimeType: could not read the clipboard for the sign-in fallback: $error');
+    }
+
+    return '';
   }
 
   /// A sign-in that failed only because the device cannot reach Google gets the

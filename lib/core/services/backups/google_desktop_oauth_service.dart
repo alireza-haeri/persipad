@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
@@ -123,9 +124,32 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     GoogleDesktopOAuthConfig? config,
     Future<bool> Function(String url)? openBrowser,
     http.Client? client,
+    this.manualPromptDelay = defaultManualPromptDelay,
   }) : config = config ?? GoogleDesktopOAuthConfig.fromEnvironment(),
        _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString,
        _client = client ?? http.Client();
+
+  /// How long the loopback redirect gets before the UI is offered a manual way in.
+  /// Long enough that a normal sign-in never asks; short enough that a stuck tab
+  /// does not look like a frozen app.
+  static const Duration defaultManualPromptDelay = Duration(seconds: 12);
+
+  final Duration manualPromptDelay;
+
+  /// Set by the UI layer (the backup screen) before a sign-in starts, cleared when
+  /// it ends. Called when the loopback redirect has not arrived after
+  /// [manualPromptDelay]; it should return the address the user copied out of the
+  /// browser, or null if they choose to keep waiting. Its `redirectArrived`
+  /// argument completes when the wait is over either way, so a dialog can close
+  /// itself instead of being left on screen.
+  ///
+  /// This exists because the loopback redirect is the one step of the flow that
+  /// depends on the browser being able to reach an HTTP server *inside this app*.
+  /// A device that freezes background apps, or a phone-side VPN that owns the
+  /// routing table, can swallow it — and then the tab spins forever with no way
+  /// out. Pasting the address is the fallback that always works (RFC 8252 §7.3
+  /// describes exactly this).
+  static Future<String?> Function(Future<void> redirectArrived)? manualRedirectPrompt;
 
   @override
   bool get isConfigured => config.isConfigured;
@@ -134,6 +158,12 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// connectivity problem. An unreachable host that black-holes packets would
   /// otherwise hang for minutes with no feedback at all.
   static const Duration requestTimeout = Duration(seconds: 30);
+
+  /// How long the sign-in page may stay open before the flow gives up. The
+  /// browser has to reach Google, the user has to pick an account, and the
+  /// redirect has to come back to 127.0.0.1 — five minutes is generous on
+  /// purpose, and the timer only starts once a browser was actually opened.
+  static const Duration redirectTimeout = Duration(minutes: 5);
 
   /// `package:http` surfaces a dead network as [http.ClientException] (which
   /// carries the underlying `SocketException` text); a host name the device
@@ -290,6 +320,18 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // the port as a wildcard for desktop clients, so this needs no registration
     // and cannot collide with another instance.
     final server = await io.HttpServer.bind(io.InternetAddress.loopbackIPv4, 0);
+
+    // The listener is attached **before** the browser opens, and that order is the
+    // whole point: the redirect can arrive while the tab is still loading (a warm
+    // Chrome, or a Google account that is already signed in and only needs a tap).
+    // When it lands before `listen` is attached, the connection sits in the accept
+    // backlog unanswered — the phone shows a spinner that never finishes while this
+    // method waits for a redirect the browser already sent. Moving the await below
+    // `_openBrowser` also means the 5-minute timer only starts once a browser exists.
+    final completer = Completer<Uri>();
+    final subscription = _listenForRedirect(server, completer);
+    AppLogger.d('Google sign-in: waiting for the loopback redirect on 127.0.0.1:${server.port}');
+
     try {
       final redirectUri = 'http://127.0.0.1:${server.port}';
 
@@ -308,54 +350,93 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         );
       }
 
-      final redirect = await _awaitRedirect(server);
+      // Completes as soon as the wait is over, so a prompt that is still on screen
+      // can close itself even when the wait ended in a timeout.
+      final waitOver = Completer<void>();
+      final Uri redirect;
+      try {
+        redirect = await _waitForRedirect(completer, waitOver.future);
+      } finally {
+        if (!waitOver.isCompleted) waitOver.complete();
+      }
+
       final code = parseRedirectCode(redirect, expectedState: state);
 
       return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
     } finally {
+      await subscription.cancel();
       await server.close(force: true);
     }
   }
 
-  Future<Uri> _awaitRedirect(io.HttpServer server) async {
-    final completer = Completer<Uri>();
-
-    final subscription = server.listen((request) async {
-      if (completer.isCompleted) {
-        request.response.statusCode = io.HttpStatus.notFound;
-        await request.response.close();
-        return;
-      }
-
-      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
-      if (request.uri.queryParameters.containsKey('code') || request.uri.queryParameters.containsKey('error')) {
-        request.response
-          ..statusCode = io.HttpStatus.ok
-          ..headers.contentType = io.ContentType.html
-          ..write(_completionPage());
-        await request.response.close();
-        if (!completer.isCompleted) completer.complete(request.uri);
-        return;
-      }
+  /// Answers every loopback request until the redirect with a `code` (or an
+  /// `error`) arrives, then completes [completer].
+  ///
+  /// Nothing secret is logged: whether the query had a code is useful when the
+  /// flow appears stuck, the code itself is a credential (RULES §2).
+  StreamSubscription<io.HttpRequest> _listenForRedirect(io.HttpServer server, Completer<Uri> completer) {
+    return server.listen((request) async {
+      final hasCode = request.uri.queryParameters.containsKey('code');
+      final hasError = request.uri.queryParameters.containsKey('error');
+      AppLogger.d(
+        'Google sign-in: loopback request (code: $hasCode, error: $hasError, '
+        'alreadyCompleted: ${completer.isCompleted})',
+      );
 
       request.response
         ..statusCode = io.HttpStatus.ok
         ..headers.contentType = io.ContentType.html
         ..write(_completionPage());
       await request.response.close();
+
+      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
+      if ((hasCode || hasError) && !completer.isCompleted) completer.complete(request.uri);
+    });
+  }
+
+  /// Waits for the redirect from either place it can come from: the loopback
+  /// server, or the address a stuck user copied out of the browser.
+  ///
+  /// They race, and the loopback wins whenever it arrives — the prompt is only
+  /// offered once [manualPromptDelay] has passed without one, so a normal sign-in
+  /// never sees a dialog. A cancelled prompt does not abort the flow: it simply
+  /// keeps waiting for the loopback until [redirectTimeout].
+  Future<Uri> _waitForRedirect(Completer<Uri> completer, Future<void> waitOver) {
+    final loopback = completer.future.timeout(
+      redirectTimeout,
+      onTimeout: () => throw const GoogleOAuthException(
+        'Timed out waiting for the Google sign-in to finish in the browser.',
+        error: 'timeout',
+      ),
+    );
+
+    final prompt = manualRedirectPrompt;
+    if (prompt == null) return loopback;
+
+    // A prompt that shows a dialog uses [redirectArrived] to close itself when the
+    // wait is over — the loopback won late, or it timed out — so the user is never
+    // left with a modal asking for an address that is no longer needed.
+    final redirectArrived = Future.any<void>([completer.future.then<void>((_) {}), waitOver]);
+
+    final manual = Future<void>.delayed(manualPromptDelay).then<Uri>((_) async {
+      if (completer.isCompleted) return Completer<Uri>().future;
+
+      AppLogger.d(
+        'Google sign-in: no redirect after ${manualPromptDelay.inSeconds}s — '
+        'offering the manual fallback.',
+      );
+
+      final pasted = (await prompt(redirectArrived))?.trim() ?? '';
+      if (pasted.isNotEmpty) {
+        AppLogger.d('Google sign-in: manual fallback received a pasted address.');
+        return Uri.parse(pasted);
+      }
+
+      AppLogger.d('Google sign-in: manual fallback was declined; still waiting for the loopback redirect.');
+      return Completer<Uri>().future; // never completes: the loopback keeps its chance
     });
 
-    try {
-      return await completer.future.timeout(
-        const Duration(minutes: 5),
-        onTimeout: () => throw const GoogleOAuthException(
-          'Timed out waiting for the Google sign-in to finish in the browser.',
-          error: 'timeout',
-        ),
-      );
-    } finally {
-      await subscription.cancel();
-    }
+    return Future.any([loopback, manual]);
   }
 
   /// Shown in the browser tab once the redirect lands. Plain and unbranded on

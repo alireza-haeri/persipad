@@ -191,6 +191,135 @@ void main() {
     });
   });
 
+  // The phone bug these cover: Chrome was sent to
+  // `http://127.0.0.1:<port>/?state=…&code=…` and the tab spun forever. The
+  // listener used to be attached only after the "open browser" call returned, so a
+  // redirect that arrived first waited in the accept backlog with nobody to serve
+  // it — and a warm browser that is already signed in sends it immediately.
+  group('GoogleDesktopOAuthService.authenticate loopback', () {
+    const config = GoogleDesktopOAuthConfig(clientId: 'id', clientSecret: 'secret');
+    final tokenBody = jsonEncode({
+      'access_token': 'access-token',
+      'refresh_token': 'refresh-token',
+      'expires_in': 3599,
+    });
+
+    /// Performs the redirect from *inside* the "open browser" call, exactly like a
+    /// warm Chrome that is already signed in.
+    ///
+    /// A raw socket, not `HttpClient`: `flutter_test` installs an HttpOverrides
+    /// that answers every request with 400, which would make this test lie about
+    /// the very code path it is here to protect.
+    Future<String> redirectFromInsideBrowser(String url, {String? overrideState}) async {
+      final authorizeUri = Uri.parse(url);
+      final redirectUri = Uri.parse(authorizeUri.queryParameters['redirect_uri']!);
+      final state = overrideState ?? authorizeUri.queryParameters['state']!;
+      final query = 'code=the-code&state=${Uri.encodeQueryComponent(state)}';
+
+      final socket = await Socket.connect(redirectUri.host, redirectUri.port);
+      try {
+        socket.write(
+          'GET /?$query HTTP/1.1\r\n'
+          'Host: ${redirectUri.host}:${redirectUri.port}\r\n'
+          'Connection: close\r\n\r\n',
+        );
+        await socket.flush();
+        return await socket.cast<List<int>>().transform(utf8.decoder).join();
+      } finally {
+        socket.destroy();
+      }
+    }
+
+    GoogleDesktopOAuthService serviceWith(Future<bool> Function(String url) openBrowser) => GoogleDesktopOAuthService(
+      config: config,
+      client: MockClient((request) async => http.Response(tokenBody, 200)),
+      openBrowser: openBrowser,
+    );
+
+    test('serves the redirect even when it arrives before the browser call returns', () async {
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url);
+        return true;
+      });
+
+      final token = await service.authenticate();
+
+      expect(token.accessToken, 'access-token');
+      expect(token.refreshToken, 'refresh-token');
+      // The tab must be answered while it is open, not when the app comes back.
+      expect(page, startsWith('HTTP/1.1 200'));
+      expect(page, contains('Signed in'));
+    });
+
+    test('a redirect with the wrong state is refused after being answered', () async {
+      final service = serviceWith((url) async {
+        await redirectFromInsideBrowser(url, overrideState: 'not-this-flow');
+        return true;
+      });
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'invalid_state')),
+      );
+    });
+  });
+
+  // When the browser cannot reach the app's loopback server at all (a device that
+  // freezes background apps, or a phone-side VPN owning the routing table), the tab
+  // spins forever and the flow is a dead end. Pasting the address must finish it.
+  group('GoogleDesktopOAuthService.authenticate manual fallback', () {
+    const config = GoogleDesktopOAuthConfig(clientId: 'id', clientSecret: 'secret');
+    final tokenBody = jsonEncode({'access_token': 'pasted-token', 'expires_in': 3599});
+
+    tearDown(() => GoogleDesktopOAuthService.manualRedirectPrompt = null);
+
+    GoogleDesktopOAuthService build({required void Function(String state) onOpened}) {
+      return GoogleDesktopOAuthService(
+        config: config,
+        manualPromptDelay: Duration.zero,
+        client: MockClient((request) async => http.Response(tokenBody, 200)),
+        // The loopback is never contacted: this is the "browser could not reach
+        // us" case, which is exactly when the fallback has to carry the flow.
+        openBrowser: (url) async {
+          onOpened(Uri.parse(url).queryParameters['state']!);
+          return true;
+        },
+      );
+    }
+
+    test('a pasted address finishes the sign-in', () async {
+      String? pasted;
+      final service = build(onOpened: (state) => pasted = 'http://127.0.0.1:9/?code=pasted-code&state=$state');
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => pasted;
+
+      final token = await service.authenticate();
+
+      expect(token.accessToken, 'pasted-token');
+    });
+
+    test('a pasted address without a code is refused with a specific error', () async {
+      String? pasted;
+      final service = build(onOpened: (state) => pasted = 'http://127.0.0.1:9/?state=$state');
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => pasted;
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'no_code')),
+      );
+    });
+
+    test('a pasted address from another flow is refused by the state check', () async {
+      final service = build(onOpened: (_) {});
+      GoogleDesktopOAuthService.manualRedirectPrompt = (_) async => 'http://127.0.0.1:9/?code=old&state=another-flow';
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'invalid_state')),
+      );
+    });
+  });
+
   // The emulator bug these cover: with no working DNS the app reported
   // `ClientException with SocketException: Failed host lookup:
   // 'oauth2.googleapis.com' (OS Error: No address associated with hostname,

@@ -183,6 +183,26 @@ def mirrored_tests(path):
     return []
 
 
+def same_name_tests(path):
+    """`lib/a/b/c.dart` → any `test/**/c_test.dart`.
+
+    The mirror rule is a *directory* rule, and the test for a file is not always
+    in the mirrored directory: `lib/core/services/backups/google_desktop_oauth_service.dart`
+    mirrors to `test/core/services/backups/`, while its test sits one level up, at
+    `test/core/services/google_desktop_oauth_service_test.dart`. Without this, a
+    change to that file ran the backup tests and skipped the one that covers it —
+    a green run that proved nothing. It happened on 4c03e62.
+    """
+    name = path.rsplit("/", 1)[-1]
+    if not name.endswith(".dart") or name.endswith("_test.dart"):
+        return []
+
+    target = name[: -len(".dart")] + "_test.dart"
+    return sorted(
+        os.path.join(root, target) for root, _, names in os.walk("test") if target in names
+    )
+
+
 def cross_cutting_tests(path):
     return [test for prefix, tests in CROSS_CUTTING if path.startswith(prefix) for test in tests]
 
@@ -259,7 +279,7 @@ def decide(base, head, files, message):
             selection.append(path)
             continue
 
-        candidates = mirrored_tests(path) + cross_cutting_tests(path)
+        candidates = mirrored_tests(path) + same_name_tests(path) + cross_cutting_tests(path)
         if candidates:
             selection.extend(candidates)
             explain(f"{path} → {', '.join(candidates)}")

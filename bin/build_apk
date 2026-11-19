@@ -7,15 +7,21 @@
 #   bin/build_apk --install --avd    # boot an AVD if nothing is attached, then install
 #   bin/build_apk --install --avd=storypad_dev
 #   bin/build_apk --release          # release build (needs the RELEASE_KEYSTORE_* env vars)
+#   bin/build_apk --release --sign-debug
+#                                    # release build signed with the Android debug key:
+#                                    # installable today, no secrets, ~4x smaller than debug
 #   bin/build_apk --abi all          # every ABI (biggest, slowest, always installable)
 #   bin/build_apk --abi x86_64       # force one: arm64 | x86_64 | arm | x86
 #   bin/build_apk --flavor storypad  # needs private_keys/ (see ai/ENVIRONMENT.md)
 #   bin/build_apk --dns-server=8.8.8.8
 #                                    # AVD: hand the guest a resolver (see below)
 #                                    # (also honoured: NOTELY_DNS_SERVER=8.8.8.8)
+#   bin/build_apk --no-dns-server     # ...and never pass one, even on a stub-resolver host
 #   bin/build_apk --compile-sdk=36   # build against the platform this machine has
 #   bin/build_apk --no-ndk           # skip Flutter's NDK check (only works when :jni is absent)
 #   bin/build_apk -v                 # stream live Gradle/Flutter output instead of spinner
+#   bin/build_apk -PnotelyMinify=false
+#                                    # any Gradle project property, as `gradle -P` spells it
 #
 # The ABI default is `auto`: the attached device's (or AVD's, or host's) architecture
 # mapped to a Flutter target platform. An arm64-only APK does not install on an x86_64
@@ -25,9 +31,12 @@
 # quietly fails on a box using systemd-resolved's stub (127.0.0.53): the guest then
 # cannot resolve anything, and Google sign-in dies with `Failed host lookup:
 # 'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)`
-# — which looks like an OAuth bug but is pure DNS. Passing a real resolver to the
-# emulator (or setting NOTELY_DNS_SERVER) is the fix; the AVD has to be restarted for
-# it to take effect. See ai/ENVIRONMENT.md §2.2c.
+# — which looks like an OAuth bug but is pure DNS. It is now automatic: when the host
+# resolves only through a stub, the AVD is booted with the host's real upstream
+# resolver (or 8.8.8.8,1.1.1.1 when that cannot be read), so nobody has to remember
+# the flag. An explicitly passed `--dns-server` still wins, and `--no-dns-server`
+# turns the behaviour off. The AVD has to be (re)booted for any of it to apply.
+# See ai/ENVIRONMENT.md §2.2c.
 #
 # Why this exists next to .github/workflows/android.yml: CI takes ~15 minutes per
 # attempt and grades you only at the end; a laptop takes ~2 minutes the first time and
@@ -45,12 +54,16 @@ LAUNCH=0
 AVD=""
 VERBOSE=""
 DNS_SERVER="${NOTELY_DNS_SERVER:-}"
+NO_DNS_SERVER=0
+AVD_BOOTED=0
+SIGN_DEBUG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) INSTALL=1 ;;
     --launch)  INSTALL=1; LAUNCH=1 ;;
     --release) MODE=release ;;
+    --sign-debug) SIGN_DEBUG=1 ;;
     --debug)   MODE=debug ;;
     -v|--verbose) VERBOSE="-v" ;;
     --avd)
@@ -64,7 +77,7 @@ while [ $# -gt 0 ]; do
     --dns-server)
       DNS_SERVER="${2:?--dns-server needs an address like 8.8.8.8}"; shift ;;
     --dns-server=*) DNS_SERVER="${1#*=}" ;;
-    --no-dns-server) DNS_SERVER="" ;;
+    --no-dns-server) NO_DNS_SERVER=1; DNS_SERVER="" ;;
     --flavor)  FLAVOR="${2:?--flavor needs a value}"; shift ;;
     --flavor=*) FLAVOR="${1#*=}" ;;
     --abi)     ABI="${2:?--abi needs a value}"; shift ;;
@@ -90,6 +103,27 @@ while [ $# -gt 0 ]; do
     --ndk)     export ORG_GRADLE_PROJECT_notelyNdkVersion="${2:?--ndk needs a value}"; shift ;;
     --ndk=*)   export ORG_GRADLE_PROJECT_notelyNdkVersion="${1#*=}" ;;
     --no-ndk)  export ORG_GRADLE_PROJECT_notelyNdkVersion=none ;;
+    # Gradle project properties, the same spelling `gradle -P` uses. Gradle reads
+    # ORG_GRADLE_PROJECT_<name> from the environment, so `-PnotelyMinify=false`
+    # becomes ORG_GRADLE_PROJECT_notelyMinify=false for the build.
+    -P|-P*)
+      GPAIR=""
+      if [ "$1" = "-P" ]; then
+        GPAIR="${2:-}"; shift
+      else
+        GPAIR="${1#-P}"
+      fi
+      if [ -z "$GPAIR" ] || [ "${GPAIR#*=}" = "$GPAIR" ]; then
+        echo "bin/build_apk: -P needs name=value (e.g. -PnotelyMinify=false)" >&2; exit 2
+      fi
+      NAME="${GPAIR%%=*}"; VALUE="${GPAIR#*=}"
+      case "$NAME" in
+        ""|*[!A-Za-z0-9_]*)
+          echo "bin/build_apk: -P$NAME: only letters, digits and '_' are supported here — export ORG_GRADLE_PROJECT_... yourself" >&2
+          exit 2 ;;
+      esac
+      export "ORG_GRADLE_PROJECT_$NAME=$VALUE"
+      ;;
     -h|--help) awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "$0"; exit 0 ;;
     *) echo "bin/build_apk: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
@@ -167,13 +201,71 @@ host_dns_is_stub() {
   ' /etc/resolv.conf
 }
 
-# Cheap end-to-end proof that the guest can resolve and reach a host. `getprop
-# net.dns1` is empty on modern Android and proves nothing, so ping the name that
-# Google sign-in actually needs. Only called right after booting an AVD (~2s).
-emulator_can_resolve() {
-  local serial="$1"
-  [ -n "$serial" ] || return 0
-  timeout 20 adb -s "$serial" shell ping -c1 -W2 oauth2.googleapis.com >/dev/null 2>&1
+# The real upstream resolvers this host uses (skipping loopback stubs), because an
+# AVD can reach them through NAT while it cannot follow 127.0.0.53. `resolvectl dns`
+# prints them per link ("Link 2 (enp4s0): 192.168.1.1 1.1.1.1"); older boxes use
+# `systemd-resolve --status`. IPv4 only on purpose: an IPv6 resolver is often not
+# routable from the guest's NAT, and a wrong guess is worse than the fallback.
+host_upstream_dns() {
+  local out=""
+  if command -v resolvectl >/dev/null 2>&1; then
+    out=$(resolvectl dns 2>/dev/null || true)
+  elif command -v systemd-resolve >/dev/null 2>&1; then
+    out=$(systemd-resolve --status 2>/dev/null | sed -n 's/^[[:space:]]*DNS Servers:[[:space:]]*//p' || true)
+  fi
+  printf '%s\n' "$out" | tr ' ,' '\n\n' \
+    | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' \
+    | grep -vE '^(127\.|0\.|255\.)' \
+    | awk '!seen[$0]++' | head -2 | paste -sd, - || true
+}
+
+# Resolve a Google host from inside the guest and classify the ANSWER.
+#
+# `ping` is the resolver client every AVD image has, and its output names the
+# address it resolved — the address is the point, not the reply. A guest behind a
+# fake-IP DNS (Clash/mihomo-style TUN, default pool 198.18.0.1/16) resolves Google
+# to a bogus private address and the ping *succeeds*, because the fake-IP layer
+# answers ICMP itself (ttl 255, ~1 ms). That is exactly how a "healthy" ping hid a
+# broken sign-in: the app's HTTPS went to that bogus address and never reached
+# Google, while Chrome logged in fine because it uses its own secure DNS.
+#
+#   ok <ip>        a plausible public address
+#   fake <ip>      a private/benchmark address that cannot be Google
+#   unresolvable   no answer at all
+emulator_dns_verdict() {
+  local serial="$1" out ip
+  [ -n "$serial" ] || { echo unresolvable; return 0; }
+  out=$(timeout 20 adb -s "$serial" shell ping -c1 -W2 oauth2.googleapis.com 2>/dev/null || true)
+  ip=$(printf '%s\n' "$out" | tr -d '\r' | grep -o '([0-9][0-9.]*)' | head -1 | tr -d '()')
+  [ -n "$ip" ] || { echo unresolvable; return 0; }
+  case "$ip" in
+    198.18.*|198.19.*|10.*|127.*|0.*|169.254.*|192.168.*|100.6[4-9].*|100.[7-9][0-9].*|100.1[0-2][0-9].*|172.1[6-9].*|172.2[0-9].*|172.3[01].*)
+      echo "fake $ip" ;;
+    *) echo "ok $ip" ;;
+  esac
+}
+
+# Turn that verdict into something the user can act on. `$2` names the device.
+explain_dns_verdict() {
+  case "$1" in
+    ok*) return 0 ;;
+    "fake "*)
+      warn "$2 resolves oauth2.googleapis.com to ${1#fake } — not a Google address, so sign-in will fail."
+      warn "Something on this host answers DNS with fake IPs (Clash/mihomo-style TUN in fake-ip mode,"
+      warn "default pool 198.18.0.1/16). A ping to it 'works'; the app's HTTPS to it does not, and Chrome"
+      warn "still logs in because it uses its own secure DNS. Fix one, then try sign-in again:"
+      warn "  1) proxy config (best): add fake-ip-filter entries for *.googleapis.com, *.google.com,"
+      warn "     accounts.google.com — or set dns.enhanced-mode: redir-host"
+      warn "  2) guest side, no reboot: adb shell settings put global private_dns_mode hostname"
+      warn "     adb shell settings put global private_dns_specifier dns.google   (then re-ping: the IP must change)"
+      warn "  3) a resolver the hijack does not see: --dns-server=8.8.8.8 (ENVIRONMENT.md §2.2c)"
+      ;;
+    *)
+      warn "$2 cannot resolve oauth2.googleapis.com, so Google sign-in will fail."
+      warn "Check the host's internet first, then try a different resolver:"
+      warn "    bin/build_apk --install --avd=<name> --dns-server=1.1.1.1"
+      ;;
+  esac
 }
 
 has_pending_device() {
@@ -211,13 +303,17 @@ device_abi() {
 }
 
 # Flutter target platforms: android-arm, android-arm64, android-x64, android-x86.
+# Accepts both the device ABI names reported by `getprop ro.product.cpu.abi`
+# (arm64-v8a, armeabi-v7a, x86_64, x86) and the short names `--help` advertises
+# (arm64, arm, armv7) — the short ones used to fall through to "unknown --abi",
+# so the documented command did not work.
 to_flutter_platform() {
   case "$1" in
-    arm64-v8a)           echo android-arm64 ;;
-    armeabi-v7a|armeabi) echo android-arm ;;
-    x86_64)              echo android-x64 ;;
-    x86)                 echo android-x86 ;;
-    *)                   echo "" ;;
+    arm64|arm64-v8a|aarch64)       echo android-arm64 ;;
+    arm|armv7|armv7a|armeabi-v7a|armeabi) echo android-arm ;;
+    x64|x86_64)                    echo android-x64 ;;
+    x86|i686)                      echo android-x86 ;;
+    *)                             echo "" ;;
   esac
 }
 
@@ -237,29 +333,59 @@ if [ -n "$AVD" ] && [ -z "$(first_online_device)" ]; then
       die "AVD '$AVD' not found. Available AVDs: $(printf '%s' "$AVDS" | tr '\n' ' ')"
     fi
     EMU_ARGS=(-avd "$AVD")
+
+    # A stub-resolver host (systemd-resolved on 127.0.0.53) is the normal Fedora
+    # setup, and it is exactly the state in which the booted AVD cannot resolve
+    # anything. Fix it here instead of hoping the user remembers a flag.
+    if [ -z "$DNS_SERVER" ] && [ "$NO_DNS_SERVER" != 1 ] && host_dns_is_stub; then
+      DNS_SERVER=$(host_upstream_dns)
+      if [ -n "$DNS_SERVER" ]; then
+        say "host DNS is a local stub (systemd-resolved); giving the AVD this host's upstream resolver: $DNS_SERVER"
+      else
+        DNS_SERVER="8.8.8.8,1.1.1.1"
+        say "host DNS is a local stub (systemd-resolved) and its upstream could not be read;"
+        say "giving the AVD a public resolver instead: $DNS_SERVER"
+      fi
+      say "  (override with --dns-server=<ip>, or skip with --no-dns-server)"
+    elif [ "$NO_DNS_SERVER" = 1 ]; then
+      say "not passing -dns-server to the AVD (--no-dns-server)"
+    fi
+
     if [ -n "$DNS_SERVER" ]; then
       case "$DNS_SERVER" in
         *[!0-9a-fA-F:.,]*) die "--dns-server '$DNS_SERVER' is not an address list (e.g. 8.8.8.8 or 8.8.8.8,1.1.1.1)." ;;
       esac
       EMU_ARGS+=(-dns-server "$DNS_SERVER")
-    elif host_dns_is_stub; then
-      warn "this host resolves names through a local stub resolver (/etc/resolv.conf), which an AVD often fails to follow."
-      warn "if Google sign-in fails with 'Failed host lookup: oauth2.googleapis.com', reboot it with:"
-      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
     fi
     say "Starting AVD '$AVD'…${DNS_SERVER:+ (dns: $DNS_SERVER)}"
     nohup "$EMULATOR_BIN" "${EMU_ARGS[@]}" </dev/null >/tmp/notely-avd.log 2>&1 &
     EMU_PID=$!
     wait_for_boot 120 "$EMU_PID" || die "timed out waiting for AVD '$AVD' to boot (see /tmp/notely-avd.log)."
+    AVD_BOOTED=1
     say "AVD '$AVD' is ready."
 
     # Say it now rather than leave it to be discovered as a mysterious
     # "Sign-in failed: ClientException with SocketException" minutes later.
-    if ! emulator_can_resolve "$(first_online_device)"; then
-      warn "AVD '$AVD' cannot resolve oauth2.googleapis.com, so Google sign-in will fail."
-      warn "Check the host's internet, or reboot the AVD with a real resolver:"
-      warn "    bin/build_apk --install --avd=$AVD --dns-server=8.8.8.8"
-    fi
+    explain_dns_verdict "$(emulator_dns_verdict "$(first_online_device)")" "AVD '$AVD'"
+  fi
+fi
+
+# An AVD that was already running when this script started keeps the resolver it
+# booted with, so no boot flag can help it — and its broken DNS would surface much
+# later, as a sign-in failure that looks like an OAuth bug (D-053). Say it here.
+if [ "$INSTALL" = 1 ] && [ "$AVD_BOOTED" != 1 ]; then
+  SERIAL=$(first_online_device)
+  if [ -n "$SERIAL" ] && [ "$(adb -s "$SERIAL" shell getprop ro.kernel.qemu 2>/dev/null | tr -d '\r' | head -1 || true)" = "1" ]; then
+    VERDICT=$(emulator_dns_verdict "$SERIAL")
+    explain_dns_verdict "$VERDICT" "the running emulator ($SERIAL)"
+    case "$VERDICT" in
+      ok*) ;;
+      *)
+        RUNNING_AVD=$(timeout 10 adb -s "$SERIAL" emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)
+        warn "it keeps the resolver it booted with; rebooting it is one command:"
+        warn "    adb -s $SERIAL emu kill && bin/build_apk --install --avd=${RUNNING_AVD:-<name>}"
+        ;;
+    esac
   fi
 fi
 
@@ -292,6 +418,20 @@ case "$ABI" in
     TOOLCHAIN="--target-platform=$P"
     CHOSEN="$ABI"
     ;;
+esac
+
+# `--target-platform` selects Flutter's engine and Dart snapshot; the plugins' .so
+# files are still packaged for every ABI unless Gradle is told which ones to keep
+# (`notelyAbi`). A phone-only release measured 40.5 MB with three ABIs of
+# libobjectbox-jni.so inside it — 4.3 MB that device can never load.
+case "$TOOLCHAIN" in
+  *--target-platform=android-arm64) export ORG_GRADLE_PROJECT_notelyAbi="arm64-v8a" ;;
+  *--target-platform=android-arm)   export ORG_GRADLE_PROJECT_notelyAbi="armeabi-v7a" ;;
+  *--target-platform=android-x64)   export ORG_GRADLE_PROJECT_notelyAbi="x86_64" ;;
+  *--target-platform=android-x86)   export ORG_GRADLE_PROJECT_notelyAbi="x86" ;;
+  *)
+    # --abi all: every ABI is wanted on purpose.
+    unset ORG_GRADLE_PROJECT_notelyAbi 2>/dev/null || true ;;
 esac
 
 # ---------------------------------------------------------------- adapt to this SDK
@@ -394,7 +534,20 @@ DEFINES="bin/.tmp/private_keys/dart_defines/$FLAVOR.json"
 
 # ---------------------------------------------------------------- signing
 if [ "$MODE" = "release" ] && [ -z "${RELEASE_KEYSTORE_PATH:-}" ]; then
-  cat >&2 <<'EOF'
+  DEBUG_KEYSTORE="$HOME/.android/debug.keystore"
+  if [ "$SIGN_DEBUG" = 1 ] && [ -f "$DEBUG_KEYSTORE" ]; then
+    # `--sign-debug`: a real release build (AOT Dart, R8, no VM) signed with the
+    # standard Android debug key. Everything that makes the APK big is a property
+    # of the build *type*; only the signature is the compromise, and that only
+    # matters if you later want to update an install signed with a store/upload key.
+    export RELEASE_KEYSTORE_PATH="$DEBUG_KEYSTORE"
+    export RELEASE_KEYSTORE_PASSWORD="android"
+    export RELEASE_KEY_ALIAS="androiddebugkey"
+    export RELEASE_KEY_PASSWORD="android"
+    warn "signing this release build with the Android DEBUG key ($DEBUG_KEYSTORE)."
+    warn "Fine for your own phone today; a future build signed with your own key will not update it in place."
+  else
+    cat >&2 <<'EOF'
 release builds need a keystore. Either export the four variables
 
   RELEASE_KEYSTORE_PATH=/abs/path/release.jks
@@ -407,9 +560,22 @@ or create one once (and keep it — losing it changes your app's identity):
   keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
           -validity 10000 -alias upload
 
+Want the small/fast build right now, without creating anything? Sign the release
+build with the Android debug key (already on this machine after any debug build):
+
+  bin/build_apk --release --sign-debug --abi arm64
+
 Use --debug if you just want something to install right now.
 EOF
-  exit 1
+    exit 1
+  fi
+fi
+
+# Release builds get their Dart symbols written outside the APK: they are what
+# `flutter symbolize` needs for a stack trace, and nothing on a phone reads them.
+SYMBOLS=""
+if [ "$MODE" = "release" ]; then
+  SYMBOLS="--split-debug-info=build/symbols"
 fi
 
 # ---------------------------------------------------------------- build
@@ -428,7 +594,7 @@ say "Building $FLAVOR ($MODE, $CHOSEN)…"
   --flavor="$FLAVOR" \
   --target="lib/main_$FLAVOR.dart" \
   --dart-define-from-file="$DEFINES" \
-  $TOOLCHAIN $VERBOSE
+  $SYMBOLS $TOOLCHAIN $VERBOSE
 
 APK="build/app/outputs/flutter-apk/app-$FLAVOR-$MODE.apk"
 [ -f "$APK" ] || die "the build finished but $APK is missing — check the output above."
@@ -438,6 +604,7 @@ printf '  file    %s\n' "$APK"
 printf '  size    %s\n' "$(du -h "$APK" | cut -f1)"
 printf '  abi     %s\n' "$CHOSEN"
 printf '  sha256  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)"
+printf '  report  bin/apk_report %s\n' "$APK"
 
 # ---------------------------------------------------------------- install
 if [ "$INSTALL" = 1 ]; then
@@ -459,7 +626,9 @@ or start it manually first:
   $EMU_DISPLAY -avd $FIRST_AVD &"
       fi
     fi
-    die "no device in 'adb devices' — plug the phone in (USB debugging) or start an AVD."
+    die "no device in 'adb devices' — plug the phone in (USB debugging) or start an AVD.
+For a phone: enable Developer options → USB debugging, accept the 'Allow USB debugging'
+prompt on the device, then check that 'adb devices' lists it as 'device' (not 'unauthorized')."
   fi
 
   ADB_TARGET=()
