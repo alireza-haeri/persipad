@@ -210,11 +210,17 @@ void main() {
     /// A raw socket, not `HttpClient`: `flutter_test` installs an HttpOverrides
     /// that answers every request with 400, which would make this test lie about
     /// the very code path it is here to protect.
-    Future<String> redirectFromInsideBrowser(String url, {String? overrideState}) async {
+    Future<String> redirectFromInsideBrowser(
+      String url, {
+      String? overrideState,
+      String? authorizationError,
+    }) async {
       final authorizeUri = Uri.parse(url);
       final redirectUri = Uri.parse(authorizeUri.queryParameters['redirect_uri']!);
       final state = overrideState ?? authorizeUri.queryParameters['state']!;
-      final query = 'code=the-code&state=${Uri.encodeQueryComponent(state)}';
+      final query = authorizationError == null
+          ? 'code=the-code&state=${Uri.encodeQueryComponent(state)}'
+          : 'error=${Uri.encodeQueryComponent(authorizationError)}&state=${Uri.encodeQueryComponent(state)}';
 
       final socket = await Socket.connect(redirectUri.host, redirectUri.port);
       try {
@@ -249,7 +255,26 @@ void main() {
       expect(token.refreshToken, 'refresh-token');
       // The tab must be answered while it is open, not when the app comes back.
       expect(page, startsWith('HTTP/1.1 200'));
-      expect(page, contains('Signed in'));
+      expect(page, contains('Authorization received'));
+      expect(page, contains('Return to StoryPad to finish signing in.'));
+      expect(page, isNot(contains('Signed in')));
+    });
+
+    test('an authorization denial is not shown as a successful sign-in', () async {
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url, authorizationError: 'access_denied');
+        return true;
+      });
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'access_denied')),
+      );
+
+      expect(page, startsWith('HTTP/1.1 200'));
+      expect(page, contains('Sign-in not completed'));
+      expect(page, isNot(contains('Signed in')));
     });
 
     test('a redirect with the wrong state is refused after being answered', () async {

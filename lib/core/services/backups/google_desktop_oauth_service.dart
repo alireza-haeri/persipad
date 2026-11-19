@@ -386,7 +386,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       request.response
         ..statusCode = io.HttpStatus.ok
         ..headers.contentType = io.ContentType.html
-        ..write(_completionPage());
+        ..write(_completionPage(authorizationReceived: hasCode && !hasError));
       await request.response.close();
 
       // Browsers ask for /favicon.ico unprompted; that must not consume the code.
@@ -439,12 +439,20 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     return Future.any([loopback, manual]);
   }
 
-  /// Shown in the browser tab once the redirect lands. Plain and unbranded on
-  /// purpose: it is the only HTML this app serves.
-  String _completionPage() =>
-      '<!doctype html><meta charset="utf-8"><title>StoryPad</title>'
-      '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
-      '<h2>Signed in</h2><p>You can close this tab and return to StoryPad.</p></body>';
+  /// Shown in the browser tab once the redirect lands. Receiving an authorization
+  /// code is not the same as completing sign-in: token exchange and user-info
+  /// requests still happen in the app, so the page must not claim that the user is
+  /// signed in yet. A denied/cancelled redirect gets a distinct, truthful message.
+  String _completionPage({required bool authorizationReceived}) {
+    final heading = authorizationReceived ? 'Authorization received' : 'Sign-in not completed';
+    final detail = authorizationReceived
+        ? 'Return to StoryPad to finish signing in.'
+        : 'Google did not complete authorization. Return to StoryPad and try again.';
+
+    return '<!doctype html><meta charset="utf-8"><title>StoryPad</title>'
+        '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
+        '<h2>$heading</h2><p>$detail</p></body>';
+  }
 
   Future<GoogleDesktopToken> _exchangeCode({
     required String code,
