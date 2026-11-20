@@ -335,3 +335,8 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 > The user also notes that Google account selection opens even though the app subsequently reports a connection failure.
 
 **Status:** ⏳ Fix and CI verification in progress. Google connectivity investigation remains paused; the browser and app requests can follow different network paths.
+
+### N-028 — Complete calendar-aware reminder scheduling (2026-11-19)
+> «خب کامل انجامش بده الان»
+
+**Status:** ⏳ Not complete. The user requests actual monthly/yearly reminders, not merely date calculation. Weekly selection already exists. Chosen behavior: intervals of 1–12 months, clamp missing days, follow the active calendar.

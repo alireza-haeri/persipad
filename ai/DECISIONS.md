@@ -1569,3 +1569,8 @@ Template:
 - The callback page uses the app's selected language and direction, with separate truthful messages for a received authorization and a denial. No web fonts, remote assets, OAuth codes or tokens are used in its return link.
 - Android browsers cannot be forced to close tabs with JavaScript; the Android action is explicitly called “Return to PersiPad” and uses a package-scoped intent to bring the existing app activity to the foreground. A visible back/manual-close instruction remains for browsers that block the intent. Other platforms keep a best-effort close button and the same fallback.
 - Only this harmless return intent is registered, with Flutter deep linking disabled for the activity; it must not be treated as an OAuth callback or a source of credentials. Test on the Android emulator and real phone before claiming universal browser support.
+
+## D-067 — Calendar reminder schedule foundation (2026-11-19)
+- **Status:** provisional implementation, not yet integrated or presented to users.
+- Store a Gregorian anchor date plus the intended numeric day and interval. Interpret the anchor's month under the current display calendar; retain the day number when switching calendars or clamping a shorter month. The pure model validates serialized data without changing generated code.
+- This does not solve delivery: background renewal, persistence integration, editing, cancellation, reboot and timezone behavior remain unfinished and must be verified before exposing the option.
