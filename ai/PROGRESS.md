@@ -1071,3 +1071,27 @@ The capture answers the open question in one line: `verdict=fakeDns` (proxy fake
 `verdict=dnsFailure` (no resolver in the guest), `tcpBlocked`/`tlsBlocked` (VPN routing or
 interception), or `verdict=ok` (then it is the OAuth half, and the `exchange: HTTP <status>`
 line says which).
+
+### Session 24 — one working branch; the paste-the-address dialog is gone (2026-11-20)
+
+The user asked for every branch except `main` and this one to be deleted, with the work
+preserved (`N-024`). `arena/7ba21f51-notely` was merged first (`b88c101`), not deleted:
+its OAuth completion page, gender illustration, device-preferences sync, Persian gallery
+localization, branding, automatic AVD resolver and fake-IP check all live here now, and
+the tag `archive/arena-7ba21f51-notely` keeps the exact history. `ci/codegen` was deleted —
+the `[codegen]` marker rebuilds it.
+
+**Conflict policy** (17 files): the reminder subsystem is this branch's (the completed one,
+`D-068`); the OAuth service is the redesign's flow plus this branch's connectivity probe
+(`D-069`); translations are the union of both sides (515 keys, en/fa parity); the docs keep
+both sessions' entries.
+
+**The dialog the user rejected is removed** (`D-070`): `manualRedirectPrompt`,
+`manualPromptDelay`, `_waitForRedirect`'s prompt branch, `BackupProvider._askForRedirectUri`,
+`_redirectAddressFromClipboard`, the `dialog.google_drive_redirect.*` keys and the tests that
+drove it. `bin/oauth_debug` stays as the way to find out why a redirect did not arrive.
+
+**Verification:** Linux CI [`44713743039`](https://github.com/alireza-haeri/persipad/actions/runs/44713743039)
+on `b88c101` — 7/7 green (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+package tests, Coverage). What CI cannot prove is the runtime: the merged build's sign-in on
+the device is the next thing to look at, with `bin/oauth_debug`.

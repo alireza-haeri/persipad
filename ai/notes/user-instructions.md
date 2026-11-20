@@ -409,3 +409,15 @@ It is part of the OAuth redesign that lives only on `arena/7ba21f51-notely`
 documents `export ANDROID_SERIAL=emulator-5554`).
 **Open:** confirm which branch the user builds, so the dialog removal can land where the code
 actually is.
+
+### N-024 — Delete every branch except `main` and this one, without losing their work
+> «همه برنچ های پروژه رو به غیر از main و برنچ خودت پاک کن. فقط مطمئن شو تغیراتی از اون برنچ ها حذف نشه»
+
+**Status:** ✅ done (`D-071`, `PROGRESS.md` §Session 24)
+**What I did:** merged `arena/7ba21f51-notely` into this branch first (`b88c101`) — so its
+redesign, onboarding, prefs sync, branding and Android tooling are part of the branch that
+goes to `main` — tagged its tip `archive/arena-7ba21f51-notely`, deleted the branch refs
+`arena/7ba21f51-notely` and `ci/codegen`, and removed the paste-the-address dialog (`D-070`)
+that the same message thread rejected.
+**Kept as this branch's version:** the reminder feature (completed here) and the sign-in
+connectivity probe; the redesign's OAuth flow sits underneath it.

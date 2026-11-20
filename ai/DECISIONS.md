@@ -1641,3 +1641,27 @@ Template:
   keys in both translation files (the unused-key test fails if they stay), and the
   corresponding tests. The loopback still needs a real fix on the device side, which is what
   `bin/oauth_debug` measures.
+
+## D-071 — One working branch: retire the rest only after merging what is unique (2026-11-20)
+- **Status:** accepted (user request, `N-024`)
+- **Context:** Four branches existed — `main`, `arena/95cdc5fd-persipad` (this one),
+  `arena/7ba21f51-notely` and the generated `ci/codegen`. The user asked for everything
+  except `main` and this branch to be deleted, with one condition: no change may be lost.
+  `arena/7ba21f51-notely` was not disposable — it carried the OAuth completion page and
+  localized callback, the gender illustration setting, device-preferences sync, Persian
+  gallery localization, the branding rename, the automatic AVD resolver (`D-055`) and the
+  fake-IP ping check (`D-056`), none of which existed here.
+- **Decision:**
+  1. Merge `arena/7ba21f51-notely` into this branch **before** deleting it (`b88c101`), so
+     the work lives in the branch that will be merged into `main`.
+  2. Keep the tag `archive/arena-7ba21f51-notely` on its last commit (`eda047c`), so the
+     exact history is recoverable even after the branch ref is gone.
+  3. Where both sides had a subsystem, this branch's version wins: the reminder feature is
+     the completed one (`D-068`), and the OAuth service keeps this branch's connectivity
+     probe (`D-069`) on top of the redesign's flow.
+  4. `ci/codegen` is deleted without a tag: it is regenerated and force-pushed by the
+     `[codegen]` commit marker, and its last content was already taken into `e9e519f`.
+- **Consequences:** Two branches remain (`main` and this one), plus one archive tag. The app
+  now has the redesign *and* the reminders *and* the sign-in diagnostics in one build — a
+  build from the merged branch is the only thing that needs testing. A future session that
+  needs the old branch can `git branch <name> archive/arena-7ba21f51-notely`.

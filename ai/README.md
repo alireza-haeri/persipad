@@ -69,3 +69,5 @@ At the end of every task:
 | 2026-11-16 | Session 12: Parallel branches (`c5`, `e3e`, `f599`, `ci/codegen`) reviewed, merged, verified on Fedora + CI, and consolidated onto `main` (`MERGE_REVIEW.md`, `D-047`…`D-049`) |
 | 2026-11-16 | Sessions 12–14: real Fedora/Android logs fixed (voice playback, no-op sync reloads, filter notifier), then the emulator "sign-in failed" traced to DNS (`D-053`), codegen-without-submodule made a skip (`D-054`), and the AVD resolver automated (`D-055`); `CHANGES.md` §8, `NEXT.md` rewritten |
 | 2026-11-20 | Session 22: custom calendar reminders completed from the plan (`D-068`, `CHANGES.md`, `PROGRESS.md`) |
+| 2026-11-20 | Session 23: a failed Google sign-in names the layer it died on — DNS, TCP, TLS or HTTP — instead of "no internet" (`D-069`, `bin/oauth_debug`, `ENVIRONMENT.md` §2.2d) |
+| 2026-11-20 | Session 24: one working branch. `arena/7ba21f51-notely` merged in and archived as the tag `archive/arena-7ba21f51-notely`, `ci/codegen` deleted (regenerated on demand), and the "paste the redirect address" dialog removed (`D-070`, `D-071`) |
