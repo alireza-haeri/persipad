@@ -340,3 +340,8 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 > «خب کامل انجامش بده الان»
 
 **Status:** ⏳ Not complete. The user requests actual monthly/yearly reminders, not merely date calculation. Weekly selection already exists. Chosen behavior: intervals of 1–12 months, clamp missing days, follow the active calendar.
+
+### N-029 — Complete and test reminders without another partial handoff (2026-11-19)
+> «این بار دیگه قابل قبول نیست. کامل این رو انجامش بده. انجامش بده. کامل کامل. تستش هم بکن.»
+
+**Status:** ⏳ Not complete. The request includes the editor, persistence, calendar-aware scheduling, reliable background delivery and device verification.

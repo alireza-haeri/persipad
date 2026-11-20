@@ -9,6 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'package:storypad/core/objects/reminder_object.dart';
 import 'package:storypad/core/services/notifications/reminder_navigation_service.dart';
+import 'package:storypad/core/services/notifications/reschedule_queue.dart';
 import 'package:storypad/core/services/on_this_day_prediction_service.dart';
 import 'package:storypad/core/storages/device_preferences_storage.dart';
 import 'package:storypad/core/types/notification_channel.dart';
@@ -29,8 +30,7 @@ class LocalNotificationService {
   GlobalKey<NavigatorState>? _navigatorKey;
   bool _initialized = false;
 
-  int _rescheduleVersion = 0;
-  Future<void> _rescheduleQueue = Future<void>.value();
+  late final RescheduleQueue<List<ReminderObject>?> _rescheduleQueue = RescheduleQueue(_runReschedule);
 
   bool get supported => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
@@ -110,19 +110,15 @@ class LocalNotificationService {
   Future<void> rescheduleAll(List<ReminderObject>? reminders) {
     if (!supported || !_initialized) return Future<void>.value();
 
-    final version = ++_rescheduleVersion;
-
-    final run = _rescheduleQueue.then((_) => _runReschedule(version, reminders));
-    _rescheduleQueue = run;
-    return run;
+    return _rescheduleQueue.schedule(reminders);
   }
 
-  Future<void> _runReschedule(int version, List<ReminderObject>? reminders) async {
-    if (version != _rescheduleVersion) return;
+  Future<void> _runReschedule(List<ReminderObject>? reminders, bool Function() isCurrent) async {
+    if (!isCurrent()) return;
 
     await _plugin.cancelAll();
     for (final reminder in reminders ?? const <ReminderObject>[]) {
-      if (version != _rescheduleVersion) return;
+      if (!isCurrent()) return;
       if (reminder.type == ReminderType.custom && (reminder.message?.trim().isEmpty ?? true)) continue;
       if (reminder.enabled) await _schedule(reminder);
     }

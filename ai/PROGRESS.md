@@ -916,3 +916,7 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 ### 2026-11-19 — Calendar reminder follow-up (unfinished)
 - Added a standalone serializable schedule model and tests for calendar switching, day preservation and invalid persisted values. It is not wired into reminder storage or the editor, and does not schedule notifications.
 - Critical remaining work: durable background renewal and delivery on Android (including reboot and timezone changes), editor and summary, storage migration, rescheduling on calendar changes and end-to-end device tests. Do not claim the feature is complete.
+
+### 2026-11-19 — Reminder scheduler hardening (feature still incomplete)
+- Fixed the existing rescheduling queue so a notification plugin error does not permanently block all later rescheduling attempts; added tests for failure recovery, serialization and coalescing.
+- This does not implement monthly/yearly reminders: no editor, persistence integration or durable calendar-aware background delivery exists yet. Flutter SDK and Android devices are not available in this sandbox. CI verification is required.
