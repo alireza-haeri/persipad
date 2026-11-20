@@ -44,6 +44,9 @@ class CalendarRecurrence {
     final current = system.isPersian ? PersianCalendar.of(after) : PersianDate(after.year, after.month, after.day);
     final anchorIndex = anchorYear * 12 + anchorMonth - 1;
     final currentIndex = current.year * 12 + current.month - 1;
+    // Start at the interval step the current date falls in, so a long series
+    // (a yearly reminder that has been running for years) costs one loop
+    // iteration instead of one per occurrence since the anchor.
     final elapsed = currentIndex - anchorIndex;
     var occurrence = elapsed <= 0 ? 0 : elapsed ~/ intervalMonths;
 
