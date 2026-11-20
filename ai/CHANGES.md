@@ -410,3 +410,18 @@ without a widget.
 | Generated code + formatting | the `[codegen]` job (`44703366204`) published `ci/codegen`; the regenerated `reminder_object.g.dart` and the two formatting fixes were taken from it, and the final run above is green with no format annotation |
 | Pure logic (recurrence, clamping, leap years, calendar switch, legacy records, editor mapping, queue) | new tests listed in `PROGRESS.md` §Session 22 |
 | Delivery while closed / reboot / time zone / blocked notifications | **not verified** — device steps in `PROGRESS.md` |
+
+## 9. Session 23 — "no internet" now names the layer (2026-11-20)
+
+A Google sign-in that returns `No internet connection!` after the consent page used to be
+one indistinguishable message for DNS, TCP, TLS, a 30 s timeout and a rejected token request.
+
+| File | What it does | What proves it |
+|---|---|---|
+| `lib/core/services/backups/google_connectivity_service.dart` (new) | probes one Google host through DNS → TCP :443 → TLS → HTTPS, returns `ok`/`dnsFailure`/`fakeDns`/`tcpBlocked`/`tlsBlocked`/`httpBlocked` with per-step timings and advice; flags fake-IP (`198.18/15`) and private/CGNAT/loopback addresses, IPv4 and IPv6 | `test/core/services/backups/google_connectivity_service_test.dart` (classification + summary/advice) |
+| `lib/core/services/backups/google_desktop_oauth_service.dart` | one `google-oauth` tag: start, loopback port, `browser: opened=`, redirect, `exchange: HTTP`, `userinfo: HTTP`, `transport failure: <class> — <message>`, and a probe on start and after a failure | analyzer + existing OAuth tests; log lines are device-only |
+| `bin/oauth_debug` (new) | device facts, guest `ping` of the three Google names with the address classified, `toybox nc` check, 120 s `adb logcat`, then the diagnosis and the matching fix; `--analyze <file>` for a saved capture | `bash -n`, and `--analyze` on a synthetic fake-IP log prints the fake-IP diagnosis |
+| `ai/ENVIRONMENT.md` §2.2d | the fake-IP case, the two fixes, and the command | — |
+
+**Not claimed:** the root cause, and the probe against a real network. Both need the user's
+emulator; `PROGRESS.md` §Session 23 lists the exact next step.

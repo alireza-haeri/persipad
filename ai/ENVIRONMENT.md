@@ -113,6 +113,38 @@ a two-line diagnosis instead of a Dart stack trace. Since D-053 the app also rep
 unreachable Google as a network problem ("No internet connection!") rather than printing
 the raw `ClientException`.
 
+### 2.2d When "No internet" is really a fake-IP DNS (D-069)
+
+A second failure looks identical from inside the app and is *not* fixed by `--dns-server`
+alone: a proxy on the host (Clash/mihomo/Clash Verge, and VPNs that run one) answers DNS
+itself and hands out addresses from `198.18.0.0/15`. The browser still works because it uses
+its own secure DNS; the app gets `198.18.x.x`, connects to nothing, and reports "no internet".
+Worse, on this path the block is usually *before* the sign-in even starts, and a VPN on the
+host does not change the guest's resolver.
+
+One command now answers which of the two it is:
+
+```bash
+bin/build_apk --install --launch   # the logging is app-side, so the APK must be rebuilt
+bin/oauth_debug                    # facts + 120s of logs + the diagnosis
+# then, in the app: Settings → Data backup → Google Drive → Sign in
+```
+
+It prints, and saves to `build/oauth_debug_<timestamp>.log`:
+
+- the guest's own `ping` of `oauth2.googleapis.com`, `www.googleapis.com`,
+  `accounts.google.com` with the address it got, classified real / private / **fake-IP**;
+- the app's `[google-oauth]` lines — loopback port, whether the browser opened, whether the
+  redirect came back, `exchange: HTTP <status>`, and a DNS→TCP→TLS→HTTP probe per host;
+- the matching fix: fake-IP → exclude Google from the proxy's fake-IP DNS
+  (`fake-ip-filter: ["+.googleapis.com", "+.google.com"]`) or set the guest's private DNS
+  (`adb shell settings put global private_dns_mode hostname` +
+  `private_dns_specifier dns.google`); `dnsFailure` → `--dns-server=8.8.8.8` as in §2.2c;
+  `tcpBlocked`/`tlsBlocked` → proxy routing or interception.
+
+A capture taken on another machine can be analysed here: `bin/oauth_debug --analyze <file>`.
+No code, token or secret is written to the log.
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
@@ -273,6 +305,8 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | Android build fails looking for `platforms;android-36` when machine has `android-36.1` | plugins pin `< 36`, `android/build.gradle.kts` raises to `36` without minor | fixed in `d3d534e`: `notelyCompileSdkMinor` aligns `app` and `LibraryExtension` plugins to `36.1` |
 | `emulator: command not found` or `bin/build_apk --install` exited silently with no device | SDK `emulator/`/`platform-tools/` not on `PATH`; `pipefail` tripped on empty `adb` | fixed in `0cb892f`: `bin/build_apk` resolves `$SDK/{emulator,platform-tools}` and adds `--avd` |
 | On the emulator: `Sign-in failed: ClientException … Failed host lookup: 'oauth2.googleapis.com' … errno = 7` | the AVD got a resolver it cannot use (host uses systemd-resolved's `127.0.0.53` stub) | reboot with `--dns-server=8.8.8.8` (§2.2c), then `adb shell ping -c1 oauth2.googleapis.com` |
+| Google sign-in says "No internet connection!" although the browser reached Google | one message covers DNS, TCP, TLS and a rejected token request | `bin/oauth_debug` — it names the layer and prints the fix (§2.2d) |
+| `adb shell ping oauth2.googleapis.com` answers `198.18.x.x` | a proxy on the host answers DNS with fake IPs | exclude Google from the fake-IP DNS or set the guest's private DNS (§2.2d) |
 | `build_runner`/`bin/setup_linux` failed on `Directory ../static/sources/story_backgrounds not found` | the artwork submodule is not checked out (normal for this repo) | fixed: the generator now skips and keeps the committed `lib/gen/story_backgrounds.dart` |
 
 ## 2.6 Known Linux limitations (product-level, not build errors)

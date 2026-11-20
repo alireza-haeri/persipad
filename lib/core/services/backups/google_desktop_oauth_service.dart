@@ -5,6 +5,8 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:storypad/core/services/app_logger.dart';
+import 'package:storypad/core/services/backups/google_connectivity_service.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
@@ -100,6 +102,12 @@ class GoogleDesktopToken {
 /// Dropbox there is nothing to register beyond the client itself — the server
 /// binds port 0 and tells Google the port it got.
 class GoogleDesktopOAuthService implements GoogleOAuthClient {
+  /// One log tag for the whole sign-in flow, so `adb logcat -s flutter | grep
+  /// google-oauth` shows the story in order: where it started, whether the
+  /// browser opened, whether the loopback got the redirect, and where the token
+  /// request stopped. No token, code or client secret is ever logged.
+  static const String logTag = 'google-oauth';
+
   static const String authorizeUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
   static const String tokenUrl = 'https://oauth2.googleapis.com/token';
   static const String userInfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
@@ -148,17 +156,30 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     try {
       return await request().timeout(requestTimeout);
     } on io.SocketException catch (e) {
+      _logTransportFailure('SocketException', e);
       throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
     } on http.ClientException catch (e) {
+      _logTransportFailure('ClientException', e);
       throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
     } on io.TlsException catch (e) {
+      _logTransportFailure('TlsException', e);
       throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
     } on TimeoutException {
+      _logTransportFailure('TimeoutException', 'no answer within ${requestTimeout.inSeconds}s');
       throw GoogleOAuthException(
         _offlineMessage('no answer within ${requestTimeout.inSeconds}s'),
         error: GoogleOAuthException.offline,
       );
     }
+  }
+
+  /// Logs the *class* of a transport failure plus its short message. `package:http`
+  /// surfaces the useful part (`Failed host lookup: …`, `Connection refused`)
+  /// inside the message; the surrounding URL and headers are not logged.
+  static void _logTransportFailure(String kind, Object error) {
+    final detail = error.toString().replaceAll(RegExp(r'\s+'), ' ');
+    final trimmed = detail.length > 240 ? '${detail.substring(0, 240)}…' : detail;
+    AppLogger.warning('transport failure: $kind — $trimmed', tag: logTag);
   }
 
   static String _offlineMessage(String detail) => "Couldn't reach Google ($detail).";
@@ -277,11 +298,17 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   @override
   Future<GoogleDesktopToken> authenticate() async {
     if (!config.isConfigured) {
+      AppLogger.warning('authenticate: no OAuth client is configured for this build', tag: logTag);
       throw const GoogleOAuthException(
         'No Google OAuth client is configured for this build.',
         error: 'not_configured',
       );
     }
+
+    AppLogger.info('authenticate: start', tag: logTag);
+    // Fire-and-forget: the probe takes a few seconds and must never delay the
+    // browser, but its lines are what turn "no internet" into a named layer.
+    unawaited(_logConnectivity('on start'));
 
     final codeVerifier = generateCodeVerifier();
     final state = generateState();
@@ -290,6 +317,8 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // the port as a wildcard for desktop clients, so this needs no registration
     // and cannot collide with another instance.
     final server = await io.HttpServer.bind(io.InternetAddress.loopbackIPv4, 0);
+    AppLogger.info('loopback: listening on 127.0.0.1:${server.port}', tag: logTag);
+
     try {
       final redirectUri = 'http://127.0.0.1:${server.port}';
 
@@ -301,6 +330,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       );
 
       final opened = await _openBrowser(url.toString());
+      AppLogger.info('browser: opened=$opened', tag: logTag);
       if (!opened) {
         throw const GoogleOAuthException(
           'Could not open a browser for the Google sign-in page.',
@@ -310,8 +340,16 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
 
       final redirect = await _awaitRedirect(server);
       final code = parseRedirectCode(redirect, expectedState: state);
+      AppLogger.info('redirect: authorization code received (${code.length} chars, value never logged)', tag: logTag);
 
       return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
+    } on GoogleOAuthException catch (error) {
+      AppLogger.warning('authenticate: failed (${error.error}) — re-probing the network', tag: logTag);
+      // `exchange` is the phase that fails in the report this was written for, so
+      // the probe is repeated *after* the failure: it shows the state at the
+      // moment it broke, not only what it was when the browser opened.
+      unawaited(_logConnectivity('after failure'));
+      rethrow;
     } finally {
       await server.close(force: true);
     }
@@ -329,6 +367,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
 
       // Browsers ask for /favicon.ico unprompted; that must not consume the code.
       if (request.uri.queryParameters.containsKey('code') || request.uri.queryParameters.containsKey('error')) {
+        AppLogger.info(
+          'loopback: redirect received (code=${request.uri.queryParameters.containsKey('code')}, '
+          'error=${request.uri.queryParameters['error'] ?? 'none'})',
+          tag: logTag,
+        );
         request.response
           ..statusCode = io.HttpStatus.ok
           ..headers.contentType = io.ContentType.html
@@ -358,6 +401,51 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     }
   }
 
+  /// The probe that is currently running, if any.
+  ///
+  /// A sign-in starts a probe and a *failing* sign-in queues another one; without
+  /// this chain the two would interleave their lines and make the log unreadable
+  /// — and the post-failure probe would report an older state than it claims.
+  static Future<void>? _probeInFlight;
+
+  /// Logs one four-layer probe per Google host. Never throws: a diagnostic that
+  /// can break the flow it is diagnosing is worse than no diagnostic.
+  static Future<void> _logConnectivity(String phase) async {
+    final previous = _probeInFlight;
+    final current = _runProbes(phase, previous);
+    _probeInFlight = current;
+    try {
+      await current;
+    } finally {
+      if (identical(_probeInFlight, current)) _probeInFlight = null;
+    }
+  }
+
+  static Future<void> _runProbes(String phase, Future<void>? previous) async {
+    // A probe the caller never awaited can still fail; that must not kill this one.
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    for (final host in GoogleConnectivityService.hosts) {
+      try {
+        final result = await GoogleConnectivityService.check(host: host);
+        for (final step in result.steps) {
+          AppLogger.info('connectivity[$phase] $host $step', tag: logTag);
+        }
+        AppLogger.info('connectivity[$phase] ${result.summary}', tag: logTag);
+        final advice = result.advice;
+        if (advice != null) AppLogger.warning('connectivity[$phase] advice: $advice', tag: logTag);
+      } catch (error) {
+        AppLogger.warning('connectivity[$phase] $host probe failed (${error.runtimeType})', tag: logTag);
+      }
+    }
+  }
+
   /// Shown in the browser tab once the redirect lands. Plain and unbranded on
   /// purpose: it is the only HTML this app serves.
   String _completionPage() =>
@@ -370,6 +458,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     required String codeVerifier,
     required String redirectUri,
   }) async {
+    AppLogger.info('exchange: posting to the token endpoint', tag: logTag);
     final response = await _send(
       () => _client.post(
         Uri.parse(tokenUrl),
@@ -384,6 +473,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       ),
     );
 
+    AppLogger.info('exchange: HTTP ${response.statusCode}', tag: logTag);
     return parseTokenResponse(response);
   }
 
@@ -425,6 +515,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         headers: {'Authorization': 'Bearer $accessToken'},
       ),
     );
+    AppLogger.info('userinfo: HTTP ${response.statusCode}', tag: logTag);
 
     if (response.statusCode != 200) {
       throw GoogleOAuthException(

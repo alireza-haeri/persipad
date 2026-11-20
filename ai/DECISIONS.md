@@ -1356,3 +1356,41 @@ Template:
 - **Decision — ids and queue:** notification ids are allocated sequentially per reschedule pass after `cancelAll()`, which removes the old hand-built id arithmetic (`reminderId * 10 + slot`) that collided across types. Updates are serialized by `RescheduleQueue`, which coalesces superseded snapshots and — unlike the previous inline queue — keeps working after a plugin/permission failure.
 - **Decision — reboot, time zone, permissions:** the plugin's `ScheduledNotificationBootReceiver` (already declared) restores alarms after a reboot. Dart receives no time-zone broadcast, so the service compares the device zone on resume and reschedules when it moved. Scheduling stays *inexact* on purpose (no `SCHEDULE_EXACT_ALARM`), and the reminders screen now says so explicitly when Android reports that the app's notifications are blocked, because a silently dropped reminder is worse than a late one.
 - **Consequences:** the promise is bounded and stated: alarms can be a few minutes late under Doze, and an app that is never opened for years stops renewing its window. iOS/macOS share the code but are not a commitment. Everything that decides *when* a reminder fires is pure (`ReminderSchedulePlanner`) and covered by tests; anything that needs the OS (delivery, reboot, Doze) is listed as a device test in `PROGRESS.md` rather than claimed.
+
+## D-069 — A failed Google sign-in must name the layer that failed, not "no internet" (2026-11-20)
+- **Status:** accepted
+- **Context:** Signing in on the emulator showed `No internet connection!` after the browser
+  had already reached Google, let the user pick an account and redirected back. The same
+  translated line is produced for every `BackupErrorType.network` — DNS, TCP, TLS, a 30 s
+  timeout, or Google rejecting the token request — so the screen carried no information and
+  the same symptom had already been diagnosed once by guessing (session 13, `D-053`). A VPN
+  on the host changed nothing, which points at the host↔guest resolver/routing path rather
+  than at credentials, but that was still a hypothesis.
+- **Decision:**
+  1. `GoogleConnectivityService.check(host)` measures the four layers a request crosses —
+     `InternetAddress.lookup` → TCP `:443` → TLS handshake → one anonymous
+     `GET https://<host>/` — with a timeout and a per-step duration, and returns a
+     `GoogleReachability` verdict (`ok`, `dnsFailure`, `fakeDns`, `tcpBlocked`,
+     `tlsBlocked`, `httpBlocked`) plus one line of device-side advice. It never throws: a
+     diagnostic that can break the flow it diagnoses is worse than none.
+  2. `fakeDns` is a first-class verdict. Addresses in `198.18.0.0/15` (Clash/mihomo fake-IP
+     pools), `10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `100.64/10`,
+     `0/8` and their IPv6 equivalents (loopback, `fc00::/7`, `fe80::/10`, IPv4-mapped) are
+     flagged: that pattern makes a browser (own secure DNS) work while every app fails, which
+     is exactly the report.
+  3. `GoogleDesktopOAuthService` logs the whole flow under one tag, `google-oauth`: start,
+     loopback port, `browser: opened=`, `loopback: redirect received`, `exchange: HTTP`,
+     `userinfo: HTTP`, `transport failure: <class> — <message>`, and a probe on start and
+     again *after* a failure (the state at the moment it broke). Authorization codes, tokens
+     and the client secret are never logged.
+  4. `bin/oauth_debug` collects it in one command: device facts, the guest's own `ping` of
+     `oauth2.googleapis.com`/`www.googleapis.com`/`accounts.google.com` with the returned
+     address classified as real/private/fake-IP, a `toybox nc` TCP check, a 120 s `adb logcat`
+     capture (`flutter`, `chromium`, `AndroidRuntime`), then the analysis and the fix that
+     matches the verdict. `--analyze <file>` runs the analysis on a saved capture.
+- **Consequences:** "no internet" becomes a named layer with a concrete fix (fake-IP filter,
+  guest private DNS, `--dns-server=8.8.8.8`, proxy routing, or "it is not the network at
+  all, look at `exchange: HTTP <status>`"). The probe costs nothing on a healthy sign-in
+  (fire-and-forget) and up to a few seconds only when a request already failed. Address
+  classification is unit-tested; the probe itself and the sign-in are device-only, so the
+  `PROGRESS.md` §Session 23 entry explicitly does **not** claim a root cause yet.

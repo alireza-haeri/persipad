@@ -23,6 +23,28 @@ below is older and less visible than a reminder that quietly does not fire.
 
 ---
 
+## 0.1 👤 Send one Google sign-in capture (session 23, 2026-11-20)
+
+The app now says *where* a Google request dies and `bin/oauth_debug` captures it (device
+facts, the guest's own `ping` of the three Google names, a 120 s `adb logcat`, then the
+diagnosis). The cause is not claimed until that log exists — the same symptom was already
+once diagnosed as plain DNS (`D-053`) and came back, so guessing again would waste the round.
+
+```bash
+bin/build_apk --install --launch          # app-side logging: needs a rebuilt APK
+bin/oauth_debug                           # Settings → Data backup → Google Drive → Sign in
+```
+
+**Then:** read `build/oauth_debug_*.log` (or `bin/oauth_debug --analyze <file>`). The verdict
+line decides the fix — `fakeDns` (proxy fake-IP DNS, the "browser works, app doesn't" case),
+`dnsFailure` (`--dns-server=8.8.8.8`), `tcpBlocked`/`tlsBlocked` (VPN routing/interception),
+or `ok` (not the network: look at `exchange: HTTP <status>`). Details: `ENVIRONMENT.md` §2.2d.
+
+**Why it is above the reminders list:** a sign-in that always fails blocks the entire Drive
+feature, and one paste of a log settles it.
+
+---
+
 ## 1. Do these first — they are blocked only on information you have
 
 ### 1.1 👤 The Fedora APK verdict (blocks everything about Android)

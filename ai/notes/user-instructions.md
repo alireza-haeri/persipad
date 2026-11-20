@@ -291,3 +291,23 @@ question, so the next session does not have to guess.
 **Note:** I did not merge the unrelated work that shares that branch (gender onboarding,
 device-preferences sync, OAuth redesign, branding). Porting it would have mixed three
 different features into one change, and the plan only needs the reminder part.
+
+### N-022 — Google sign-in says "no internet": log it properly first, then decide
+> «می‌خوام یه موضوع دیگه رو کار کنم… مشکل من گوگل لاگینه: می‌زنم sign in → می‌ره گوگل → اکانت رو انتخاب می‌کنم → برمی‌گرده می‌گه اینترنت نیست، ارتباط قطعه. با VPN هم امتحان کردم فرقی نکرد. یه دستور بده که درست لاگ کنه؛ لاگ‌ها رو بررسی کنیم بفهمیم دقیقاً مشکل چیه»
+
+**Status:** 🔎 diagnostics implemented (`D-069`); waiting for one capture from the user's emulator before naming a cause
+**What was asked:** a **command** that produces real logs, so we stop guessing and know exactly what breaks.
+**What was built:**
+1. The app now logs where the request dies — DNS, TCP, TLS or HTTP — for each Google host
+   (`google-oauth` tag), including the state *after* a failure, and never logs a code or token.
+2. `bin/oauth_debug` is that command: device facts, the guest's own `ping` of the three Google
+   names with the address classified (real / private / **fake-IP**), a TCP check, a 120 s
+   `adb logcat`, then the diagnosis and the fix that matches it. `--analyze <file>` reads a
+   capture without a device.
+3. `ai/ENVIRONMENT.md` §2.2d documents both the fake-IP case and the two fixes.
+**Why not a fix yet:** the previous round diagnosed the *same* symptom as DNS (`D-053`,
+session 13) and it came back, so repeating that guess would be dishonest. "A VPN doesn't
+help" fits a host↔guest resolver/routing problem, and fake-IP DNS explains "browser works,
+app doesn't" exactly — but both stay hypotheses until the capture says so.
+**Next:** `bin/build_apk --install --launch` then `bin/oauth_debug`; send back the
+`build/oauth_debug_*.log` (or its `[google-oauth]` lines).

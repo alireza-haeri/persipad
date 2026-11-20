@@ -3,9 +3,9 @@
 **Last updated:** 2026-11-20
 > Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md). The reminder work of sessions 20–21 lives on `arena/7ba21f51-notely` and is ported here by session 22.
 
-**Current session:** session 22 — custom calendar reminders completed from `REMINDER_IMPLEMENTATION_PLAN.md` (`D-068`)
+**Current session:** session 23 — Google sign-in reports "no internet": the log now names the layer (`D-069`)
 **Branch:** `arena/95cdc5fd-persipad`, branched from `main` at `a87f0147`
-**Phase:** ✅ Implemented and verified by CI — Linux run `44703732346` is 7/7 green (Scope, Analyze, Test 1+2, Build Linux desktop, Editor package tests, Coverage) on `e9e519f`, including the regenerated `reminder_object.g.dart`. The end-to-end device test (create → receive while closed → reboot → time zone → blocked notifications) is the user's; steps in §Session 22.
+**Phase:** 🔎 **Diagnostics shipped, cause not yet confirmed.** Session 22 (custom reminders, `D-068`) is finished: Linux run `44703732346` 7/7 green on `e9e519f`, device steps in §Session 22. For the sign-in problem the app now logs DNS/TCP/TLS/HTTP per Google host and `bin/oauth_debug` captures it; **no root cause is claimed until a capture from the user's emulator is read** (§Session 23).
 
 ---
 
@@ -692,3 +692,63 @@ coalescing rules.
 
 **Known limits, on purpose:** delivery is inexact (may be a few minutes late under Doze), and
 an app that is never opened for years stops renewing its 24-date window.
+
+### Session 23 — Google sign-in: the log names the layer, not "no internet" (2026-11-20)
+
+**The report.** Tap *Sign in* → the browser opens the Google consent page → pick the account →
+return to the app → `No internet connection!` / "connection lost". A VPN on the host changes
+nothing.
+
+**What the code already tells us** (read, not guessed):
+
+| Layer | Where | What it does today |
+|---|---|---|
+| Message | `BackupProvider.signIn` | every `BackupErrorType.network` becomes `snack_bar.no_internet` — DNS, TCP, TLS, timeout *and* a rejected token request all look identical |
+| Transport | `GoogleDesktopOAuthService._send` | `SocketException`/`ClientException`/`TlsException`/30 s timeout → `GoogleOAuthException(error: 'offline')`, text `Couldn't reach Google (<detail>)`. The `<detail>` (`Failed host lookup … errno = 7`, `Connection refused`, `HandshakeException`) is the only real evidence |
+| Visible logs | `AppLogger` | 50 lines in memory, printed **only in debug builds**, one line per failure |
+| Build | `bin/build_apk` | already knows Fedora's `systemd-resolved` (`127.0.0.53`) is unusable in the guest: warns, offers `--dns-server=8.8.8.8`, and pings `oauth2.googleapis.com` after boot |
+
+So the same symptom was diagnosed once before as **DNS** (session 13, `D-053`) and "a VPN
+doesn't help" fits a host↔guest resolver/routing problem, not credentials — but that is a
+hypothesis, and this session is about replacing it with evidence instead of re-guessing.
+
+**What changed (`D-069`)**
+
+- `GoogleConnectivityService` probes one Google host layer by layer — `lookup` → TCP :443 →
+  TLS handshake → one anonymous `GET https://<host>/` — and returns a verdict:
+  `ok` · `dnsFailure` · `fakeDns` · `tcpBlocked` · `tlsBlocked` · `httpBlocked`, with a
+  timing per step and one line of device-side advice. `fakeDns` is the reason it exists:
+  `198.18.0.0/15` (Clash/mihomo "fake IP") plus private/CGNAT/loopback ranges, IPv4 and
+  IPv6, are flagged, because that pattern makes a browser work and every app fail.
+- `GoogleDesktopOAuthService` logs the flow under one tag, `google-oauth`: start, loopback
+  port, `browser: opened=`, `loopback: redirect received`, `exchange: HTTP <status>`,
+  `userinfo: HTTP <status>`, plus `transport failure: <class> — <message>` (240 chars) and a
+  full connectivity probe **on start and again after a failure**. No code, token or client
+  secret is ever logged.
+- `bin/oauth_debug` — one command: device facts (model, time zone, private-DNS mode), the
+  guest's own `ping` of the three Google names with the address it got classified as
+  real/private/fake-IP, a `toybox nc` TCP check, a 120 s `adb logcat` capture filtered to
+  `flutter`/`chromium`/`AndroidRuntime`, then the analysis and the matching fix. Works
+  without a device on a saved log: `bin/oauth_debug --analyze <file>`.
+
+**Verification**
+
+- The probe's address classification is unit-tested (`test/core/services/backups/google_connectivity_service_test.dart`):
+  fake-IP/private/CGNAT/loopback ranges flagged, real Google addresses not, IPv6 and
+  IPv4-mapped forms handled, and every failing verdict carries advice.
+- `bin/oauth_debug --analyze` was run on a synthetic log and prints the fake-IP diagnosis
+  correctly; `bash -n` is clean.
+- **Not verified:** anything that needs the user's machine — the probe against their real
+  network, and the actual sign-in. That is the next step, not a conclusion.
+
+**Next step (awaiting the user)**
+
+```bash
+bin/build_apk --install --launch          # the new logging needs a rebuilt APK
+bin/oauth_debug                           # then: Settings → Data backup → Google Drive → Sign in
+```
+
+The capture answers the open question in one line: `verdict=fakeDns` (proxy fake-IP DNS),
+`verdict=dnsFailure` (no resolver in the guest), `tcpBlocked`/`tlsBlocked` (VPN routing or
+interception), or `verdict=ok` (then it is the OAuth half, and the `exchange: HTTP <status>`
+line says which).
