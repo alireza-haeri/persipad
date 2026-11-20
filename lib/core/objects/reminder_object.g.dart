@@ -19,6 +19,14 @@ abstract class _$ReminderObjectCWProxy {
 
   ReminderObject weekdays(List<int> weekdays);
 
+  ReminderObject recurrence(ReminderRecurrence? recurrence);
+
+  ReminderObject intervalMonths(int? intervalMonths);
+
+  ReminderObject anchorDate(DateTime? anchorDate);
+
+  ReminderObject anchorDay(int? anchorDay);
+
   ReminderObject message(String? message);
 
   ReminderObject templateId(int? templateId);
@@ -43,6 +51,10 @@ abstract class _$ReminderObjectCWProxy {
     int hour,
     int minute,
     List<int> weekdays,
+    ReminderRecurrence? recurrence,
+    int? intervalMonths,
+    DateTime? anchorDate,
+    int? anchorDay,
     String? message,
     int? templateId,
     String? galleryTemplateId,
@@ -77,6 +89,18 @@ class _$ReminderObjectCWProxyImpl implements _$ReminderObjectCWProxy {
   ReminderObject weekdays(List<int> weekdays) => call(weekdays: weekdays);
 
   @override
+  ReminderObject recurrence(ReminderRecurrence? recurrence) => call(recurrence: recurrence);
+
+  @override
+  ReminderObject intervalMonths(int? intervalMonths) => call(intervalMonths: intervalMonths);
+
+  @override
+  ReminderObject anchorDate(DateTime? anchorDate) => call(anchorDate: anchorDate);
+
+  @override
+  ReminderObject anchorDay(int? anchorDay) => call(anchorDay: anchorDay);
+
+  @override
   ReminderObject message(String? message) => call(message: message);
 
   @override
@@ -107,6 +131,10 @@ class _$ReminderObjectCWProxyImpl implements _$ReminderObjectCWProxy {
     Object? hour = const $CopyWithPlaceholder(),
     Object? minute = const $CopyWithPlaceholder(),
     Object? weekdays = const $CopyWithPlaceholder(),
+    Object? recurrence = const $CopyWithPlaceholder(),
+    Object? intervalMonths = const $CopyWithPlaceholder(),
+    Object? anchorDate = const $CopyWithPlaceholder(),
+    Object? anchorDay = const $CopyWithPlaceholder(),
     Object? message = const $CopyWithPlaceholder(),
     Object? templateId = const $CopyWithPlaceholder(),
     Object? galleryTemplateId = const $CopyWithPlaceholder(),
@@ -138,6 +166,22 @@ class _$ReminderObjectCWProxyImpl implements _$ReminderObjectCWProxy {
           ? _value.weekdays
           // ignore: cast_nullable_to_non_nullable
           : weekdays as List<int>,
+      recurrence: recurrence == const $CopyWithPlaceholder()
+          ? _value.recurrence
+          // ignore: cast_nullable_to_non_nullable
+          : recurrence as ReminderRecurrence?,
+      intervalMonths: intervalMonths == const $CopyWithPlaceholder()
+          ? _value.intervalMonths
+          // ignore: cast_nullable_to_non_nullable
+          : intervalMonths as int?,
+      anchorDate: anchorDate == const $CopyWithPlaceholder()
+          ? _value.anchorDate
+          // ignore: cast_nullable_to_non_nullable
+          : anchorDate as DateTime?,
+      anchorDay: anchorDay == const $CopyWithPlaceholder()
+          ? _value.anchorDay
+          // ignore: cast_nullable_to_non_nullable
+          : anchorDay as int?,
       message: message == const $CopyWithPlaceholder()
           ? _value.message
           // ignore: cast_nullable_to_non_nullable
@@ -189,6 +233,18 @@ ReminderObject _$ReminderObjectFromJson(Map<String, dynamic> json) =>
               ?.map((e) => (e as num).toInt())
               .toList() ??
           const [],
+      recurrence: json['recurrence'] == null
+          ? null
+          : $enumDecode(
+              _$ReminderRecurrenceEnumMap,
+              json['recurrence'],
+              unknownValue: ReminderRecurrence.daily,
+            ),
+      intervalMonths: (json['interval_months'] as num?)?.toInt(),
+      anchorDate: json['anchor_date'] == null
+          ? null
+          : DateTime.parse(json['anchor_date'] as String),
+      anchorDay: (json['anchor_day'] as num?)?.toInt(),
       message: json['message'] as String?,
       templateId: (json['template_id'] as num?)?.toInt(),
       galleryTemplateId: json['gallery_template_id'] as String?,
@@ -206,12 +262,23 @@ Map<String, dynamic> _$ReminderObjectToJson(ReminderObject instance) =>
       'hour': instance.hour,
       'minute': instance.minute,
       'weekdays': instance.weekdays,
+      'recurrence': _$ReminderRecurrenceEnumMap[instance.recurrence],
+      'interval_months': instance.intervalMonths,
+      'anchor_date': instance.anchorDate?.toIso8601String(),
+      'anchor_day': instance.anchorDay,
       'message': instance.message,
       'template_id': instance.templateId,
       'gallery_template_id': instance.galleryTemplateId,
       'tag_ids': instance.tagIds,
       'days_ahead': instance.daysAhead,
     };
+
+const _$ReminderRecurrenceEnumMap = {
+  ReminderRecurrence.daily: 'daily',
+  ReminderRecurrence.weekly: 'weekly',
+  ReminderRecurrence.monthly: 'monthly',
+  ReminderRecurrence.yearly: 'yearly',
+};
 
 const _$ReminderTypeEnumMap = {
   ReminderType.daily: 'daily',

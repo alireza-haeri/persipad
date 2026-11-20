@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
+import 'package:storypad/core/types/reminder_recurrence.dart';
 import 'package:storypad/core/types/reminder_type.dart';
 
 void main() {
@@ -52,6 +53,61 @@ void main() {
       expect(ReminderObject.normalizeWeekdays(ReminderObject.allWeekdays), []);
       expect(ReminderObject.normalizeWeekdays([1, 2, 3, 4, 5, 6, 7, 7]), []);
       expect(ReminderObject.normalizeWeekdays([5, 1, 1, 3]), [1, 3, 5]);
+    });
+
+    test('calendar recurrence fields survive a JSON round-trip', () {
+      final reminder = ReminderObject(
+        id: 12,
+        type: ReminderType.custom,
+        hour: 7,
+        minute: 15,
+        message: 'Pay rent',
+        recurrence: ReminderRecurrence.monthly,
+        intervalMonths: 3,
+        anchorDate: DateTime(2026, 1, 31),
+        anchorDay: 31,
+      );
+
+      final restored = ReminderObject.fromJson(reminder.toJson());
+
+      expect(restored.recurrence, ReminderRecurrence.monthly);
+      expect(restored.intervalMonths, 3);
+      expect(restored.anchorDate, DateTime(2026, 1, 31));
+      expect(restored.anchorDay, 31);
+      expect(restored.isCalendarRecurring, true);
+      expect(restored.effectiveIntervalMonths, 3);
+      expect(restored.effectiveAnchorDay, 31);
+    });
+
+    test('a record without a recurrence keeps its weekday schedule', () {
+      final json = {
+        'id': 1,
+        'type': 'custom',
+        'enabled': true,
+        'hour': 9,
+        'minute': 0,
+        'weekdays': [1, 3],
+        'message': 'Legacy',
+      };
+
+      final restored = ReminderObject.fromJson(json);
+      expect(restored.recurrence, isNull);
+      expect(restored.effectiveRecurrence, ReminderRecurrence.weekly);
+      expect(restored.isCalendarRecurring, false);
+      expect(restored.effectiveAnchorDay, isNull);
+    });
+
+    test('yearly always reports a 12-month interval', () {
+      final yearly = ReminderObject(
+        id: 6,
+        type: ReminderType.custom,
+        recurrence: ReminderRecurrence.yearly,
+        anchorDate: DateTime(2024, 2, 29),
+        anchorDay: 29,
+      );
+
+      expect(yearly.effectiveIntervalMonths, 12);
+      expect(yearly.isCalendarRecurring, true);
     });
 
     test('builtin factory uses type-based id and disabled default', () {

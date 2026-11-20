@@ -311,3 +311,101 @@ Beyond the code, `ai/` was corrected in three places and extended with the analy
 | `ENVIRONMENT.md` | JDK block explains *requirement* (17+) vs *observed* (21 / 17) | it stated one version as if it were the contract |
 | `README.md` | file table grew `ANALYSIS.md` | new file must be discoverable |
 | **`CHANGES.md`** | **this file** | the diff in one narrative place, so nobody has to reconstruct it from 27 commits |
+
+---
+
+# Session 22 — custom calendar reminders, end to end (2026-11-20)
+
+> Branch `arena/95cdc5fd-persipad`, from `main` at `a87f0147`. Scope: `REMINDER_IMPLEMENTATION_PLAN.md`
+> (written on `arena/7ba21f51-notely`). The plan named its own starting point: "the calendar
+> calculation and standalone schedule model exist, but monthly and yearly schedules are not
+> yet connected to the editor, persistence or notification scheduling." That foundation was
+> not on this branch, so it was ported first and completed here. Decision record: `D-068`.
+
+## 1. The missing half was the whole feature
+
+The tempting reading of the plan was "add two date formulas". The real gap was the path a
+reminder travels:
+
+```
+editor → ReminderObject (JSON in SharedPreferences) → planner → OS alarms → tap → editor
+```
+
+Only the middle-left piece (a calculator) existed, and it was unreachable from the UI. So the
+work is described in that order.
+
+## 2. Model — old reminders must not move
+
+`ReminderObject` gained four fields:
+
+| Field | Why it exists |
+|---|---|
+| `recurrence` (`daily/weekly/monthly/yearly`, nullable) | the user's choice; `null` on every reminder stored before today |
+| `intervalMonths` | 1–12 for "every N months"; 12 for yearly |
+| `anchorDate` | the Gregorian date the user picked — it names the anchor month |
+| `anchorDay` | the day **number** they meant in the calendar they were reading |
+
+`effectiveRecurrence` infers daily/weekly from `weekdays` when `recurrence` is null, so a
+legacy record keeps its exact schedule and there is no migration step that could half-run.
+`anchorDay` is separate from `anchorDate.day` because Jalali 30 Esfand and Gregorian March 30
+are different dates; keeping the number is what lets the series clamp one month and recover
+the next.
+
+## 3. Calculation — the displayed calendar, clamped per occurrence
+
+`CalendarRecurrence.next` walks whole months from the anchor, computes the day (clamped to
+the month length) and rebuilds a local `DateTime` from components. No `Duration(days:)` on a
+local date (`D-049`). `CalendarReminderSchedule` binds that to a reminder and adds
+`upcoming(count)` so the notifier can ask for a series instead of one date.
+
+## 4. Delivery — a bounded window of real alarms, not a promise of infinity
+
+A repeating OS rule cannot express "every 3 months, day 31, clamp in short months" in either
+calendar. `ReminderSchedulePlanner` therefore expands monthly/yearly reminders into up to 24
+concrete occurrences, and `LocalNotificationService` schedules each one as an inexact
+`zonedSchedule` alarm:
+
+- daily/weekly → unchanged repeating rules (they never expire),
+- monthly/yearly → 24 alarms (≥ 2 years of monthly, ~24 years of yearly),
+- renewed on app start, on resume and on every edit — the app does not have to run for the
+  alarms to fire, only to renew the window.
+
+Notification ids are now allocated per reschedule pass after `cancelAll()`. The old
+`reminderId * 10 + slot` scheme could collide with a calendar reminder's slot ids; payloads
+carry the reminder id, so ids only need to be unique within one pass.
+
+`RescheduleQueue` (ported with its tests) serializes updates, drops superseded snapshots and —
+unlike the previous inline queue — keeps working after a plugin or permission failure.
+
+## 5. The parts that only exist because the OS is involved
+
+| Concern | What was done | What proves it |
+|---|---|---|
+| Reboot | the plugin's `ScheduledNotificationBootReceiver` was already declared; nothing to add | device test |
+| Time-zone change | Dart gets no broadcast → compare the device zone on resume and reschedule | device test |
+| Notifications blocked | `notificationsBlocked()` + a banner on the reminders screen with the exact fix | device test |
+| Calendar switch | `setCalendarSystem` reschedules; the anchor month is re-read in the new calendar | unit test (`planner`) + device test |
+| Delete / disable / edit | every write goes through `_writeReminders` → `rescheduleAll` | unit tests + device test |
+
+## 6. Editor
+
+`Repeat` (with a bottom sheet), `Interval` (1–12), `Starting date` (the app's own calendar
+dialog, so Shamsi is picked in Shamsi), a live summary, a clamping hint for monthly series and
+"your next reminder will be on …". `build()` is pure, which is why the mapping is tested
+without a widget.
+
+## 7. What is *not* claimed
+
+- Exact delivery: scheduling stays inexact on purpose (no `SCHEDULE_EXACT_ALARM`), so Doze can
+  delay an alarm by minutes.
+- Infinite renewal: an app that is never opened for years stops renewing its window.
+- Android/OEM background killers are not defeated by any of this; the notification may never
+  arrive if the OEM drops alarms, which is why the device test exists.
+
+## 8. Verification
+
+| What | Evidence |
+|---|---|
+| Analyzer + full suite + Linux build | Linux CI run on this branch (`[full]`), id in `PROGRESS.md` |
+| Pure logic (recurrence, clamping, leap years, calendar switch, legacy records, editor mapping, queue) | new tests listed in `PROGRESS.md` §Session 22 |
+| Delivery while closed / reboot / time zone / blocked notifications | **not verified** — device steps in `PROGRESS.md` |

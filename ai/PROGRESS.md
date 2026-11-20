@@ -1,11 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-16
-> Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
+**Last updated:** 2026-11-20
+> Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md). The reminder work of sessions 20–21 lives on `arena/7ba21f51-notely` and is ported here by session 22.
 
-**Current session:** session 12 — parallel branch review, integration, local+CI verification, and `main` consolidation (`D-047`..`D-049`)
-**Branch:** `main` (integrated via `arena/41be3147-notely`)
-**Phase:** ✅ Consolidated on `main` — Linux CI (7/7 jobs), Android APK CI, and local Fedora Linux + Android APK verification all green
+**Current session:** session 22 — custom calendar reminders completed from `REMINDER_IMPLEMENTATION_PLAN.md` (`D-068`)
+**Branch:** `arena/95cdc5fd-persipad`, branched from `main` at `a87f0147`
+**Phase:** 🚧 Feature implemented; Linux CI is the compiler (run id in §Session 22). The end-to-end device test (create → receive → reboot → time zone) is the user's, and is listed there.
 
 ---
 
@@ -16,12 +16,14 @@
    - **Unified Google Drive sync (Linux + Android):** Both platforms authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
    - **Two locales & 100% offline dual-font typography (`D-048`):** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using bundled `Quicksand` (`Quicksand-Variable.ttf`) for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale` / `fontFamilyForLanguageCode`), with zero network font fetching.
    - **Performance, tests, CI & DST-safe calendar (`D-042`..`D-046`, `D-049`):** Non-blocking search reindex (`count()` probe), backup merge unit tests (`BackupRepository.overrideDatabases`), `SearchFilterObject` tests, calendar cell accessibility semantics, DST-safe civil/UTC date math (`Asia/Tehran` verified), editor package test job (`390` cases) + `Coverage` job (`14.7%`) in `linux.yml`, fail-closed `apksigner` signature check + `[apk-test]` mode in `android.yml`, and `bin/local_verify` for one-command local Linux + Android verification.
+   - **Custom reminders (session 22, `D-068`):** daily, selected weekdays, monthly, every 1–12 months and yearly, calculated in the displayed calendar (Gregorian or Shamsi) with short months clamped and the intended day preserved. Monthly/yearly reminders are scheduled as a window of 24 real OS alarms and renewed on start/resume/edit; the reminders screen names the fix when Android reports notifications blocked. Code map: `ReminderSchedulePlanner`, `CalendarRecurrence`, `CalendarReminderSchedule`, `LocalNotificationService`.
    - **Daily Score in Settings:** Daily Score toggle lives in Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
    - **Android (`community` flavor, local Fedora & CI verified):** `bin/android_doctor` + `bin/build_apk` confirmed working end-to-end on Fedora (`NDK 28.2.13676358` + `CMake 3.22.1` + `android-36.1` + Tencent Maven mirror → APK built in `1m32s`), alongside `.github/workflows/android.yml` on GitHub Actions.
 2. **Verified metrics (2026-11-16):**
    - **Fedora local (`bin/local_verify`):** `analyze` PASS (`12s`), `root tests` PASS (`+1087`, `56s`), `editor tests` PASS (`+11088` steps / 57 files, `24s`), `linux build` PASS (`13s`), `android apk` PASS (`1m32s`).
    - **GitHub Actions CI:** Linux (`43854176350`) 7/7 jobs green; Android (`43849981463`) APK build + signature verification green.
 3. **What is planned next:**
+   - **Reminder device test (session 22):** the steps are in §Session 22 → "What only you can check". Nothing else in this feature can be verified from the sandbox.
    - **Real-device Google Drive OAuth E2E check:** configure `GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET` via `bin/setup_sync` and test sign-in + sync between Linux desktop and Android phone.
    - **Release keystore secrets (optional):** add `ANDROID_KEYSTORE_*` secrets in GitHub Settings if smaller, updatable release-signed APKs are wanted from `[apk]`.
 4. **Hard rules & invariants for any agent touching this repo:**
@@ -626,3 +628,62 @@ adb shell ping -c1 oauth2.googleapis.com     # must answer before the app can si
 
 The remaining log noise (GTK `border-spacing` / cursor theme, Impeller, Gradle/AGP
 deprecations) is unchanged and still benign or backlogged as noted in Session 12.
+
+### Session 22 — custom calendar reminders, end to end (2026-11-20)
+
+Branch `arena/95cdc5fd-persipad`. The starting point was `ai/REMINDER_IMPLEMENTATION_PLAN.md`
+on `arena/7ba21f51-notely`: the calculator, the standalone schedule object and the reschedule
+queue existed there, but nothing connected them to the editor, the stored reminder or the
+notifier. Those pieces are ported here and the missing half is implemented (`D-068`).
+
+**What now works end to end**
+
+- The custom reminder editor has **Repeat**: every day · selected days · monthly (interval
+  1–12) · yearly, a **Starting date** picker in the app's own calendar dialog, a live
+  schedule summary, a clamping hint, and the next occurrence.
+- The stored reminder carries the recurrence, interval, Gregorian anchor and the intended
+  day number. Old reminders have none of these and keep their weekday schedule through
+  `effectiveRecurrence` — no migration, no data loss.
+- Occurrences are computed in the displayed calendar; 31 Farvardin clamps to 30 in a 30-day
+  month and returns to 31 afterwards; switching calendars re-anchors on the same day number
+  and reschedules.
+- Monthly/yearly reminders become a window of 24 concrete OS alarms (`ReminderSchedulePlanner`),
+  replenished on app start, on resume and on every edit/delete/toggle. Daily/weekly stay on
+  repeating OS rules. Reminder ids are allocated per pass, so the old id arithmetic cannot
+  collide any more.
+- Android reports when the app's notifications are blocked, and the reminders screen says
+  what to change instead of silently dropping the reminder.
+- Time-zone changes are detected on resume (Dart gets no broadcast) and everything is
+  rescheduled; reboots are handled by the plugin's boot receiver that was already declared.
+
+**Tests added** (all pure, no plugin needed): recurrence vectors incl. Persian leap-year and
+short-month clamping, schedule read/clamp/re-anchor, planner for daily/weekly/monthly/
+every-N-months/yearly incl. disabled + legacy records, JSON round-trip of the new fields,
+editor→model mapping incl. the Persian day number, and the reschedule queue's failure and
+coalescing rules.
+
+**Verification**
+
+- CI (`Linux`, `[full]`): _run id recorded below once green_.
+- Anything that needs an OS — delivery while the app is closed, reboot, Doze, time zone —
+  is **not** claimed here; it is in the device list below.
+
+**What only you can check (device test)**
+
+1. `bin/build_apk --install --abi arm64 --launch` (a Dart change needs a rebuilt APK).
+2. Settings → Reminders → add a reminder with **Repeat = monthly**, interval 1, a starting
+   date whose day is 31, and a time ~3 minutes ahead. Save, close the app completely, wait:
+   the notification must arrive with the app not running.
+3. Edit it to **Repeat = every 3 months**, interval 3 → the summary must read "Every 3 months
+   on day 31 at …", and the next occurrence must be three months away.
+4. Switch the calendar in Settings (Shamsi ↔ Gregorian) and reopen the reminder: the day
+   number must be unchanged, and the next-occurrence line must move.
+5. Delete the reminder → the pending notification must disappear (nothing fires at that time).
+6. Reboot the phone with a reminder pending → it must still fire.
+7. Change the phone's time zone (or set it manually), open the app once, then check that the
+   reminder still fires at its local wall-clock time.
+8. Turn notifications off for the app in Android settings → the reminders screen must show
+   the "Notifications are blocked" banner.
+
+**Known limits, on purpose:** delivery is inexact (may be a few minutes late under Doze), and
+an app that is never opened for years stops renewing its 24-date window.

@@ -177,6 +177,12 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
     CalendarConfig.apply(system: value);
     storage.writeObject(_preferences);
     notifyListeners();
+
+    // Monthly/yearly reminders are calculated in the displayed calendar, so the
+    // stored Gregorian anchor means different dates in the other calendar.
+    // Rebuild the OS schedules with the new one — a reminder set for "day 31"
+    // must move to the same *day number* in the calendar the user now reads.
+    unawaited(LocalNotificationService.instance.rescheduleAll(reminders));
   }
 
   void setFirstDayOfWeek(FirstDayOfWeekOption value) {

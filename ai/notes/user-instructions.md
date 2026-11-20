@@ -267,3 +267,27 @@ question, so the next session does not have to guess.
 **Ref:** D-0XX or the relevant file
 **Note:** where I guessed, or what is still ambiguous
 ```
+
+---
+
+## Session 22 — 2026-11-20
+
+### N-021 — Find the newest branch with a plan, read the whole `ai/` folder, then execute that plan
+> «سلام خوبی. آخیرین branch که تغیرات داشته رو پیدا کن / یه plan توش ایجاد شده / اون plan رو به همراه فایل های داخل پوشه ai کامل مطالعه کن / بعد plan رو اجرا کن»
+
+**Status:** ✅ done → `REMINDER_IMPLEMENTATION_PLAN.md` implemented; `D-068`; `PROGRESS.md` §Session 22
+**What I understood, in order:**
+1. *Find the latest branch that has changes* — `git ls-remote` showed `arena/7ba21f51-notely`
+   (`eda047c`, nine commits newer than `main`'s `a87f014`), and its last commit
+   (`docs(ai): record reminder implementation plan`) is where the plan lives.
+2. *Read the plan and the whole `ai/` folder* — I read the plan, `GOAL`, `RULES`,
+   `ARCHITECTURE`, `PROGRESS` (handoff), `DECISIONS` (`D-062`…`D-067`, the reminder-relevant
+   ones), `ENVIRONMENT`, `NEXT`, `ANALYSIS`, `BACKLOG` and the note log.
+3. *Execute the plan* — on **this** session's branch, as the rules require. The foundation
+   the plan refers to (recurrence calculator, schedule object, reschedule queue + their
+   tests) is not on `main`, so it was ported here first; the rest of the plan (editor,
+   persistence, notification scheduling, renewal, reboot/timezone/permission handling,
+   tests, docs) was implemented.
+**Note:** I did not merge the unrelated work that shares that branch (gender onboarding,
+device-preferences sync, OAuth redesign, branding). Porting it would have mixed three
+different features into one change, and the plan only needs the reminder part.

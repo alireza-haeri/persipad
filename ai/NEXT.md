@@ -10,6 +10,19 @@
 
 ---
 
+## 0. 👤 Verify the completed reminders feature (session 22, 2026-11-20)
+
+`REMINDER_IMPLEMENTATION_PLAN.md` is implemented (`D-068`): the editor, persistence,
+calendar-aware calculation and the OS scheduling path all exist, and the pure logic is
+tested in CI. What is left is exactly what no sandbox can prove — that Android delivers the
+alarm with the app closed, after a reboot, and after a time-zone change. The eight concrete
+steps are in `PROGRESS.md` §Session 22 → "What only you can check".
+
+**Why this is first:** the feature's whole value is "the notification arrives". Everything
+below is older and less visible than a reminder that quietly does not fire.
+
+---
+
 ## 1. Do these first — they are blocked only on information you have
 
 ### 1.1 👤 The Fedora APK verdict (blocks everything about Android)
