@@ -123,11 +123,20 @@ analyse() {
     echo "  even though the in-app probe did not report it. Treat it as the fake-IP case."
   fi
 
-  if grep -qa 'exchange: failed' "$file"; then
+  # The app logs two things when a request dies: `transport failure: <operation>
+  # (<layer>)` from the OAuth service, and `authenticate: failed (<error>)` when the
+  # flow gives up. Both name the half of the sign-in that broke.
+  if grep -qa 'transport failure' "$file"; then
     echo
-    echo "  The failure happened at the ${BOLD}token exchange${RESET} (after Google redirected back to the app), so the"
-    echo "  browser half worked and only the app's outbound request is broken — consistent with"
-    echo "  fake-IP DNS or a proxy that only routes browser traffic."
+    echo "  The app's own request failed at:"
+    grep -a 'transport failure' "$file" | sed -E 's/^.*\[google-oauth\]: //' | sed 's/^/    /' | tail -5
+  fi
+
+  if grep -qaE 'transport failure: (token exchange|account info)' "$file"; then
+    echo
+    echo "  That is ${BOLD}after${RESET} Google redirected back to the app, so the browser half worked and only"
+    echo "  the app's outbound request is broken — consistent with fake-IP DNS, or a proxy"
+    echo "  that only routes browser traffic."
   fi
 
   if [ "$found" = 0 ]; then
