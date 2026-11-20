@@ -158,23 +158,35 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
 
   /// Never log transport exception text: it can contain URLs and credentials.
   /// Keep a coarse failure class and operation so diagnostics remain actionable.
-  Future<http.Response> _send(String operation, Future<http.Response> Function() request) async {
+  Future<http.Response> _send(
+    String operation,
+    Future<http.Response> Function() request, {
+    int dnsRetries = 0,
+  }) async {
+    Future<http.Response> retryLookup() async {
+      AppLogger.info('retry: $operation after DNS lookup failure', tag: logTag);
+      await Future<void>.delayed(Duration(seconds: dnsRetries == 2 ? 2 : 5));
+      return _send(operation, request, dnsRetries: dnsRetries - 1);
+    }
+
     try {
       return await request().timeout(requestTimeout);
     } on io.TlsException {
       _logTransportFailure(operation, 'tls');
       throw GoogleOAuthException(_offlineMessage(operation, 'tls'), error: GoogleOAuthException.offline);
     } on io.SocketException catch (e) {
-      final kind = e.message.toLowerCase().contains('host lookup') ? 'dns' : 'connection';
+      final kind = e.message.toLowerCase().startsWith('failed host lookup') ? 'dns' : 'connection';
+      if (kind == 'dns' && dnsRetries > 0) return retryLookup();
       _logTransportFailure(operation, kind);
       throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on http.ClientException catch (e) {
       final message = e.message.toLowerCase();
-      final kind = message.contains('host lookup')
+      final kind = message.startsWith('failed host lookup')
           ? 'dns'
           : message.contains('handshake')
           ? 'tls'
           : 'connection';
+      if (kind == 'dns' && dnsRetries > 0) return retryLookup();
       _logTransportFailure(operation, kind);
       throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on TimeoutException {
@@ -482,6 +494,8 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
           'code_verifier': codeVerifier,
         },
       ),
+      // DNS failed before connecting; never replay a code after an ambiguous send.
+      dnsRetries: 2,
     );
 
     AppLogger.info('exchange: HTTP ${response.statusCode}', tag: logTag);

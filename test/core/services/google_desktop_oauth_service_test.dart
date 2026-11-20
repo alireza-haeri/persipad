@@ -288,6 +288,23 @@ void main() {
       expect(page, isNot(contains('<Close>')));
     });
 
+    test('exchanges the code when a transient DNS failure clears', () async {
+      var attempts = 0;
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        client: MockClient((request) async {
+          if (++attempts == 1) throw const SocketException('Failed host lookup');
+          return http.Response(tokenBody, 200);
+        }),
+        openBrowser: (url) async {
+          await redirectFromInsideBrowser(url);
+          return true;
+        },
+      );
+      expect((await service.authenticate()).accessToken, 'access-token');
+      expect(attempts, 2);
+    });
+
     test('reports a token exchange network failure without leaking transport details', () async {
       final service = GoogleDesktopOAuthService(
         config: config,
