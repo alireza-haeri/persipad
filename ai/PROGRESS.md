@@ -5,7 +5,7 @@
 
 **Current session:** session 22 — custom calendar reminders completed from `REMINDER_IMPLEMENTATION_PLAN.md` (`D-068`)
 **Branch:** `arena/95cdc5fd-persipad`, branched from `main` at `a87f0147`
-**Phase:** 🚧 Feature implemented; Linux CI is the compiler (run id in §Session 22). The end-to-end device test (create → receive → reboot → time zone) is the user's, and is listed there.
+**Phase:** ✅ Implemented and verified by CI — Linux run `44703732346` is 7/7 green (Scope, Analyze, Test 1+2, Build Linux desktop, Editor package tests, Coverage) on `e9e519f`, including the regenerated `reminder_object.g.dart`. The end-to-end device test (create → receive while closed → reboot → time zone → blocked notifications) is the user's; steps in §Session 22.
 
 ---
 
@@ -664,7 +664,12 @@ coalescing rules.
 
 **Verification**
 
-- CI (`Linux`, `[full]`): _run id recorded below once green_.
+- **CI green:** Linux run [`44703732346`](https://github.com/alireza-haeri/persipad/actions/runs/44703732346)
+  on `e9e519f` — 7/7 jobs (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+  package tests, Coverage). The earlier full run `44702351509` was already green on the same
+  code apart from formatting; `e9e519f` takes the generated model and the formatting from the
+  `[codegen]` job (`44703366204`), so committed generated code matches the pinned toolchain.
+- The format gate is now silent on every touched file (no `Not formatted` annotation).
 - Anything that needs an OS — delivery while the app is closed, reboot, Doze, time zone —
   is **not** claimed here; it is in the device list below.
 

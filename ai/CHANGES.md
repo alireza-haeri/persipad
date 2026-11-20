@@ -406,6 +406,7 @@ without a widget.
 
 | What | Evidence |
 |---|---|
-| Analyzer + full suite + Linux build | Linux CI run on this branch (`[full]`), id in `PROGRESS.md` |
+| Analyzer + full suite + Linux build | Linux CI `44703732346` on `e9e519f`: Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor package tests, Coverage — **7/7 green** |
+| Generated code + formatting | the `[codegen]` job (`44703366204`) published `ci/codegen`; the regenerated `reminder_object.g.dart` and the two formatting fixes were taken from it, and the final run above is green with no format annotation |
 | Pure logic (recurrence, clamping, leap years, calendar switch, legacy records, editor mapping, queue) | new tests listed in `PROGRESS.md` §Session 22 |
 | Delivery while closed / reboot / time zone / blocked notifications | **not verified** — device steps in `PROGRESS.md` |
