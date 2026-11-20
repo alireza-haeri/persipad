@@ -16,6 +16,7 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
   EditCustomReminderViewModel({
     required this.reminder,
     required this.isNew,
+    this.languageCode = 'en',
   }) : messageController = TextEditingController(text: reminder.message ?? '') {
     time = reminder.timeOfDay;
     // Every day is stored as an empty set — show it as all 7 chips checked
@@ -37,6 +38,7 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
   /// True while creating a brand-new reminder — nothing's persisted yet, so
   /// Delete isn't offered.
   final bool isNew;
+  final String languageCode;
 
   final formKey = GlobalKey<FormState>();
 
@@ -96,7 +98,7 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
       final template = await TemplateDbModel.db.find(templateId!);
       templateName = template?.name ?? tr('general.na');
     } else if (galleryTemplateId != null) {
-      final templatesByCategory = await GalleryTemplateService.loadTemplates();
+      final templatesByCategory = await GalleryTemplateService.loadTemplates(languageCode: languageCode);
       for (final templates in templatesByCategory.values) {
         for (final template in templates) {
           if (template.id == galleryTemplateId) {

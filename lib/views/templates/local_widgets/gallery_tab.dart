@@ -30,16 +30,24 @@ class GalleryTab extends StatefulWidget {
 }
 
 class _GalleryTabState extends State<GalleryTab> {
+  String? _languageCode;
+
   @override
-  void initState() {
-    super.initState();
-    load();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode = context.locale.languageCode;
+    if (_languageCode != languageCode) {
+      _languageCode = languageCode;
+      load();
+    }
   }
 
   Map<GalleryTemplateCategoryObject, List<GalleryTemplateObject>>? templates;
 
   Future<void> load() async {
-    final loadedTemplates = await GalleryTemplateService.loadTemplates();
+    final languageCode = _languageCode;
+    final loadedTemplates = await GalleryTemplateService.loadTemplates(languageCode: languageCode ?? 'en');
+    if (!mounted || languageCode != _languageCode) return;
     templates = loadedTemplates;
     setState(() {});
   }
@@ -109,7 +117,7 @@ class _GalleryTabState extends State<GalleryTab> {
               text: category.name,
               style: TextTheme.of(context).titleMedium,
               children: [
-                if (context.locale.languageCode != 'en')
+                if (context.locale.languageCode != 'en' && context.locale.languageCode != 'fa')
                   WidgetSpan(
                     alignment: PlaceholderAlignment.middle,
                     child: Container(

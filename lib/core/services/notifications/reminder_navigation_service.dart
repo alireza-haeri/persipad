@@ -88,7 +88,7 @@ class ReminderNavigationService {
 
     GalleryTemplateObject? galleryTemplate;
     if (reminder.galleryTemplateId != null) {
-      galleryTemplate = await _findGalleryTemplate(reminder.galleryTemplateId!);
+      galleryTemplate = await _findGalleryTemplate(reminder.galleryTemplateId!, context.locale.languageCode);
       if (!context.mounted) return;
     }
 
@@ -103,8 +103,8 @@ class ReminderNavigationService {
     await HomeView.reload(debugSource: '$runtimeType#_openCustom');
   }
 
-  Future<GalleryTemplateObject?> _findGalleryTemplate(String templateId) async {
-    final templatesByCategory = await GalleryTemplateService.loadTemplates();
+  Future<GalleryTemplateObject?> _findGalleryTemplate(String templateId, String languageCode) async {
+    final templatesByCategory = await GalleryTemplateService.loadTemplates(languageCode: languageCode);
     for (final templates in templatesByCategory.values) {
       for (final template in templates) {
         if (template.id != templateId) continue;
