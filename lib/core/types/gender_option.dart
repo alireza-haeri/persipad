@@ -9,7 +9,10 @@ enum GenderOption {
     GenderOption.female => AppLogo.storypad_1_0,
   };
 
-  String get translationKey => 'page.gender.$name';
+  String get translationKey => switch (this) {
+    GenderOption.male => 'page.gender.male',
+    GenderOption.female => 'page.gender.female',
+  };
 
   static GenderOption? fromStored(String? value) {
     for (final option in values) {

@@ -901,3 +901,4 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 - Added a best-effort localized close button with explicit manual fallback, and changed the misleading Google sign-in network message to say Google could not be reached.
 - Transport exceptions now report only coarse failure class and operation, without raw exception text; added regression cases for token exchange failure and HTML escaping.
 - The actual phone/emulator network cause is **not confirmed or fixed** by this change; the callback page precedes token exchange and account lookup. Flutter is unavailable locally; CI and device tests remain necessary.
+- CI run 44695934685 exposed an existing translation-key scanner failure: gender keys were built dynamically. Made those existing keys explicit without changing behavior; re-running CI.
