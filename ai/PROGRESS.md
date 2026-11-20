@@ -911,3 +911,4 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 ### 2026-11-19 — Custom reminder editor lifecycle crash
 - Moved the locale lookup out of Provider's `create` callback and into the widget's `build`, so it is read in a lifecycle that can subscribe. Added widget regression coverage for new and existing reminders in both supported locales.
 - Flutter is unavailable locally; CI and the user's Android device must verify the editor opens. No changes to Google network settings or DNS.
+- CI run 44697363116: analyzer passed but the new widget tests failed. Adjusted the test double to be a ChangeNotifier and used ChangeNotifierProvider rather than Provider; rechecking CI.

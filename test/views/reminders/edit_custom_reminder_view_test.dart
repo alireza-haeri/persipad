@@ -18,7 +18,7 @@ class _MemoryAssetLoader extends AssetLoader {
   Future<Map<String, dynamic>?> load(String path, Locale locale) async => const {};
 }
 
-class _FakePreferences implements DevicePreferencesProvider {
+class _FakePreferences extends ChangeNotifier implements DevicePreferencesProvider {
   @override
   DevicePreferencesObject get preferences => DevicePreferencesObject.initial();
 
@@ -45,7 +45,7 @@ void main() {
             saveLocale: false,
             supportedLocales: [Locale(code)],
             fallbackLocale: Locale(code),
-            child: Provider<DevicePreferencesProvider>.value(
+            child: ChangeNotifierProvider<DevicePreferencesProvider>.value(
               value: _FakePreferences(),
               child: MaterialApp(home: EditCustomReminderView(reminder: reminder, isNew: isNew)),
             ),
