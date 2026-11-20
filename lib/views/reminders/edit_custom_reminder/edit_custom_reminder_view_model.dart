@@ -120,8 +120,7 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
   ReminderObject build() {
     final trimmedMessage = messageController.text.trim();
     final normalizedWeekdays = ReminderObject.normalizeWeekdays(weekdays);
-    final effectiveRecurrence =
-        recurrence == ReminderRecurrence.weekly && normalizedWeekdays.isEmpty
+    final effectiveRecurrence = recurrence == ReminderRecurrence.weekly && normalizedWeekdays.isEmpty
         ? ReminderRecurrence.daily
         : recurrence;
 

@@ -89,13 +89,16 @@ class _$ReminderObjectCWProxyImpl implements _$ReminderObjectCWProxy {
   ReminderObject weekdays(List<int> weekdays) => call(weekdays: weekdays);
 
   @override
-  ReminderObject recurrence(ReminderRecurrence? recurrence) => call(recurrence: recurrence);
+  ReminderObject recurrence(ReminderRecurrence? recurrence) =>
+      call(recurrence: recurrence);
 
   @override
-  ReminderObject intervalMonths(int? intervalMonths) => call(intervalMonths: intervalMonths);
+  ReminderObject intervalMonths(int? intervalMonths) =>
+      call(intervalMonths: intervalMonths);
 
   @override
-  ReminderObject anchorDate(DateTime? anchorDate) => call(anchorDate: anchorDate);
+  ReminderObject anchorDate(DateTime? anchorDate) =>
+      call(anchorDate: anchorDate);
 
   @override
   ReminderObject anchorDay(int? anchorDay) => call(anchorDay: anchorDay);
@@ -233,13 +236,11 @@ ReminderObject _$ReminderObjectFromJson(Map<String, dynamic> json) =>
               ?.map((e) => (e as num).toInt())
               .toList() ??
           const [],
-      recurrence: json['recurrence'] == null
-          ? null
-          : $enumDecode(
-              _$ReminderRecurrenceEnumMap,
-              json['recurrence'],
-              unknownValue: ReminderRecurrence.daily,
-            ),
+      recurrence: $enumDecodeNullable(
+        _$ReminderRecurrenceEnumMap,
+        json['recurrence'],
+        unknownValue: ReminderRecurrence.daily,
+      ),
       intervalMonths: (json['interval_months'] as num?)?.toInt(),
       anchorDate: json['anchor_date'] == null
           ? null
@@ -273,15 +274,15 @@ Map<String, dynamic> _$ReminderObjectToJson(ReminderObject instance) =>
       'days_ahead': instance.daysAhead,
     };
 
+const _$ReminderTypeEnumMap = {
+  ReminderType.daily: 'daily',
+  ReminderType.onThisDay: 'onThisDay',
+  ReminderType.custom: 'custom',
+};
+
 const _$ReminderRecurrenceEnumMap = {
   ReminderRecurrence.daily: 'daily',
   ReminderRecurrence.weekly: 'weekly',
   ReminderRecurrence.monthly: 'monthly',
   ReminderRecurrence.yearly: 'yearly',
-};
-
-const _$ReminderTypeEnumMap = {
-  ReminderType.daily: 'daily',
-  ReminderType.onThisDay: 'onThisDay',
-  ReminderType.custom: 'custom',
 };

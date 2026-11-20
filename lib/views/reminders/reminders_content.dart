@@ -14,8 +14,7 @@ class _RemindersContent extends StatelessWidget {
       body: ListView(
         children: [
           const SizedBox(height: 8),
-          if (LocalNotificationService.instance.supported && Platform.isAndroid)
-            const _NotificationBlockedBanner(),
+          if (LocalNotificationService.instance.supported && Platform.isAndroid) const _NotificationBlockedBanner(),
           _buildBuiltinTile(context, provider, ReminderType.daily, SpIcons.newStory),
           _buildBuiltinTile(context, provider, ReminderType.onThisDay, SpIcons.history),
           const SizedBox(height: 8.0),
