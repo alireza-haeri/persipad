@@ -265,9 +265,14 @@ void main() {
 
     test('escapes localized close instructions in the browser page', () async {
       GoogleDesktopOAuthService.completionPageText = const OAuthCompletionText(
-        receivedTitle: '<Title>', receivedDetail: 'Return & continue',
-        deniedTitle: 'Denied', deniedDetail: 'Try again',
-        close: '<Close>', returnToApp: 'Return', help: 'Return & close', isRtl: true,
+        receivedTitle: '<Title>',
+        receivedDetail: 'Return & continue',
+        deniedTitle: 'Denied',
+        deniedDetail: 'Try again',
+        close: '<Close>',
+        returnToApp: 'Return',
+        help: 'Return & close',
+        isRtl: true,
       );
       addTearDown(() => GoogleDesktopOAuthService.completionPageText = null);
       String? page;
@@ -294,10 +299,12 @@ void main() {
       );
       await expectLater(
         service.authenticate(),
-        throwsA(isA<GoogleOAuthException>()
-            .having((e) => e.isOffline, 'offline', isTrue)
-            .having((e) => e.message, 'message', contains('token exchange: dns'))
-            .having((e) => e.message, 'message', isNot(contains('private-host')))),
+        throwsA(
+          isA<GoogleOAuthException>()
+              .having((e) => e.isOffline, 'offline', isTrue)
+              .having((e) => e.message, 'message', contains('token exchange: dns'))
+              .having((e) => e.message, 'message', isNot(contains('private-host'))),
+        ),
       );
     });
 

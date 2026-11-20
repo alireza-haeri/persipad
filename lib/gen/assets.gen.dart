@@ -392,6 +392,16 @@ class $AssetsLogosGen {
       const $AssetsLogosStorypadLogo61IconGen();
 }
 
+class $AssetsTemplateTranslationsGen {
+  const $AssetsTemplateTranslationsGen();
+
+  /// File path: assets/template_translations/fa.json
+  String get fa => 'assets/template_translations/fa.json';
+
+  /// List of all assets
+  List<String> get values => [fa];
+}
+
 class $AssetsImagesOnboardingGen {
   const $AssetsImagesOnboardingGen();
 
@@ -624,6 +634,8 @@ abstract final class Assets {
   static const $AssetsEmoji64Gen emoji64 = $AssetsEmoji64Gen();
   static const $AssetsImagesGen images = $AssetsImagesGen();
   static const $AssetsLogosGen logos = $AssetsLogosGen();
+  static const $AssetsTemplateTranslationsGen templateTranslations =
+      $AssetsTemplateTranslationsGen();
   static const $TemplatesGen templates = $TemplatesGen();
   static const $TranslationsGen translations = $TranslationsGen();
 }

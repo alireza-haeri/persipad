@@ -23,7 +23,12 @@ void main() {
     expect(page, contains('dir="rtl"'));
     expect(page, contains('پاسخ دریافت شد'));
     expect(page, contains('بازگشت به برنامه'));
-    expect(page, contains('intent://oauth-return#Intent;scheme=com.tc.writestory.community;package=com.tc.writestory.community;end'));
+    expect(
+      page,
+      contains(
+        'intent://oauth-return#Intent;scheme=com.tc.writestory.community;package=com.tc.writestory.community;end',
+      ),
+    );
     expect(page, isNot(contains('window.close()')));
     expect(page, contains('از دکمه بازگشت'));
   });

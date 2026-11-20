@@ -6,7 +6,9 @@ import 'package:storypad/gen/assets.gen.dart';
 import 'package:yaml/yaml.dart';
 
 class GalleryTemplateService {
-  static Future<Map<GalleryTemplateCategoryObject, List<GalleryTemplateObject>>> loadTemplates({String languageCode = 'en'}) async {
+  static Future<Map<GalleryTemplateCategoryObject, List<GalleryTemplateObject>>> loadTemplates({
+    String languageCode = 'en',
+  }) async {
     final Map<GalleryTemplateCategoryObject, List<GalleryTemplateObject>> templates = {};
 
     final Map<String, dynamic> persian = languageCode == 'fa'

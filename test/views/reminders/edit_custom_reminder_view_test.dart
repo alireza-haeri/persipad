@@ -47,7 +47,9 @@ void main() {
             fallbackLocale: Locale(code),
             child: ChangeNotifierProvider<DevicePreferencesProvider>.value(
               value: _FakePreferences(),
-              child: MaterialApp(home: EditCustomReminderView(reminder: reminder, isNew: isNew)),
+              child: MaterialApp(
+                home: EditCustomReminderView(reminder: reminder, isNew: isNew),
+              ),
             ),
           ),
         );

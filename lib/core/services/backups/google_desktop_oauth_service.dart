@@ -170,7 +170,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on http.ClientException catch (e) {
       final message = e.message.toLowerCase();
-      final kind = message.contains('host lookup') ? 'dns' : message.contains('handshake') ? 'tls' : 'connection';
+      final kind = message.contains('host lookup')
+          ? 'dns'
+          : message.contains('handshake')
+          ? 'tls'
+          : 'connection';
       _logTransportFailure(operation, kind);
       throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on TimeoutException {
