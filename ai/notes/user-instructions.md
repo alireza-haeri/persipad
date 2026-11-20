@@ -329,3 +329,9 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 > «فکر کنم مشکل از طراحی نیست. مشکل از تحریم و ... هست ولش کن. ولی اون صفحه رو قشنگ تر طراحی کن. ریسپانسیو نیست. قشنگ هم نیست. پیامش هم باید با توجه زبان انتخاب کاربر نشون داده بشه. اون دکمه هم هیچ کاری نمیکنه»
 
 **Status:** ⏳ callback page implementation and verification in progress; Google connectivity investigation intentionally paused at user request. The cause of the connection failure remains unknown.
+
+### N-027 — Reminder editor provider lifecycle error (2026-11-19)
+> «موقع ایجاد یادآور جدید: Tried to listen to an InheritedWidget in a life-cycle ... create callback of a provider»
+> The user also notes that Google account selection opens even though the app subsequently reports a connection failure.
+
+**Status:** ⏳ Fix and CI verification in progress. Google connectivity investigation remains paused; the browser and app requests can follow different network paths.

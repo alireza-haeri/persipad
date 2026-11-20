@@ -40,8 +40,11 @@ class EditCustomReminderView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read the inherited locale during build, not inside Provider's create
+    // callback (which cannot subscribe to inherited widgets).
+    final languageCode = context.locale.languageCode;
     return ChangeNotifierProvider<EditCustomReminderViewModel>(
-      create: (context) => EditCustomReminderViewModel(reminder: reminder, isNew: isNew, languageCode: context.locale.languageCode),
+      create: (context) => EditCustomReminderViewModel(reminder: reminder, isNew: isNew, languageCode: languageCode),
       builder: (context, child) {
         return _EditCustomReminderContent(Provider.of(context));
       },

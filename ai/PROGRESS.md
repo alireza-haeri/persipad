@@ -907,3 +907,7 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 - Replaced the fixed-width callback page with an offline, responsive, dark-mode-aware layout; all status and action copy uses the app-selected Persian/English locale and RTL direction. Authorization receipt is not described as completed sign-in.
 - Android now offers a package-specific return-to-app intent rather than claiming to close a browser tab, with visible fallback instructions. Desktop retains best-effort close. Added tests for markup, localization, failure messages and intent sanitization.
 - The user asked to pause the Google connectivity investigation. No root cause or solution has been confirmed. Android browser/phone verification and CI remain pending.
+
+### 2026-11-19 — Custom reminder editor lifecycle crash
+- Moved the locale lookup out of Provider's `create` callback and into the widget's `build`, so it is read in a lifecycle that can subscribe. Added widget regression coverage for new and existing reminders in both supported locales.
+- Flutter is unavailable locally; CI and the user's Android device must verify the editor opens. No changes to Google network settings or DNS.
