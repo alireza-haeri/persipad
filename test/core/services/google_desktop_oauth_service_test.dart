@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
 
 void main() {
   group('GoogleDesktopOAuthService.codeChallengeFor', () {
@@ -259,11 +260,15 @@ void main() {
       expect(page, contains('Return to PersiPad to finish signing in.'));
       expect(page, isNot(contains('Signed in')));
       expect(page, contains('window.close()'));
-      expect(page, contains('close it manually'));
+      expect(page, contains('close this tab manually'));
     });
 
     test('escapes localized close instructions in the browser page', () async {
-      GoogleDesktopOAuthService.completionPageText = (close: '<Close>', help: 'Return & close');
+      GoogleDesktopOAuthService.completionPageText = const OAuthCompletionText(
+        receivedTitle: '<Title>', receivedDetail: 'Return & continue',
+        deniedTitle: 'Denied', deniedDetail: 'Try again',
+        close: '<Close>', returnToApp: 'Return', help: 'Return & close', isRtl: true,
+      );
       addTearDown(() => GoogleDesktopOAuthService.completionPageText = null);
       String? page;
       final service = serviceWith((url) async {
@@ -271,6 +276,8 @@ void main() {
         return true;
       });
       await service.authenticate();
+      expect(page, contains('dir="rtl"'));
+      expect(page, contains('&lt;Title&gt;'));
       expect(page, contains('&lt;Close&gt;'));
       expect(page, contains('Return &amp; close'));
       expect(page, isNot(contains('<Close>')));

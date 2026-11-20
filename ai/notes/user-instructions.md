@@ -324,3 +324,8 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 > «روی emulator ... میره توی گوگل، وارد حسابم میشم. وقتی میگه authentication recived و خودم پنجره رو میبندم. توی برنامه میگه اینترنت نیست ... این رو باید درست حسابی درست کنیم که توی همه دستگاه ها خوب کار کنه ... توی صفحه html ... یه دکمه بزار که خودش اون مرورگر رو بننده»
 
 **Status:** ⏳ Investigation and verification in progress. The successful loopback page only proves that a redirect arrived, not that token exchange or account lookup succeeded. Root cause on the user's devices remains unconfirmed.
+
+### N-026 — Redesign the OAuth callback page (2026-11-19)
+> «فکر کنم مشکل از طراحی نیست. مشکل از تحریم و ... هست ولش کن. ولی اون صفحه رو قشنگ تر طراحی کن. ریسپانسیو نیست. قشنگ هم نیست. پیامش هم باید با توجه زبان انتخاب کاربر نشون داده بشه. اون دکمه هم هیچ کاری نمیکنه»
+
+**Status:** ⏳ callback page implementation and verification in progress; Google connectivity investigation intentionally paused at user request. The cause of the connection failure remains unknown.

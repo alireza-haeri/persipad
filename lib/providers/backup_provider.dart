@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,7 @@ import 'package:storypad/core/services/assets/db_asset_loader_service.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
 import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
@@ -283,10 +286,19 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
   /// browser instead of being stuck on a page that spins forever (`D-058`, `D-060`).
   Future<BackupResult<bool>> _signInWithFallback(BuildContext context, BackupServiceType serviceType) async {
     if (repository.getService(serviceType) is GoogleDriveCloudService) {
-      GoogleDesktopOAuthService.completionPageText = (
+      GoogleDesktopOAuthService.completionPageText = OAuthCompletionText(
+        receivedTitle: tr('google_oauth.received_title'),
+        receivedDetail: tr('google_oauth.received_detail'),
+        deniedTitle: tr('google_oauth.denied_title'),
+        deniedDetail: tr('google_oauth.denied_detail'),
         close: tr('google_oauth.close_tab'),
+        returnToApp: tr('google_oauth.return_to_app'),
         help: tr('google_oauth.close_tab_help'),
+        isRtl: Directionality.of(context) == TextDirection.rtl,
       );
+      // Android browsers may reject window.close(); an explicit app intent can
+      // return to the existing activity without putting OAuth data in the link.
+      GoogleDesktopOAuthService.returnToAppPackage = Platform.isAndroid ? kPackageInfo.packageName : null;
       GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) =>
           _askForRedirectUri(context, redirectArrived);
     }
@@ -299,6 +311,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     } finally {
       GoogleDesktopOAuthService.manualRedirectPrompt = null;
       GoogleDesktopOAuthService.completionPageText = null;
+      GoogleDesktopOAuthService.returnToAppPackage = null;
     }
   }
 

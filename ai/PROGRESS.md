@@ -902,3 +902,8 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 - Transport exceptions now report only coarse failure class and operation, without raw exception text; added regression cases for token exchange failure and HTML escaping.
 - The actual phone/emulator network cause is **not confirmed or fixed** by this change; the callback page precedes token exchange and account lookup. Flutter is unavailable locally; CI and device tests remain necessary.
 - CI run 44695934685 exposed an existing translation-key scanner failure: gender keys were built dynamically. Made those existing keys explicit without changing behavior; re-running CI.
+
+### 2026-11-19 — OAuth callback page redesign
+- Replaced the fixed-width callback page with an offline, responsive, dark-mode-aware layout; all status and action copy uses the app-selected Persian/English locale and RTL direction. Authorization receipt is not described as completed sign-in.
+- Android now offers a package-specific return-to-app intent rather than claiming to close a browser tab, with visible fallback instructions. Desktop retains best-effort close. Added tests for markup, localization, failure messages and intent sanitization.
+- The user asked to pause the Google connectivity investigation. No root cause or solution has been confirmed. Android browser/phone verification and CI remain pending.

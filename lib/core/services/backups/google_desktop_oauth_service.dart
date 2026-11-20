@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:storypad/core/services/logger/app_logger.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
@@ -152,7 +153,10 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   static Future<String?> Function(Future<void> redirectArrived)? manualRedirectPrompt;
 
   /// Localized by the UI before opening the browser; reset when sign-in ends.
-  static ({String close, String help})? completionPageText;
+  static OAuthCompletionText? completionPageText;
+
+  /// Set only on Android: the button returns to the matching installed flavor.
+  static String? returnToAppPackage;
 
   @override
   bool get isConfigured => config.isConfigured;
@@ -440,21 +444,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// requests still happen in the app, so the page must not claim that the user is
   /// signed in yet. A denied/cancelled redirect gets a distinct, truthful message.
   String _completionPage({required bool authorizationReceived}) {
-    final heading = authorizationReceived ? 'Authorization received' : 'Sign-in not completed';
-    final detail = authorizationReceived
-        ? 'Return to PersiPad to finish signing in.'
-        : 'Google did not complete authorization. Return to PersiPad and try again.';
-
-    final close = const HtmlEscape().convert(completionPageText?.close ?? 'Close this tab');
-    final help = const HtmlEscape().convert(completionPageText?.help ??
-        'If the browser did not close this tab, close it manually and return to PersiPad.');
-
-    return '<!doctype html><meta charset="utf-8"><title>PersiPad</title>'
-        '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
-        '<h2>$heading</h2><p>$detail</p>'
-        '<button type="button" onclick="window.close(); document.getElementById(\'close-help\').hidden = false;">$close</button>'
-        '<p id="close-help" hidden>$help</p>'
-        '</body>';
+    return OAuthCompletionPage.render(
+      authorizationReceived: authorizationReceived,
+      text: completionPageText ?? OAuthCompletionText.english,
+      androidPackage: returnToAppPackage,
+    );
   }
 
   Future<GoogleDesktopToken> _exchangeCode({

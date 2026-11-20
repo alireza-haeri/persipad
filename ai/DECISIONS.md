@@ -1564,3 +1564,8 @@ Template:
 - A browser redirect does not prove the app can reach Google's token or account API. Report inability to reach Google rather than assert that all internet is down, and log only the operation and coarse failure class, never raw transport details or OAuth values.
 - The callback page offers a best-effort close button with manual fallback because browsers may refuse `window.close()` for a tab not created by script. Do not retry a one-time authorization code after an ambiguous token request failure; it might already have been consumed.
 - Device/network-specific routing or VPN failures cannot safely be bypassed by silently changing DNS, proxies or TLS verification. Diagnose the failing phase and network path before choosing a transport fix.
+
+## D-066 — Localized, responsive OAuth callback page and Android return (2026-11-19)
+- The callback page uses the app's selected language and direction, with separate truthful messages for a received authorization and a denial. No web fonts, remote assets, OAuth codes or tokens are used in its return link.
+- Android browsers cannot be forced to close tabs with JavaScript; the Android action is explicitly called “Return to PersiPad” and uses a package-scoped intent to bring the existing app activity to the foreground. A visible back/manual-close instruction remains for browsers that block the intent. Other platforms keep a best-effort close button and the same fallback.
+- Only this harmless return intent is registered, with Flutter deep linking disabled for the activity; it must not be treated as an OAuth callback or a source of credentials. Test on the Android emulator and real phone before claiming universal browser support.
