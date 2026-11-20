@@ -45,7 +45,7 @@ void main() {
       hour: 6,
       minute: 5,
       message: 'Old',
-      templateId: 4,
+      tagIds: const [3],
     );
     final vm = EditCustomReminderViewModel(reminder: existing, isNew: false);
     vm.messageController.text = 'New';
@@ -56,7 +56,7 @@ void main() {
     expect(saved.id, 21);
     expect(saved.type, ReminderType.custom);
     expect(saved.enabled, isFalse);
-    expect(saved.templateId, 4);
+    expect(saved.tagIds, [3]);
     expect(saved.hour, 20);
     expect(saved.minute, 30);
     expect(saved.message, 'New');
