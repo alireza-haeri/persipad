@@ -891,3 +891,7 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
   Gender is not logged to analytics; the community launcher icon remains unchanged.
 - **Tests/checks:** added pure mapping/parsing tests. Translation JSON parses and `en`/`fa` key
   sets match (494 each); `git diff --check` passes. Flutter tests/analyzer/formatter unavailable.
+
+### 2026-11-19 — Onboarding compile fix and calendar reminder follow-up
+- Fixed missing `kProjectRepositoryUrl` import in the onboarding library; the user's build log identified this Dart compilation error, not the preceding dependency/toolchain warnings.
+- Calendar-aware recurring reminders remain in progress. Flutter/Dart are unavailable in the sandbox; CI and device verification are required.

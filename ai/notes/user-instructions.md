@@ -313,3 +313,9 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 **Ref:** D-0XX or the relevant file
 **Note:** where I guessed, or what is still ambiguous
 ```
+
+### N-024 — Calendar reminders and Android build error (2026-11-19)
+> «لطفا قابلیت تقویم رو هم کامل انجام بده. میدونم خیلی کار داره ولی میخوام کامل انجام بدی و از قوانین پوشه ai هم پیروی کنی. و اینکه این خطا برای چیه»
+
+**Status:** ⏳ Calendar reminder implementation pending; investigate reported Android compile failure.
+**Clarifications:** Custom intervals of 1–12 months; clamp missing days to month end; follow the active calendar; Persian translations for bundled templates only.
