@@ -733,6 +733,10 @@ hypothesis, and this session is about replacing it with evidence instead of re-g
 
 **Verification**
 
+- **CI green:** Linux run [`44709983334`](https://github.com/alireza-haeri/persipad/actions/runs/44709983334)
+  on `3286f10` — 7/7 jobs (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+  package tests, Coverage), format gate silent. The first push (`5262cdc`) failed Analyze
+  and the Linux build on a wrong `AppLogger` import path — caught by CI, fixed in `3b3a5be`.
 - The probe's address classification is unit-tested (`test/core/services/backups/google_connectivity_service_test.dart`):
   fake-IP/private/CGNAT/loopback ranges flagged, real Google addresses not, IPv6 and
   IPv4-mapped forms handled, and every failing verdict carries advice.

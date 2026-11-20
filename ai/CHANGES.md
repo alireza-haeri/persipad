@@ -422,6 +422,7 @@ one indistinguishable message for DNS, TCP, TLS, a 30 s timeout and a rejected t
 | `lib/core/services/backups/google_desktop_oauth_service.dart` | one `google-oauth` tag: start, loopback port, `browser: opened=`, redirect, `exchange: HTTP`, `userinfo: HTTP`, `transport failure: <class> — <message>`, and a probe on start and after a failure | analyzer + existing OAuth tests; log lines are device-only |
 | `bin/oauth_debug` (new) | device facts, guest `ping` of the three Google names with the address classified, `toybox nc` check, 120 s `adb logcat`, then the diagnosis and the matching fix; `--analyze <file>` for a saved capture | `bash -n`, and `--analyze` on a synthetic fake-IP log prints the fake-IP diagnosis |
 | `ai/ENVIRONMENT.md` §2.2d | the fake-IP case, the two fixes, and the command | — |
+| Analyzer + suite + Linux build | — | Linux CI `44709983334` on `3286f10`: 7/7 green, format gate silent (`5262cdc` had failed first on a wrong `AppLogger` import path) |
 
 **Not claimed:** the root cause, and the probe against a real network. Both need the user's
 emulator; `PROGRESS.md` §Session 23 lists the exact next step.
