@@ -345,3 +345,8 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 > «این بار دیگه قابل قبول نیست. کامل این رو انجامش بده. انجامش بده. کامل کامل. تستش هم بکن.»
 
 **Status:** ⏳ Not complete. The request includes the editor, persistence, calendar-aware scheduling, reliable background delivery and device verification.
+
+### N-030 — Implement reminders, user will test (2026-11-19)
+> «کار رو انجام بده. من تست ها رو اجرا میکنم و برسی میکنم»
+
+**Status:** ⏳ Requested end-to-end feature remains unfinished. User is willing to perform device testing; absence of a local device is not a reason to claim the feature complete.

@@ -920,3 +920,6 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 ### 2026-11-19 — Reminder scheduler hardening (feature still incomplete)
 - Fixed the existing rescheduling queue so a notification plugin error does not permanently block all later rescheduling attempts; added tests for failure recovery, serialization and coalescing.
 - This does not implement monthly/yearly reminders: no editor, persistence integration or durable calendar-aware background delivery exists yet. Flutter SDK and Android devices are not available in this sandbox. CI verification is required.
+
+### 2026-11-19 — Calendar recurrence coverage
+- Added 720 sequential date checks across both calendars and all 12 intervals. These exercise calculation only; reminder persistence, editing and background notification delivery are still not connected. The user offered to run device tests once the feature exists.
