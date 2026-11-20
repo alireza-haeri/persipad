@@ -314,6 +314,48 @@ Beyond the code, `ai/` was corrected in three places and extended with the analy
 
 ---
 
+## 8. Appendix — session 13 and 14: "Sign-in failed" was DNS (`15b28ac`, D-053…D-055)
+
+> Written in session 14. Sessions 12–14 are runtime-fix sessions driven by **your** logs
+> from Fedora, not by my analysis; this section exists so the next reader does not have to
+> reconstruct them from commit messages.
+
+**The report.** Signing in to Google Drive on the Android emulator showed:
+
+```
+Sign-in failed: ClientException with SocketException: Failed host lookup:
+'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)
+```
+
+**The diagnosis.** The AVD had no usable resolver: your Fedora box resolves through
+systemd-resolved's `127.0.0.53` stub, and the guest does not follow that stub. The OAuth
+client, the consent screen and the account were all fine the whole time. The message only
+*looked* like an auth bug because three layers of code handed you the raw transport
+exception and labelled it "sign-in failed".
+
+**What that cost, and why it got fixed in three places rather than one.** A misleading
+error is not a cosmetic problem: it sends the reader (you) to the wrong place, and it did —
+this is the third session spent on it. So the fix attacks the cause (DNS), the mapping
+(transport ≠ auth), and the diagnosis (say it before the app is even opened):
+
+| Layer | Before | After | Proof |
+|---|---|---|---|
+| Transport | `package:http` exceptions escaped unwrapped | one `_send` wrapper, 30 s timeout, `SocketException`/`ClientException`/`TlsException`/`TimeoutException` → `GoogleOAuthException(error: 'offline')`; HTTP status codes and `invalid_grant` keep their own meanings | `test/core/services/google_desktop_oauth_service_test.dart` (injectable `http.Client`, no network) |
+| Auth strategy | anything non-auth became `AuthException(signInFailed)`; `restore()` forgot the account and `_renew` rethrew | offline → `NetworkException`; `restore()` keeps the stored account and only a null renewal (dead grant) forgets it; `initialize()` cannot throw into app startup | `test/core/services/google_drive_auth_strategy_test.dart`, `google_drive_cloud_service_test.dart` |
+| UI | printed `result.error!.message` verbatim | `BackupErrorType.network` → `snack_bar.no_internet`, service marked `noInternet`; `BackupRepository` maps `NetworkException` instead of collapsing it into `unknown` (which is why the honest branch was dead code until now) | `test/core/repositories/backup_repository_test.dart` |
+| Diagnosis | the AVD booted with no resolver and nothing said so | `-dns-server` at boot, a stub-resolver warning, a post-boot `ping oauth2.googleapis.com` from the guest, and `bin/local_verify` forwarding the flag. **Session 14:** the resolver is now chosen automatically from `resolvectl dns` (`D-055`) | `bash -n` + the helper exercised against a fake `resolvectl`; the real proof is your next emulator run |
+
+**The unrelated codegen failure in the same log.** `bin/setup_linux` printed
+`Error: Directory ../static/sources/story_backgrounds not found` → `err build_runner failed`.
+The artwork lives in a sibling submodule that a plain checkout does not have, while
+`lib/gen/story_backgrounds.dart` is committed and perfectly usable. That is a skip, not a
+failure (`D-054`).
+
+**Honest limits.** No Flutter SDK in the sandbox, so all of the above is graded by
+`flutter analyze`/tests in CI and by your machine — CI `43868965727` (Linux, commit
+`15b28ac`) is green on every job except the advisory `Coverage`. And nothing here proves
+that a *successful* emulator sign-in works: that needs the guest to have DNS, a browser,
+and a Google account. Hence one open question at the top of `NEXT.md`, not a claim.
 # Session 22 — custom calendar reminders, end to end (2026-11-20)
 
 > Branch `arena/95cdc5fd-persipad`, from `main` at `a87f0147`. Scope: `REMINDER_IMPLEMENTATION_PLAN.md`

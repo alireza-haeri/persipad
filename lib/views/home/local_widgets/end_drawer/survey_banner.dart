@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/extensions/color_scheme_extension.dart';
-import 'package:storypad/core/services/remote_config/remote_config_service.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/storages/dimissed_surveys_storage.dart';
 import 'package:storypad/views/home/home_view_model.dart';
@@ -22,7 +21,7 @@ class SurveyBanner extends StatefulWidget {
 
 class _SurveyBannerState extends State<SurveyBanner> {
   final DimissedSurveysStorage storage = DimissedSurveysStorage();
-  String surveyUrl = RemoteConfigService.surveyUrl.get();
+  final String surveyUrl = '';
 
   bool show = false;
 
@@ -54,7 +53,7 @@ class _SurveyBannerState extends State<SurveyBanner> {
   }
 
   Future<void> openSurvey() async {
-    await UrlOpenerService.openInCustomTab(context, RemoteConfigService.surveyUrl.get());
+    await UrlOpenerService.openInCustomTab(context, surveyUrl);
   }
 
   @override

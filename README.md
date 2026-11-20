@@ -1,12 +1,8 @@
-# StoryPad
+# PersiPad
 
-[![GitHub stars](https://img.shields.io/github/stars/theachoem/storypad?style=social)](https://github.com/theachoem/storypad/stargazers) [![GitHub license](https://img.shields.io/github/license/theachoem/storypad)](LICENSE) [![GitHub issues](https://img.shields.io/github/issues/theachoem/storypad)](https://github.com/theachoem/storypad/issues)
+[![GitHub stars](https://img.shields.io/github/stars/alireza-haeri/persipad?style=social)](https://github.com/alireza-haeri/persipad/stargazers) [![GitHub license](https://img.shields.io/github/license/alireza-haeri/persipad)](LICENSE) [![GitHub issues](https://img.shields.io/github/issues/alireza-haeri/persipad)](https://github.com/alireza-haeri/persipad/issues)
 
-📝 **StoryPad** is a beautiful, privacy-first, open source journal & diary app designed for people who value simplicity, minimalism, and control over their personal data.
-
-[![Play Store](https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.tc.writestory) [![App Store](https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white)](https://apps.apple.com/us/app/storypad-timeline-diary/id6744032172)
-
-![og_1200x630](https://github.com/user-attachments/assets/d1aeab6b-af2d-4503-9953-bf02d914ee45)
+📝 **PersiPad** is a beautiful, privacy-first, open source journal & diary app designed for people who value simplicity, minimalism, and control over their personal data.
 
 ## 🌟 Key Features
 
@@ -22,17 +18,7 @@
 - **Backup & sync** – private Google Drive sync & offline local export
 - **Themes & customization** – 20+ color themes, dark/light mode, fonts & layouts
 - **Export & share** – text, markdown, or full backups with attachments (images, audio, etc.)
-- **StoryPad Pro** (one-time purchase):
-  - **Customize Backgrounds** – Personalize your writing space with themed backgrounds for enhanced focus & creativity
-  - **Templates**– Create your own daily writing templates
-  - **Relaxing Sounds** – Set the mood before you write or read
-  - **Period Calendar** – Track your period and create related story entries
-  - **Voice Journal** – Record and organize voice notes
-  - **Markdown Export** – Export entries in markdown format, fully compatible with Obsidian, Notion, and other editors
-  - **Writing Stats** – View word and character count for your story
-  - **Pinned Notes** – Keep important entries at the top of your timeline for easy access
-  - **Auto Backup** – Keep your stories safe with automatic Google Drive sync
-- **Available in 20+ languages** – and fully open source for transparency
+- **Available in Persian and English** – and fully open source for transparency
 
 ## ⚙️ Setup & Run
 
@@ -55,13 +41,13 @@ bin/dev --community-ios
 bin/dev --community-macos
 ```
 
-## 🛠 <StoryPad> Project Overview
+## 🛠 PersiPad Project Overview
 
-StoryPad is designed with simplicity in mind, both in its UI and codebase. We aimed to keep the code understandable while staying true to Flutter's principles.
+PersiPad is designed with simplicity in mind, both in its UI and codebase. We aimed to keep the code understandable while staying true to Flutter's principles.
 
 ### 1. State Management:
 
-StoryPad uses Provider and Stateful widgets to manage its state, distinctly organized into three levels to avoid confusion:
+PersiPad uses Provider and Stateful widgets to manage its state, distinctly organized into three levels to avoid confusion:
 
 - Global State: Managed by [ProviderScope](lib/provider_scope.dart), disposed when the app closes.
 - View State: Managed by ChangeNotifierProvider (package:provider/provider.dart), disposed when the page closes.
@@ -69,7 +55,7 @@ StoryPad uses Provider and Stateful widgets to manage its state, distinctly orga
 
 ### 2. MVVM Pattern:
 
-StoryPad leverages the MVVM (Model-View-ViewModel) pattern while each view is composed of three to four key files:
+PersiPad leverages the MVVM (Model-View-ViewModel) pattern while each view is composed of three to four key files:
 
 - Model (optional): Represents the data structure, e.g., StoryDbModel.
 - View: Constructs the view model and builds the UI content, e.g., EditStoryView.
@@ -80,24 +66,21 @@ StoryPad leverages the MVVM (Model-View-ViewModel) pattern while each view is co
 
 ### 3. Local Database:
 
-StoryPad uses ObjectBox as the local database solution for persistent data storage. ObjectBox provides fast, efficient, and scalable database operations with rich search capabilities, making it ideal for mobile apps that require high-performance data handling.
+PersiPad uses ObjectBox as the local database solution for persistent data storage. ObjectBox provides fast, efficient, and scalable database operations with rich search capabilities, making it ideal for mobile apps that require high-performance data handling.
 
 ## 🤝 Learn & Contribute
 
-Feel free to clone the StoryPad repository and explore the code. It's a great resource for learning how to build efficient, maintainable mobile apps with Flutter. You can also contribute improvements or new features, helping enhance the project for everyone.
+Explore the PersiPad source code and contribute through our repository. It's a great resource for learning how to build efficient, maintainable mobile apps with Flutter. You can also contribute improvements or new features, helping enhance the project for everyone.
 
 Check out our [Contribution Guide](CONTRIBUTING.md) for more details on how to contribute. Raise an issue if you need any support.
 
-A big thank you to the maintainers of the packages StoryPad relies on - without their work, StoryPad wouldn't be possible. You can view all the dependencies in the [pubspec.yaml](pubspec.yaml) file.
+A big thank you to the maintainers of the packages PersiPad relies on - without their work, PersiPad wouldn't be possible. You can view all the dependencies in the [pubspec.yaml](pubspec.yaml) file.
 
 ## 📄 License
 
-StoryPad is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for details.
-
-We chose the GPL license to ensure that StoryPad's source code remains free and open. Anyone can use, study, modify, and distribute it - but any modifications must also remain open-source under the same license.
+PersiPad is distributed under the GNU General Public License v3.0. The original copyright attribution is preserved in [LICENSE](LICENSE); modifications and redistribution must comply with that license.
 
 ## 🔗 Connect with Us
 
-- 🌐 **Official Website:** [StoryPad.me](https://storypad.me) - Explore features, screenshots, and more
-- 💬 **Community:** [r/storypad](https://www.reddit.com/r/storypad/) - Join our Reddit community
-- 🐦 **Follow Us:** [@storypadapp](https://x.com/storypadapp) - Get the latest updates on X
+- 🌐 **Project repository:** [https://github.com/alireza-haeri/persipad](https://github.com/alireza-haeri/persipad)
+- 🐛 **Issues and feature requests:** [https://github.com/alireza-haeri/persipad/issues](https://github.com/alireza-haeri/persipad/issues)

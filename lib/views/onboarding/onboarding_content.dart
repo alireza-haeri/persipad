@@ -47,7 +47,7 @@ class _OnboardingContent extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(top: 36),
               width: double.infinity,
-              child: kAppLogo!.asset.image(width: 120, height: 120),
+              child: (viewModel.selectedGender?.appLogo ?? kAppLogo!).asset.image(width: 120, height: 120),
             ),
             Container(
               margin: const EdgeInsets.only(top: 16),
@@ -66,7 +66,11 @@ class _OnboardingContent extends StatelessWidget {
               ),
             ),
             Container(
-              margin: const EdgeInsets.only(top: 32),
+              margin: const EdgeInsets.only(top: 24),
+              child: buildGenderPicker(context),
+            ),
+            Container(
+              margin: const EdgeInsets.only(top: 24),
               child: _NicknameField(viewModel: viewModel),
             ),
             Container(
@@ -80,6 +84,50 @@ class _OnboardingContent extends StatelessWidget {
               child: entry.value,
             );
           }).toList(),
+    );
+  }
+
+  Widget buildGenderPicker(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(context.tr('page.gender.title'), style: TextTheme.of(context).titleMedium),
+        const SizedBox(height: 4),
+        Text(context.tr('page.gender.description'), style: TextTheme.of(context).bodySmall),
+        const SizedBox(height: 12),
+        Row(
+          children: GenderOption.values.map((option) {
+            final selected = viewModel.selectedGender == option;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(end: option == GenderOption.male ? 8 : 0),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => viewModel.selectGender(option),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? ColorScheme.of(context).primary : Theme.of(context).dividerColor,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        option.appLogo.asset.image(width: 56, height: 56),
+                        const SizedBox(height: 8),
+                        Text(context.tr(option.translationKey)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

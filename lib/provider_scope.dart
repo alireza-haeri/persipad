@@ -8,6 +8,7 @@ import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/providers/daily_score_provider.dart';
+import 'package:storypad/providers/gender_provider.dart';
 
 // global providers
 class ProviderScope extends StatelessWidget {
@@ -42,6 +43,12 @@ class ProviderScope extends StatelessWidget {
         ),
         ListenableProvider<NicknameProvider>(
           create: (context) => NicknameProvider(),
+        ),
+        // Gender drives the in-app profile illustration and must react to
+        // settings imported by Google Drive even before its tile is opened.
+        ListenableProvider<GenderProvider>(
+          lazy: false,
+          create: (context) => GenderProvider(),
         ),
         // Loaded eagerly rather than lazily: the calendar's score segment can be
         // the first screen after a cold start (it is a segment of the calendar

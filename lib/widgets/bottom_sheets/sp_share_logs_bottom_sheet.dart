@@ -41,7 +41,7 @@ class SpShareLogsBottomSheet extends BaseBottomSheet {
   Widget build(BuildContext context, double bottomPadding) {
     return SpSingleStateWidget(
       initialValue: [
-        "=== StoryPad Debug Information ===",
+        "=== PersiPad Debug Information ===",
         "App Name: $kAppName",
         "Cupertino Mode: $kIsCupertino",
         "",

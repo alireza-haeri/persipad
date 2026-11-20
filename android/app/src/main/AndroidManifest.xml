@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- No advertising ID: StoryPad has no ads, and Firebase Analytics would otherwise
+    <!-- No advertising ID: PersiPad has no ads, and Firebase Analytics would otherwise
          merge these permissions back in from its own manifests (AD_ID, plus the Privacy
          Sandbox AdServices ones). See also the google_analytics_adid_collection_enabled
          meta-data below. -->
@@ -46,6 +46,16 @@
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+
+            <!-- The callback page can bring this flavor back to foreground; it
+                 never sends OAuth codes or tokens through this intent. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" android:host="oauth-return" />
+            </intent-filter>
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

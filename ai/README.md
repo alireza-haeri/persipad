@@ -67,4 +67,5 @@ At the end of every task:
 | 2026-11-16 | Session 11: branch/tip, translation key count (626) and JDK facts corrected; `ANALYSIS.md` added (D-041) |
 | 2026-11-16 | Session 11 round two: T-9…T-15 implemented; `CHANGES.md` and `NEXT.md` added, `RULES.md` §3b rewritten to match the new CI (D-042…D-046) |
 | 2026-11-16 | Session 12: Parallel branches (`c5`, `e3e`, `f599`, `ci/codegen`) reviewed, merged, verified on Fedora + CI, and consolidated onto `main` (`MERGE_REVIEW.md`, `D-047`…`D-049`) |
+| 2026-11-16 | Sessions 12–14: real Fedora/Android logs fixed (voice playback, no-op sync reloads, filter notifier), then the emulator "sign-in failed" traced to DNS (`D-053`), codegen-without-submodule made a skip (`D-054`), and the AVD resolver automated (`D-055`); `CHANGES.md` §8, `NEXT.md` rewritten |
 | 2026-11-20 | Session 22: custom calendar reminders completed from the plan (`D-068`, `CHANGES.md`, `PROGRESS.md`) |

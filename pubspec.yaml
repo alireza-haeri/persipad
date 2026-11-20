@@ -91,6 +91,7 @@ flutter:
   assets:
     - translations/
     - templates/
+    - assets/template_translations/
     - assets/images/
     - assets/images/onboarding/
     - assets/emoji-64/

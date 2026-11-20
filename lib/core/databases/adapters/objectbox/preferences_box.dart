@@ -10,6 +10,8 @@ part './helpers/defined_preference.dart';
 
 class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
   _DefinedPreference get nickname => _DefinedPreference<String>(id: 2, key: 'nickname');
+  _DefinedPreference<String> get gender =>
+      _DefinedPreference<String>(id: PreferenceDbModel.genderPreferenceId, key: 'gender');
 
   _DefinedPreference<String> storageQuotaFor(BackupServiceType serviceType) {
     return switch (serviceType) {

@@ -13,7 +13,7 @@ class _StatsShareFooter extends StatelessWidget {
       children: [
         const SizedBox(height: 16.0),
         SpTapEffect(
-          onTap: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.websiteUrl.get()),
+          onTap: () => UrlOpenerService.openInCustomTab(context, kProjectRepositoryUrl),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Row(
@@ -37,7 +37,7 @@ class _StatsShareFooter extends StatelessWidget {
                   crossAxisAlignment: .start,
                   children: [
                     Text(
-                      'StoryPad',
+                      'PersiPad',
                       strutStyle: const StrutStyle(forceStrutHeight: true),
                       style: textTheme.titleMedium,
                     ),

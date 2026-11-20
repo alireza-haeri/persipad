@@ -18,7 +18,7 @@ class SpShareAppBottomSheet extends BaseBottomSheet {
         'general.share_app_sample_text',
         namedArgs: {
           'APP_NAME': kAppName,
-          'URL': 'https://storypad.me',
+          'URL': kProjectRepositoryUrl,
         },
       ),
       builder: (context, notifier) {

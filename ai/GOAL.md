@@ -2,9 +2,7 @@
 
 ## One-liner
 
-We are building a personal/product fork of [StoryPad](https://github.com/theachoem/storypad):
-a privacy-first, offline-first journal and writing app in Flutter, with our own
-features layered on top and parts of the UX redesigned to our taste.
+PersiPad is a privacy-first, offline-first journal and writing app in Flutter, based on the open-source [StoryPad project](https://github.com/theachoem/storypad), with PersiPad-specific features and UX.
 
 ## What we want
 
@@ -39,9 +37,9 @@ features layered on top and parts of the UX redesigned to our taste.
 
 ## Open questions about the goal
 
-- [ ] Final product name: keep `StoryPad`, or use our own brand (the repo is `notely`)?
+- [x] Product name: **PersiPad** (repository: `alireza-haeri/persipad`).
 - [ ] Will this fork ever be public (GPLv3 → modifications must stay open source)?
-- [x] Do we keep the paid features (StoryPad Pro / RevenueCat) or remove them? → **Removed (`D-047`, `N-020`)**
+- [x] Do we keep the paid features and RevenueCat or remove them? → **Removed (`D-047`, `N-020`)**
 - [x] Is 20-language support needed, or are Persian + English enough? → **Persian + English only (`D-047`, `N-020`), with offline `Vazirmatn` + `Quicksand` (`D-048`)**
 
 Answers get recorded in [`DECISIONS.md`](DECISIONS.md) as they arrive.

@@ -8,6 +8,7 @@ part 'preference_db_model.g.dart';
 @CopyWith()
 @JsonSerializable()
 class PreferenceDbModel extends BaseDbModel {
+  static const int genderPreferenceId = 5;
   static final PreferencesBox db = PreferencesBox();
 
   @override

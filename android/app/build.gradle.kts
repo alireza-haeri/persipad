@@ -83,7 +83,16 @@ android {
         // in the legacy DSL ("defaultConfig contains custom resource values, but the
         // feature is disabled"), and the manifest is the only reader, so it is a
         // manifest placeholder now — the same mechanism `appLogo` below already uses.
-        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "StoryPad C."
+        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "PersiPad"
+
+        // `--target-platform=android-arm64` only selects Flutter's engine and Dart
+        // snapshot. Plugin .so files are packaged for **every** ABI regardless, which
+        // is why a "phone-only" release still carried ObjectBox's JNI library for
+        // x86_64 and armeabi-v7a (~4.3 MB of libraries that phone can never load).
+        // bin/build_apk passes the chosen ABI here; `--abi all` leaves it unset.
+        (project.findProperty("notelyAbi") as String?)?.trim()?.takeIf { it.isNotEmpty() }?.let { abi ->
+            ndk { abiFilters += abi.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
+        }
     }
 
     signingConfigs {
@@ -140,6 +149,24 @@ android {
 
         release {
             signingConfig = signingConfigs.getByName("release")
+
+            // R8 + resource shrinking. Dart is tree-shaken by the AOT compiler itself;
+            // this removes what it cannot see — unused Java/Kotlin code and resources
+            // from ~40 plugins (Firebase, ObjectBox, image/video pickers, …).
+            // They must stay in lockstep: `isShrinkResources` without minification is an
+            // AGP error, not a warning.
+            //
+            // Escape hatch, if a plugin ever needs a keep rule and the release build dies
+            // in `minifyReleaseWithR8`:
+            //   bin/build_apk --release --sign-debug --abi arm64 -PnotelyMinify=false
+            //   (or ORG_GRADLE_PROJECT_notelyMinify=false)
+            val minify = (project.findProperty("notelyMinify") as String?)?.toBoolean() ?: true
+            isMinifyEnabled = minify
+            isShrinkResources = minify
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

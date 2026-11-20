@@ -255,6 +255,52 @@ question, so the next session does not have to guess.
 **Status:** ✅ done → `D-047`, `D-048`, `D-049`
 **Note:** Confirmed all `D-047` lightweight trims; unified offline fonts (`Vazirmatn` for `fa`, bundled `Quicksand` for `en`); fixed the `Asia/Tehran` DST failure surfaced by `bin/local_verify` on Fedora (`D-049`).
 
+## Session 14 — 2026-11-16
+
+### N-021 — Continue the session-13 AI's work; the emulator sign-in log is the brief
+> «سلام خوبی. روی برنچ ...e5 یه ai داشت کار میکرد خطا خورد و متوقف شد. لطفا پوشه ai رو بخون و
+> تغیراتش رو هم ببین. کارش رو ادامه بدیم» + the current logs: `Sign-in failed: ClientException
+> with SocketException: Failed host lookup: 'oauth2.googleapis.com' … errno = 7` (after trying
+> to sign in on the emulator) and a `bin/local_verify` report ending in
+> `Error: Directory ../static/sources/story_backgrounds not found` / `err build_runner failed`.
+> «سعی کن کار رو سریع انجام بدی. فعلا نیازی به ci نیست. تست ها رو من اجرا میکنم و بیلد میگیریم»
+
+**Status:** ✅ done → `D-055`, `PROGRESS.md` session 14, `CHANGES.md` §8, `NEXT.md` rewritten
+**What I understood:**
+1. *Read `ai/` and the diff first* — the crashed session's state has to be reconstructed from
+   the folder, not from assumptions. It turned out every code change from that session was
+   already committed (`15b28ac`) and green in CI; the crash happened during the bookkeeping,
+   so the folder was half-updated.
+2. *Continue the work* — the one real gap left by `D-053` was that fixing the emulator still
+   required a human to remember `--dns-server`; that is now automatic, and an AVD that was
+   already running is diagnosed before install (`D-055`).
+3. *Speed over process for now* — no CI runs requested, the user runs the tests and the builds.
+   Commits therefore carry no `[full]`/`[build]` marker unless a run is actually wanted.
+**Note:** the two log excerpts are from *before* `15b28ac` (the report names commit `89dc1f0`
+on `arena/446a6eb3-notely`), so they describe the state that session 13 fixed, not a new
+failure. I did not treat them as a fresh bug; I did treat them as evidence that the fix had
+never been exercised, which is why the first item in `NEXT.md` is a single sign-in attempt.
+
+---
+
+## Session 15 — 2026-11-19
+
+### N-022 — Push each completed change and record it as a standing AI rule
+> «چرا تغیراتت رو پوش نمیکنی؟ توی قوانین ai بنویس که باید push انجام بشه بعد از هر تغیر»
+
+**Status:** ✅ recorded in [`../RULES.md`](../RULES.md); the current implementation is included in this task's commit and push to the active Arena branch.
+**What I understood:** each completed requested change/task must be committed and pushed to the current active branch before I report it done. Never switch branches; if GitHub blocks the push, state that explicitly rather than implying success.
+**Correction:** I left the previous implementation only in the shared checkout because I treated persistence as sufficient. That was not enough; I will now push each completed task.
+
+### N-023 — Add synced gender selection for the matching icon
+> «یه چیز دیگه ای که نیازه تنظیم جنسیته. این قابلیت توی برنامه اصلی هست. نسخه ما این رو نداره فکر کنم. و اینکه باید توی sync این قضیه هم قرار بگیره. و اینکه توی لود اولیه من باید مشخص کنم که جنسیتم چیه تا آیکونی که به من نشون میده درست حسابی باشه.»
+>
+> Clarification selected: «زن / مرد».
+
+**Status:** ✅ included in this task's commit and push to the active branch.
+**Ref:** `D-063`
+**Scope:** ask in the existing first-run onboarding, allow changing it in Settings, persist it in the backed-up preferences table, and use the corresponding existing in-app illustration. Gender is not sent to analytics; the community launcher icon stays unchanged.
+
 ---
 
 ## Template for a new note
@@ -268,6 +314,42 @@ question, so the next session does not have to guess.
 **Note:** where I guessed, or what is still ambiguous
 ```
 
+### N-024 — Calendar reminders and Android build error (2026-11-19)
+> «لطفا قابلیت تقویم رو هم کامل انجام بده. میدونم خیلی کار داره ولی میخوام کامل انجام بدی و از قوانین پوشه ai هم پیروی کنی. و اینکه این خطا برای چیه»
+
+**Status:** ⏳ Calendar reminder implementation pending; investigate reported Android compile failure.
+**Clarifications:** Custom intervals of 1–12 months; clamp missing days to month end; follow the active calendar; Persian translations for bundled templates only.
+
+### N-025 — Google sign-in on emulator and close button (2026-11-19)
+> «روی emulator ... میره توی گوگل، وارد حسابم میشم. وقتی میگه authentication recived و خودم پنجره رو میبندم. توی برنامه میگه اینترنت نیست ... این رو باید درست حسابی درست کنیم که توی همه دستگاه ها خوب کار کنه ... توی صفحه html ... یه دکمه بزار که خودش اون مرورگر رو بننده»
+
+**Status:** ⏳ Investigation and verification in progress. The successful loopback page only proves that a redirect arrived, not that token exchange or account lookup succeeded. Root cause on the user's devices remains unconfirmed.
+
+### N-026 — Redesign the OAuth callback page (2026-11-19)
+> «فکر کنم مشکل از طراحی نیست. مشکل از تحریم و ... هست ولش کن. ولی اون صفحه رو قشنگ تر طراحی کن. ریسپانسیو نیست. قشنگ هم نیست. پیامش هم باید با توجه زبان انتخاب کاربر نشون داده بشه. اون دکمه هم هیچ کاری نمیکنه»
+
+**Status:** ⏳ callback page implementation and verification in progress; Google connectivity investigation intentionally paused at user request. The cause of the connection failure remains unknown.
+
+### N-027 — Reminder editor provider lifecycle error (2026-11-19)
+> «موقع ایجاد یادآور جدید: Tried to listen to an InheritedWidget in a life-cycle ... create callback of a provider»
+> The user also notes that Google account selection opens even though the app subsequently reports a connection failure.
+
+**Status:** ⏳ Fix and CI verification in progress. Google connectivity investigation remains paused; the browser and app requests can follow different network paths.
+
+### N-028 — Complete calendar-aware reminder scheduling (2026-11-19)
+> «خب کامل انجامش بده الان»
+
+**Status:** ⏳ Not complete. The user requests actual monthly/yearly reminders, not merely date calculation. Weekly selection already exists. Chosen behavior: intervals of 1–12 months, clamp missing days, follow the active calendar.
+
+### N-029 — Complete and test reminders without another partial handoff (2026-11-19)
+> «این بار دیگه قابل قبول نیست. کامل این رو انجامش بده. انجامش بده. کامل کامل. تستش هم بکن.»
+
+**Status:** ⏳ Not complete. The request includes the editor, persistence, calendar-aware scheduling, reliable background delivery and device verification.
+
+### N-030 — Implement reminders, user will test (2026-11-19)
+> «کار رو انجام بده. من تست ها رو اجرا میکنم و برسی میکنم»
+
+**Status:** ⏳ Requested end-to-end feature remains unfinished. User is willing to perform device testing; absence of a local device is not a reason to claim the feature complete.
 ---
 
 ## Session 22 — 2026-11-20

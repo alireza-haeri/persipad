@@ -93,25 +93,168 @@ Sign-in failed: ClientException with SocketException: Failed host lookup:
 'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)
 ```
 
-That is pure DNS: the client id, the consent screen and the account are all fine. Hand the
-guest a real resolver — `-dns-server` is an emulator flag, so the AVD has to be (re)booted
-for it to apply:
+That is pure DNS: the client id, the consent screen and the account are all fine. Handing the
+guest a real resolver is the fix — `-dns-server` is an emulator flag, so the AVD has to be
+(re)booted for it to apply.
+
+**You normally do not have to do anything (D-055).** When `/etc/resolv.conf` points only at a
+loopback stub, `bin/build_apk` reads the host's real upstream servers (`resolvectl dns`, or
+`systemd-resolve --status` on older boxes) and boots the AVD with them; if those cannot be
+read it uses `8.8.8.8,1.1.1.1`. It prints which one it used:
 
 ```bash
-bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8    # or 8.8.8.8,1.1.1.1
-# same thing through the environment:
-NOTELY_DNS_SERVER=8.8.8.8 bin/build_apk --install --avd
-bin/local_verify --avd=storypad_dev --dns-server=8.8.8.8            # with the full suite
+bin/build_apk --install --avd=storypad_dev
+# → host DNS is a local stub (systemd-resolved); giving the AVD this host's upstream
+#   resolver: 192.168.1.1,1.1.1.1
+```
+
+Overrides, when the automatic choice is wrong:
+
+```bash
+bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8   # or 8.8.8.8,1.1.1.1
+NOTELY_DNS_SERVER=8.8.8.8 bin/build_apk --install --avd           # same, via the environment
+bin/build_apk --install --avd=storypad_dev --no-dns-server        # pass nothing at all
+bin/local_verify --avd=storypad_dev --dns-server=8.8.8.8          # with the full suite
 
 # prove it once the device is up (this is what the app needs to do):
 adb shell ping -c1 oauth2.googleapis.com
 ```
 
-`bin/build_apk` warns at boot when the host resolves only through a stub resolver, and
-again when the freshly booted AVD cannot resolve `oauth2.googleapis.com` — so this stays
-a two-line diagnosis instead of a Dart stack trace. Since D-053 the app also reports an
-unreachable Google as a network problem ("No internet connection!") rather than printing
-the raw `ClientException`.
+An AVD that was **already running** keeps whatever resolver it booted with, so no flag can
+repair it. `bin/build_apk --install` checks an attached emulator and, if it cannot resolve
+`oauth2.googleapis.com`, prints the one-line recovery:
+
+```bash
+adb -s emulator-5554 emu kill && bin/build_apk --install --avd=storypad_dev
+```
+
+Since D-053 the app also reports an unreachable Google as a network problem
+("No internet connection!") rather than printing the raw `ClientException` — and it keeps
+the stored account instead of signing you out while offline.
+
+### 2.2d A fake-IP proxy makes "No internet connection!" look like the app's fault
+
+If a proxy on the host runs a fake-IP DNS (Clash/mihomo-style TUN; default pool
+`198.18.0.1/16`), the guest resolves Google to a **bogus** address and everything else looks
+healthy:
+
+```
+$ adb shell ping -c1 oauth2.googleapis.com
+PING oauth2.googleapis.com (198.18.0.60) 56(84) bytes of data.
+64 bytes from 198.18.0.60: icmp_seq=1 ttl=255 time=1.05 ms     ← ttl 255 + 1 ms = answered locally
+```
+
+The ping succeeding is the trap: the fake-IP layer answers ICMP itself. Chrome (inside the
+same AVD) still signs in because it uses its own secure DNS, so the browser works and the app
+says "No internet connection!" — the token exchange went to `198.18.0.60`. `bin/build_apk`
+now classifies the answer (`ok` / `fake` / `unresolvable`, `D-056`) and prints the remedy.
+
+Fixes, cheapest first: add `fake-ip-filter` entries for `+.googleapis.com`, `+.google.com`
+and `accounts.google.com` in the proxy (or `dns.enhanced-mode: redir-host`); or set the
+guest's Private DNS (`settings put global private_dns_mode hostname` +
+`private_dns_specifier dns.google`); or boot the AVD with `--dns-server`. The proof is the
+address itself: it must read `142.250.*`, `172.217.*`, `216.58.*` or `74.125.*`, not
+`198.18.*`.
+
+### 2.2e Getting the APK onto a real phone
+
+The artifact is always `build/app/outputs/flutter-apk/app-<flavor>-<mode>.apk`
+(`app-community-debug.apk` for the debug loop). **Rebuilding replaces that file** — the name
+does not encode the ABI, so a copy is the only way to keep one.
+
+The ABI default is `auto`: it follows whatever is attached. An emulator therefore builds
+`x86_64`, and that APK **cannot** be installed on a phone (`INSTALL_FAILED_NO_MATCHING_ABIS`;
+the script says so in those words). For a phone:
+
+```bash
+bin/build_apk --abi arm64          # phone only, smallest (also: arm64-v8a)
+bin/build_apk --abi all            # one file that installs on phone and emulator
+```
+
+Three ways onto the device, cheapest first:
+
+```bash
+# 1. straight over USB (nothing to copy by hand)
+adb devices                                    # phone must show as "device"
+bin/build_apk --abi arm64 --install --launch   # one device attached...
+# ...or pick it explicitly when the emulator is also running:
+ANDROID_SERIAL=<serial> bin/build_apk --abi arm64 --install
+
+# 2. push the file and install it from the phone (no USB debugging needed afterwards)
+adb -s <serial> push build/app/outputs/flutter-apk/app-community-debug.apk /sdcard/Download/
+#    then: Files → Downloads → tap the APK → allow "install unknown apps"
+#    (no cable at all: copy it through MTP, or send the file to yourself)
+
+# 3. no local build: Actions → Android → "Run workflow" (or a `[apk]` commit subject)
+#    publishes a pre-release whose asset is the arm64 community APK (D-038)
+```
+
+### Why the APK is huge, and the ladder down (D-057)
+
+`bin/apk_report` answers "where did 238 MB come from" in one second:
+
+```bash
+bin/apk_report                                     # newest APK under build/app/outputs
+bin/apk_report --files 20 build/app/outputs/flutter-apk/app-community-release.apk
+```
+
+It groups entries by `lib/<abi>`, `dex`, `res/`, `assets/flutter_assets/` (Dart code and its
+snapshots — not pictures), `assets/` (the app's own files), `META-INF/`, lists the biggest
+files, adds a **debug-only total** (`kernel_blob.bin`, `isolate_snapshot_*`, `vm_snapshot_*`,
+`libVkLayer_khronos_validation.so`) and counts the ABIs. Expect `lib/*/libflutter.so` and `lib/*/libapp.so` to be ~90% of a
+debug build: the engine is copied once per ABI and debug Dart has no AOT code (it ships a
+kernel snapshot instead).
+
+| Step | Expected | Cost / caveat |
+|---|---|---|
+| debug, `--abi all` | 237.3 MB (measured: 142 MB kernel blob + 3 engines + 37 MB dex) | none — but three engines in one file |
+| debug, `--abi arm64` | ~120 MB (measured) | one phone needs one ABI |
+| release, `--abi arm64` + R8 | ~30–45 MB (**expectation, not measured here**) | needs a signature |
+| release with your own keystore | same, and it is the real product | create the keystore once and keep it |
+
+The no-secrets shortcut, for measuring and for daily use on your own phone:
+
+```bash
+bin/build_apk --release --sign-debug --abi arm64
+```
+
+It signs with `~/.android/debug.keystore` (created by any earlier debug build) and says so
+loudly. Only the signature is the compromise: a later build signed with your own key cannot
+update this install in place. If `minifyReleaseWithR8` ever fails because a plugin needs a
+keep rule, add `-PnotelyMinify=false` (documented next to the flag in
+`android/app/build.gradle.kts`).
+
+Notes that have cost time before:
+
+- Package id is **`com.tc.writestory.community`** for this flavor, so it can live next to any
+  other install. `bin/build_apk --install` refuses to guess when two devices are attached and
+  prints both — that is `ANDROID_SERIAL`'s job.
+- A debug APK is ~124 MB and runs on the Dart VM. `--release` is much smaller and faster but
+  needs a keystore (`RELEASE_KEYSTORE_PATH/_PASSWORD`, `RELEASE_KEY_ALIAS`,
+  `RELEASE_KEY_PASSWORD`); `bin/build_apk` prints the `keytool` line when they are missing.
+  **Keep that keystore**: losing it changes the app's identity and no future build can update
+  the installed one in place.
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE` means a differently-signed copy is already installed;
+  uninstalling clears the app's local data too (the script warns before you do it).
+
+### 2.2f Phone sign-in: the loopback address that spins forever
+
+The OAuth flow opens the browser and expects Google to redirect to
+`http://127.0.0.1:<port>/?code=…`, where the app answers with a small "Signed in" page.
+Two things can make that page hang, and they look identical in the UI:
+
+| Log line (`adb logcat -s flutter \| grep "Google sign-in"`) | Meaning | Fix |
+|---|---|---|
+| `waiting for the loopback redirect on 127.0.0.1:<port>` only | the redirect never reached the app: the listener was attached too late (fixed in `D-058`), the OEM froze the app while the browser was foreground, or a phone-side VPN refuses loopback | rebuild **and install** first (`adb devices` must list the phone); after 12 s the app now offers the paste-the-address dialog (`D-060`) |
+| `loopback request (code: true …)` then a failure | the app answered the browser; the failure is the token exchange (network/DNS) | `ENVIRONMENT.md` §2.2d |
+
+The paste-the-address fallback (`D-060`) turns the first row from a dead end into a step: the
+dialog appears only when the page is stuck, the pasted address goes through the same `state`
+check as a real redirect, and the code is still never logged. If the dialog appears and the
+pasted address is rejected with `invalid_state`, the address came from an earlier attempt —
+start the sign-in again from the app.
+
+The code itself is never logged — it is a credential.
 
 ### 2.2d When "No internet" is really a fake-IP DNS (D-069)
 
@@ -319,7 +462,7 @@ the APK attached, plus version, signing mode, size and sha256 in the notes.
 | Gradle fails configuring `:jni` with `NDK not configured. Preferred NDK version is '28.2.13676358'` | transitive `jni` (`1.0.3`, from `path_provider_android`) builds `libdartjni.so` via CMake + NDK | run `bin/android_doctor --fix` to install NDK + CMake from the SDK mirror, then `bin/build_apk` |
 | Android build fails looking for `platforms;android-36` when machine has `android-36.1` | plugins pin `< 36`, `android/build.gradle.kts` raises to `36` without minor | fixed in `d3d534e`: `notelyCompileSdkMinor` aligns `app` and `LibraryExtension` plugins to `36.1` |
 | `emulator: command not found` or `bin/build_apk --install` exited silently with no device | SDK `emulator/`/`platform-tools/` not on `PATH`; `pipefail` tripped on empty `adb` | fixed in `0cb892f`: `bin/build_apk` resolves `$SDK/{emulator,platform-tools}` and adds `--avd` |
-| On the emulator: `Sign-in failed: ClientException … Failed host lookup: 'oauth2.googleapis.com' … errno = 7` | the AVD got a resolver it cannot use (host uses systemd-resolved's `127.0.0.53` stub) | reboot with `--dns-server=8.8.8.8` (§2.2c), then `adb shell ping -c1 oauth2.googleapis.com` |
+| On the emulator: `Sign-in failed: ClientException … Failed host lookup: 'oauth2.googleapis.com' … errno = 7` | the AVD got a resolver it cannot use (host uses systemd-resolved's `127.0.0.53` stub) | reboot the AVD with `bin/build_apk --install --avd=<name>` (the resolver is automatic since D-055), then `adb shell ping -c1 oauth2.googleapis.com` (§2.2c) |
 | Google sign-in says "No internet connection!" although the browser reached Google | one message covers DNS, TCP, TLS and a rejected token request | `bin/oauth_debug` — it names the layer and prints the fix (§2.2d) |
 | `adb shell ping oauth2.googleapis.com` answers `198.18.x.x` | a proxy on the host answers DNS with fake IPs | exclude Google from the fake-IP DNS or set the guest's private DNS (§2.2d) |
 | `build_runner`/`bin/setup_linux` failed on `Directory ../static/sources/story_backgrounds not found` | the artwork submodule is not checked out (normal for this repo) | fixed: the generator now skips and keeps the committed `lib/gen/story_backgrounds.dart` |
