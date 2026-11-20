@@ -1060,6 +1060,27 @@ that asks the user to paste the browser's address when the loopback does not ans
 user rejected it («چیز قشنگی نیست»); this branch has no such code, so `D-070` records the
 decision and what to delete if that redesign is ever merged.
 
+**Cause found — it is fake-IP DNS (2026-11-20).** `bin/build_apk` said it before the
+capture did: on the user's Fedora box the emulator resolves `oauth2.googleapis.com` to
+`198.18.0.60`, and `bin/oauth_debug`'s own `ping` check agrees. That is Clash/mihomo-style
+"fake IP" DNS (pool `198.18.0.1/16`) answering on the host. Chrome signs in because it uses
+its own secure DNS; every app that asks the *system* resolver — this one — gets an address
+that only exists inside the proxy, so the token exchange dies after the redirect (the
+sign-in half in the browser succeeds, the app-side HTTPS does not). Not credentials, not the
+client id, not Google.
+
+**Tooling bug found while reading that capture:** `bin/oauth_debug`'s `ping` parser was
+greedy — `PING host (198.18.0.60) 56(84) bytes` yielded `84`, so a fake IP was printed as
+"real-looking". Fixed (first parenthesised value), and the analysis now also reads the
+merged `transport failure: <operation> (<layer>)` line.
+
+**Fix (host side, nothing to rebuild):** add Google to the proxy's `dns.fake-ip-filter`
+(`+.googleapis.com`, `+.google.com`, `+.gstatic.com`) or switch `enhanced-mode` to
+`redir-host`/turn TUN off, then re-check
+`adb -s emulator-5554 shell ping -c1 oauth2.googleapis.com` — the address must become a real
+Google one (142.250.x / 172.217.x / 216.58.x). Details and the ordering in
+`ENVIRONMENT.md` §2.2d.
+
 **Next step (awaiting the user)**
 
 ```bash

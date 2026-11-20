@@ -213,7 +213,10 @@ fact() { printf '  %-24s %s\n' "$1" "$2" | tee -a "$LOG"; }
 ping_fact() {
   local host="$1" out ip verdict
   out=$(timeout 25 "$ADB" "${ADB_ARGS[@]}" shell ping -c1 -W3 "$host" 2>&1 | tr -d '\r')
-  ip=$(printf '%s\n' "$out" | sed -n 's/.*(\([0-9a-fA-F.:]*\)).*/\1/p' | head -1)
+  # toybox prints `PING host (198.18.0.60) 56(84) bytes of data.` — the *first*
+  # parenthesised value is the address; a greedy match takes `84` out of `56(84)`
+  # and calls a fake IP "real-looking", which is the opposite of the truth.
+  ip=$(printf '%s\n' "$out" | grep -o '([0-9a-fA-F.:]*)' | head -1 | tr -d '()')
   if [ -z "$ip" ]; then
     fact "$host" "UNRESOLVED (ping failed)"
     return 1
@@ -246,7 +249,9 @@ fact "locale" "$(adb_ shell getprop persist.sys.locale 2>/dev/null | tr -d '\r')
 dns_mode=$(adb_ shell settings get global private_dns_mode 2>/dev/null | tr -d '\r')
 dns_specifier=$(adb_ shell settings get global private_dns_specifier 2>/dev/null | tr -d '\r')
 [ -n "$dns_specifier" ] && [ "$dns_specifier" != "null" ] || dns_specifier=""
-fact "private DNS mode" "${dns_mode:-unknown}${dns_specifier:+ ($dns_specifier)}"
+# `settings get` prints the literal string "null" when the key was never set.
+[ "$dns_mode" = "null" ] || [ -z "$dns_mode" ] && dns_mode="off (system default)"
+fact "private DNS mode" "${dns_mode}${dns_specifier:+ ($dns_specifier)}"
 installed=$(adb_ shell pm list packages "$PACKAGE" 2>/dev/null | tr -d '\r' | sed 's/package://' | head -1)
 fact "app installed" "${installed:-NO}"
 [ -n "$installed" ] || die "$PACKAGE is not installed on $SERIAL.

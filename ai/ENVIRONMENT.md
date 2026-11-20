@@ -288,6 +288,26 @@ It prints, and saves to `build/oauth_debug_<timestamp>.log`:
 A capture taken on another machine can be analysed here: `bin/oauth_debug --analyze <file>`.
 No code, token or secret is written to the log.
 
+**Confirmed once, on this machine (2026-11-20):** the emulator resolved
+`oauth2.googleapis.com` to `198.18.0.60` and the sign-in failed *after* the browser half
+succeeded. That is the fake-IP case above, with the proxy answering on the host. The order
+that actually fixes it:
+
+1. proxy config — add `+.googleapis.com`, `+.google.com`, `+.gstatic.com`,
+   `+.googleusercontent.com` to `dns.fake-ip-filter` (mihomo/Clash), or set
+   `dns.enhanced-mode: redir-host`, or switch TUN mode off while testing;
+2. reload the proxy, then re-check from the guest:
+
+   ```bash
+   adb -s emulator-5554 shell ping -c1 oauth2.googleapis.com   # must be 142.x/172.x/216.x
+   ```
+
+3. only then reopen the app and sign in — no rebuild, the APK is fine.
+
+Android's Private DNS (`private_dns_mode hostname` + `dns.google`) usually does *not* help
+here: bootstrapping that hostname goes through the same hijacked resolver. `--dns-server`
+does not help either when the proxy hijacks port 53 for every destination.
+
 **Two devices attached?** A phone (`R5CWC1S4P0W`) next to `emulator-5554` makes every plain
 `adb` command fail with `adb: more than one device/emulator`. `bin/oauth_debug` and
 `bin/build_apk --install` now pick the single emulator themselves and say so; for anything
