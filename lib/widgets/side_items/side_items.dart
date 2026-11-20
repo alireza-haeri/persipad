@@ -1,8 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:storypad/core/services/app_store_opener_service.dart';
+import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
+import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/types/sidebar_item_id.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/views/archives/archives_view.dart';
@@ -137,7 +138,7 @@ class SideItems {
         title: tr('list_tile.rate.title'),
         subtitle: null,
         icon: const Icon(SpIcons.star),
-        onTap: (context) => AppStoreOpenerService.call(),
+        onTap: (context) => UrlOpenerService.openInCustomTab(context, '$kProjectRepositoryUrl/issues'),
       ),
       ListTileSideItem(
         title: tr('list_tile.share_app.title'),
