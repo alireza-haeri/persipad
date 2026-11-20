@@ -115,3 +115,9 @@ Generic journaling-app ideas; your preferences set the priority.
 | I-12 | `🔴` | Verify Nextcloud sync against the **official** phone app (same account, same folder) | the only path-based provider both apps already support — this is the realistic phone↔desktop bridge |
 | I-13 | `✅` | Android build that reuses the **desktop** OAuth client id (loopback flow, not `google_sign_in`) | Unified in `D-047`: both Linux and Android now use `GoogleDesktopAuthStrategy` so both devices share one Drive `appDataFolder` |
 | I-14 | `🟡` | One-time migration flow: import a phone-exported JSON, then let Drive take over | existing notes must not be stranded on the old app |
+
+## Calendar reminder implementation (D-064)
+
+- `⏳` Integrate recurrence data, editing UI and localized summaries with existing reminders.
+- `⏳` Design and verify durable notification renewal when the app is not running, reboot/time-zone handling and OS limits; do not expose a schedule that silently expires.
+- `⏳` Define and implement re-anchoring on calendar setting changes; run Flutter tests, Linux CI and Android device verification.

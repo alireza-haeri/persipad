@@ -1553,3 +1553,8 @@ Template:
   and the local illustration. Do not send gender to analytics.
 - **Consequences:** no new artwork or native launcher-icon aliases are added; community's
   launcher icon remains unchanged, while in-app logo surfaces follow the selection.
+
+## D-064 — Calendar-relative reminder recurrence (2026-11-19)
+- **Status:** accepted by user; implementation incomplete.
+- The user chose intervals of 1–12 months, clamping missing dates to the last day of the month, and following the app's currently selected calendar. The original requested day must survive a short month.
+- The pure recurrence calculator is an initial building block only. Calendar switching/re-anchoring, persistence, editing, summaries, notification scheduling and replenishment are not implemented yet. A finite batch of notifications cannot be described as indefinitely reliable; Android reboot/time-zone changes, app-not-running behavior, notification limits, and platform support must be handled and tested before exposing the feature.
