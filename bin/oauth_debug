@@ -174,8 +174,18 @@ if [ -z "$SERIAL" ]; then
   Start one:  bin/build_apk --install --avd=<name> --launch"
   fi
   if [ "$count" != "1" ]; then
-    die "multiple devices attached — choose one with --device=<serial>:
+    # A phone next to the emulator is the normal setup (and what made every adb
+    # command fail with "more than one device/emulator"). The emulator is what this
+    # script is about, so take it — as long as there is exactly one.
+    emulators=$(printf '%s\n' "$online" | grep '^emulator-' || true)
+    if [ "$(printf '%s\n' "$emulators" | grep -c . || true)" = "1" ]; then
+      online="$emulators"
+      warn "$count devices attached — using the emulator $online (the other one is left alone)."
+      warn "pass --device=<serial> to choose a different one."
+    else
+      die "multiple devices attached — choose one with --device=<serial>:
 $(printf '%s\n' "$online" | sed 's/^/  /')"
+    fi
   fi
   SERIAL="$online"
   ADB_ARGS=(-s "$SERIAL")

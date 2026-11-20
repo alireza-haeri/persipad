@@ -745,6 +745,12 @@ hypothesis, and this session is about replacing it with evidence instead of re-g
 - **Not verified:** anything that needs the user's machine — the probe against their real
   network, and the actual sign-in. That is the next step, not a conclusion.
 
+**Device selection (same day):** with a phone and the emulator both attached, every plain
+`adb` command failed with `more than one device/emulator`. `first_online_device` in
+`bin/build_apk` now resolves to `ANDROID_SERIAL` → the only device → the single emulator
+(instead of dying on install), and `bin/oauth_debug` makes the same choice and says which
+device it took. `ai/ENVIRONMENT.md` §2.2d has the one-line `export ANDROID_SERIAL=…` form.
+
 **Next step (awaiting the user)**
 
 ```bash

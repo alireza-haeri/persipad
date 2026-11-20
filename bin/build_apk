@@ -150,7 +150,26 @@ fi
 # ---------------------------------------------------------------- device & AVD helpers
 first_online_device() {
   command -v adb >/dev/null 2>&1 || return 0
-  adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && $2=="device" {print $1; exit}' || true
+  # ANDROID_SERIAL wins; then the only device; then the emulator — a phone stays
+  # plugged in next to the AVD all day, and every adb call here (boot wait, DNS
+  # check, install, launch) means the emulator in that case. Two phones and no
+  # emulator stay ambiguous: print nothing so the caller can say what to set.
+  if [ -n "${ANDROID_SERIAL:-}" ]; then
+    printf '%s\n' "$ANDROID_SERIAL"
+    return 0
+  fi
+  devices=$(adb devices 2>/dev/null | awk 'NF>=2 && $1!="*" && $2=="device" {print $1}')
+  count=$(printf '%s\n' "$devices" | grep -c . || true)
+  if [ "$count" = "1" ]; then
+    printf '%s\n' "$devices"
+    return 0
+  fi
+  if [ "$count" -gt 1 ]; then
+    emulators=$(printf '%s\n' "$devices" | grep '^emulator-' || true)
+    if [ "$(printf '%s\n' "$emulators" | grep -c . || true)" = "1" ]; then
+      printf '%s\n' "$emulators"
+    fi
+  fi
 }
 
 # True when the host resolves names exclusively through a local stub resolver
@@ -465,8 +484,11 @@ or start it manually first:
   ADB_TARGET=()
   if [ -n "${ANDROID_SERIAL:-}" ]; then
     ADB_TARGET=(-s "$ANDROID_SERIAL")
-  elif [ "$DEVICES" -eq 1 ]; then
+  elif [ -n "$(first_online_device)" ]; then
     ADB_TARGET=(-s "$(first_online_device)")
+    if [ "$DEVICES" -gt 1 ]; then
+      say "note: $DEVICES devices attached — installing on the emulator ${ADB_TARGET[1]} (ANDROID_SERIAL overrides)."
+    fi
   else
     die "multiple devices attached — set ANDROID_SERIAL to choose one:
 $(adb devices)"

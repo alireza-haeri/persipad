@@ -145,6 +145,21 @@ It prints, and saves to `build/oauth_debug_<timestamp>.log`:
 A capture taken on another machine can be analysed here: `bin/oauth_debug --analyze <file>`.
 No code, token or secret is written to the log.
 
+**Two devices attached?** A phone (`R5CWC1S4P0W`) next to `emulator-5554` makes every plain
+`adb` command fail with `adb: more than one device/emulator`. `bin/oauth_debug` and
+`bin/build_apk --install` now pick the single emulator themselves and say so; for anything
+else set the serial once in the shell and forget it:
+
+```bash
+export ANDROID_SERIAL=emulator-5554
+adb -s "$ANDROID_SERIAL" shell settings put global private_dns_mode hostname
+adb -s "$ANDROID_SERIAL" shell settings put global private_dns_specifier dns.google
+adb -s "$ANDROID_SERIAL" shell ping -c1 oauth2.googleapis.com
+```
+
+Point the emulator at a real resolver, not the phone: `-s` is what decides who gets the
+setting.
+
 ## 2.3 Package overrides required by the newer SDK
 
 These are now **committed in `pubspec.yaml`**, not local hacks (D-009):
