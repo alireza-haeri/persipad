@@ -1091,7 +1091,17 @@ both sessions' entries.
 `_redirectAddressFromClipboard`, the `dialog.google_drive_redirect.*` keys and the tests that
 drove it. `bin/oauth_debug` stays as the way to find out why a redirect did not arrive.
 
-**Verification:** Linux CI [`44713743039`](https://github.com/alireza-haeri/persipad/actions/runs/44713743039)
-on `b88c101` — 7/7 green (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
-package tests, Coverage). What CI cannot prove is the runtime: the merged build's sign-in on
-the device is the next thing to look at, with `bin/oauth_debug`.
+**Verification:** Linux CI [`44715821324`](https://github.com/alireza-haeri/persipad/actions/runs/44715821324)
+on `0945df5` — 7/7 green (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+package tests, Coverage) with the format gate silent. The merge itself was green first
+(`44713743039` on `b88c101`); the follow-up took the formatter and the regenerated
+`lib/gen/assets.gen.dart` (the new `assets/template_translations/fa.json` needed an entry)
+from the `[codegen]` run `44715247146`, and taught `bin/oauth_debug` the merged log format
+(`transport failure: <operation> (<layer>)` instead of the old exception text).
+
+**Result:** `origin` now has exactly two branches — `main` and
+`arena/95cdc5fd-persipad` — plus the tag `archive/arena-7ba21f51-notely` (`eda047c`).
+`ci/codegen` is gone and reappears whenever a commit carries the `[codegen]` marker.
+
+What CI cannot prove is the runtime: the merged build's sign-in on the device is the next
+thing to look at, with `bin/oauth_debug`.
