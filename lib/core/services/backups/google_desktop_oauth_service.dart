@@ -5,8 +5,8 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/backups/google_connectivity_service.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
