@@ -261,7 +261,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       AppLogger.d('Sign-in failed: ${result.error!.message}');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_signInMessage(result.error!))),
+          SnackBar(content: Text(_signInMessage(result.error!, serviceType))),
         );
       }
 
@@ -283,6 +283,10 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
   /// browser instead of being stuck on a page that spins forever (`D-058`, `D-060`).
   Future<BackupResult<bool>> _signInWithFallback(BuildContext context, BackupServiceType serviceType) async {
     if (repository.getService(serviceType) is GoogleDriveCloudService) {
+      GoogleDesktopOAuthService.completionPageText = (
+        close: tr('google_oauth.close_tab'),
+        help: tr('google_oauth.close_tab_help'),
+      );
       GoogleDesktopOAuthService.manualRedirectPrompt = (redirectArrived) =>
           _askForRedirectUri(context, redirectArrived);
     }
@@ -294,6 +298,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       );
     } finally {
       GoogleDesktopOAuthService.manualRedirectPrompt = null;
+      GoogleDesktopOAuthService.completionPageText = null;
     }
   }
 
@@ -375,13 +380,14 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     return '';
   }
 
-  /// A sign-in that failed only because the device cannot reach Google gets the
-  /// translated "no internet" line: the raw transport text
-  /// (`ClientException with SocketException: Failed host lookup … errno = 7`)
-  /// tells the user nothing they can act on. Every other failure keeps the
-  /// specific message the stack produced.
-  String _signInMessage(BackupError error) {
-    if (error.type == BackupErrorType.network) return tr('snack_bar.no_internet');
+  /// A Google transport failure does not prove the entire device is offline.
+  /// Other providers keep the existing network message.
+  String _signInMessage(BackupError error, BackupServiceType serviceType) {
+    if (error.type == BackupErrorType.network) {
+      return serviceType == BackupServiceType.google_drive
+          ? tr('snack_bar.google_connection_failed')
+          : tr('snack_bar.no_internet');
+    }
     return error.message;
   }
 

@@ -1558,3 +1558,9 @@ Template:
 - **Status:** accepted by user; implementation incomplete.
 - The user chose intervals of 1–12 months, clamping missing dates to the last day of the month, and following the app's currently selected calendar. The original requested day must survive a short month.
 - The pure recurrence calculator is an initial building block only. Calendar switching/re-anchoring, persistence, editing, summaries, notification scheduling and replenishment are not implemented yet. A finite batch of notifications cannot be described as indefinitely reliable; Android reboot/time-zone changes, app-not-running behavior, notification limits, and platform support must be handled and tested before exposing the feature.
+
+## D-065 — Diagnose Google connectivity without exposing OAuth credentials (2026-11-19)
+- **Status:** implemented; device confirmation pending.
+- A browser redirect does not prove the app can reach Google's token or account API. Report inability to reach Google rather than assert that all internet is down, and log only the operation and coarse failure class, never raw transport details or OAuth values.
+- The callback page offers a best-effort close button with manual fallback because browsers may refuse `window.close()` for a tab not created by script. Do not retry a one-time authorization code after an ambiguous token request failure; it might already have been consumed.
+- Device/network-specific routing or VPN failures cannot safely be bypassed by silently changing DNS, proxies or TLS verification. Diagnose the failing phase and network path before choosing a transport fix.

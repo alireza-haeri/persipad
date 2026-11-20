@@ -319,3 +319,8 @@ never been exercised, which is why the first item in `NEXT.md` is a single sign-
 
 **Status:** ⏳ Calendar reminder implementation pending; investigate reported Android compile failure.
 **Clarifications:** Custom intervals of 1–12 months; clamp missing days to month end; follow the active calendar; Persian translations for bundled templates only.
+
+### N-025 — Google sign-in on emulator and close button (2026-11-19)
+> «روی emulator ... میره توی گوگل، وارد حسابم میشم. وقتی میگه authentication recived و خودم پنجره رو میبندم. توی برنامه میگه اینترنت نیست ... این رو باید درست حسابی درست کنیم که توی همه دستگاه ها خوب کار کنه ... توی صفحه html ... یه دکمه بزار که خودش اون مرورگر رو بننده»
+
+**Status:** ⏳ Investigation and verification in progress. The successful loopback page only proves that a redirect arrived, not that token exchange or account lookup succeeded. Root cause on the user's devices remains unconfirmed.

@@ -151,6 +151,9 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// describes exactly this).
   static Future<String?> Function(Future<void> redirectArrived)? manualRedirectPrompt;
 
+  /// Localized by the UI before opening the browser; reset when sign-in ends.
+  static ({String close, String help})? completionPageText;
+
   @override
   bool get isConfigured => config.isConfigured;
 
@@ -165,33 +168,26 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// purpose, and the timer only starts once a browser was actually opened.
   static const Duration redirectTimeout = Duration(minutes: 5);
 
-  /// `package:http` surfaces a dead network as [http.ClientException] (which
-  /// carries the underlying `SocketException` text); a host name the device
-  /// cannot resolve — a broken DNS, as inside an Android emulator without
-  /// `-dns-server` — is the most common instance.
-  ///
-  /// None of that is an OAuth failure, so it becomes a [GoogleOAuthException]
-  /// tagged `offline` and the UI can answer with a translated "no internet"
-  /// instead of echoing `ClientException with SocketException: Failed host
-  /// lookup … errno = 7` at the user.
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  /// Never log transport exception text: it can contain URLs and credentials.
+  /// Keep a coarse failure class and operation so diagnostics remain actionable.
+  Future<http.Response> _send(String operation, Future<http.Response> Function() request) async {
     try {
       return await request().timeout(requestTimeout);
+    } on io.TlsException {
+      throw GoogleOAuthException(_offlineMessage(operation, 'tls'), error: GoogleOAuthException.offline);
     } on io.SocketException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+      final kind = e.message.toLowerCase().contains('host lookup') ? 'dns' : 'connection';
+      throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on http.ClientException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
-    } on io.TlsException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+      final message = e.message.toLowerCase();
+      final kind = message.contains('host lookup') ? 'dns' : message.contains('handshake') ? 'tls' : 'connection';
+      throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on TimeoutException {
-      throw GoogleOAuthException(
-        _offlineMessage('no answer within ${requestTimeout.inSeconds}s'),
-        error: GoogleOAuthException.offline,
-      );
+      throw GoogleOAuthException(_offlineMessage(operation, 'timeout'), error: GoogleOAuthException.offline);
     }
   }
 
-  static String _offlineMessage(String detail) => "Couldn't reach Google ($detail).";
+  static String _offlineMessage(String operation, String kind) => "Couldn't reach Google ($operation: $kind).";
 
   /// RFC 7636 §4.1 verifier: 43–128 chars from the unreserved set. 32 random
   /// bytes base64url-encoded is 43 chars, which is the sweet spot every
@@ -449,9 +445,16 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         ? 'Return to PersiPad to finish signing in.'
         : 'Google did not complete authorization. Return to PersiPad and try again.';
 
+    final close = const HtmlEscape().convert(completionPageText?.close ?? 'Close this tab');
+    final help = const HtmlEscape().convert(completionPageText?.help ??
+        'If the browser did not close this tab, close it manually and return to PersiPad.');
+
     return '<!doctype html><meta charset="utf-8"><title>PersiPad</title>'
         '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
-        '<h2>$heading</h2><p>$detail</p></body>';
+        '<h2>$heading</h2><p>$detail</p>'
+        '<button type="button" onclick="window.close(); document.getElementById(\'close-help\').hidden = false;">$close</button>'
+        '<p id="close-help" hidden>$help</p>'
+        '</body>';
   }
 
   Future<GoogleDesktopToken> _exchangeCode({
@@ -460,6 +463,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     required String redirectUri,
   }) async {
     final response = await _send(
+      'token exchange',
       () => _client.post(
         Uri.parse(tokenUrl),
         body: {
@@ -485,6 +489,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     if (refreshToken == null) return null;
 
     final response = await _send(
+      'token refresh',
       () => _client.post(
         Uri.parse(tokenUrl),
         body: {
@@ -509,6 +514,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   @override
   Future<GoogleUserInfo> fetchUserInfo(String accessToken) async {
     final response = await _send(
+      'account info',
       () => _client.get(
         Uri.parse(userInfoUrl),
         headers: {'Authorization': 'Bearer $accessToken'},

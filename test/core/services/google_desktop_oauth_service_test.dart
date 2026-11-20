@@ -258,6 +258,40 @@ void main() {
       expect(page, contains('Authorization received'));
       expect(page, contains('Return to PersiPad to finish signing in.'));
       expect(page, isNot(contains('Signed in')));
+      expect(page, contains('window.close()'));
+      expect(page, contains('close it manually'));
+    });
+
+    test('escapes localized close instructions in the browser page', () async {
+      GoogleDesktopOAuthService.completionPageText = (close: '<Close>', help: 'Return & close');
+      addTearDown(() => GoogleDesktopOAuthService.completionPageText = null);
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url);
+        return true;
+      });
+      await service.authenticate();
+      expect(page, contains('&lt;Close&gt;'));
+      expect(page, contains('Return &amp; close'));
+      expect(page, isNot(contains('<Close>')));
+    });
+
+    test('reports a token exchange network failure without leaking transport details', () async {
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        client: MockClient((request) async => throw const SocketException('Failed host lookup: private-host')),
+        openBrowser: (url) async {
+          await redirectFromInsideBrowser(url);
+          return true;
+        },
+      );
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>()
+            .having((e) => e.isOffline, 'offline', isTrue)
+            .having((e) => e.message, 'message', contains('token exchange: dns'))
+            .having((e) => e.message, 'message', isNot(contains('private-host')))),
+      );
     });
 
     test('an authorization denial is not shown as a successful sign-in', () async {

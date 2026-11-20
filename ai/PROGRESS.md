@@ -896,3 +896,8 @@ worse than a red one. Fixed and verified locally by running `bin/changed_tests -
 - Fixed missing `kProjectRepositoryUrl` import in the onboarding library; the user's build log identified this Dart compilation error, not the preceding dependency/toolchain warnings.
 - Calendar-aware recurring reminders remain in progress. Flutter/Dart are unavailable in the sandbox; CI and device verification are required.
 - Added a standalone recurrence calculator and tests for Gregorian and Persian months, intervals and end-of-month clamping. It is not connected to reminders and does not complete the requested feature. Dart formatting and Flutter tests remain unverified locally.
+
+### 2026-11-19 — Google sign-in diagnostics and browser close
+- Added a best-effort localized close button with explicit manual fallback, and changed the misleading Google sign-in network message to say Google could not be reached.
+- Transport exceptions now report only coarse failure class and operation, without raw exception text; added regression cases for token exchange failure and HTML escaping.
+- The actual phone/emulator network cause is **not confirmed or fixed** by this change; the callback page precedes token exchange and account lookup. Flutter is unavailable locally; CI and device tests remain necessary.
