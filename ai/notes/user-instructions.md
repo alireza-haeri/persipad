@@ -311,3 +311,19 @@ help" fits a host↔guest resolver/routing problem, and fake-IP DNS explains "br
 app doesn't" exactly — but both stay hypotheses until the capture says so.
 **Next:** `bin/build_apk --install --launch` then `bin/oauth_debug`; send back the
 `build/oauth_debug_*.log` (or its `[google-oauth]` lines).
+
+### N-023 — Remove the "paste the redirect URL" box; act on the emulator, not the phone
+> «اون کادری که باز میشه و می‌گه اگه لاگین ناموفق بود و خودتون دستی اون لینک رو بزارید اینجا رو حذف کن. چیز قشنگی نیست»
+
+**Status:** 🧭 recorded (`D-070`); the code it refers to is on `arena/7ba21f51-notely`, not here
+**What was asked:** delete the manual-paste fallback dialog shown when the browser cannot
+reach the app's loopback server.
+**Finding:** no such dialog exists in this branch — `git grep google_drive_redirect` is empty.
+It is part of the OAuth redesign that lives only on `arena/7ba21f51-notely`
+(`BackupProvider._askForRedirectUri`), which this session cannot push to.
+**Also reported in the same message:** `adb: more than one device/emulator` — a phone and
+`emulator-5554` were both attached. Fixed in the tooling: `bin/build_apk` and
+`bin/oauth_debug` now act on the single emulator and say so (`ENVIRONMENT.md` §2.2d also
+documents `export ANDROID_SERIAL=emulator-5554`).
+**Open:** confirm which branch the user builds, so the dialog removal can land where the code
+actually is.

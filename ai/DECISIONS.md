@@ -1394,3 +1394,23 @@ Template:
   (fire-and-forget) and up to a few seconds only when a request already failed. Address
   classification is unit-tested; the probe itself and the sign-in are device-only, so the
   `PROGRESS.md` §Session 23 entry explicitly does **not** claim a root cause yet.
+
+## D-070 — The app never asks the user to paste a redirect URL (2026-11-20)
+- **Status:** accepted (user request, `N-023`)
+- **Context:** The OAuth redesign on `arena/7ba21f51-notely` — not on this branch, and not
+  merged — adds a manual fallback: if the loopback redirect has not arrived after a delay,
+  `BackupProvider._askForRedirectUri` opens a dialog ("The browser could not reach the app …
+  copy the whole address from the browser's address bar and paste it here"), and
+  `GoogleDesktopOAuthService.manualRedirectPrompt` accepts the pasted address. The user saw
+  it on a build that came from that branch and rejected it: «چیز قشنگی نیست».
+- **Decision:** There is no manual redirect prompt. The flow is the loopback server, or a
+  clear failure: `authenticate()` logs where it stopped (`google-oauth`) and the UI shows the
+  translated "no internet" line for a network cause (D-069). Nothing asks the user to
+  transcribe a URL from a browser address bar.
+- **Consequences:** This branch already matches the decision (it never had the prompt). If
+  the redesign from `arena/7ba21f51-notely` is ever merged, its manual fallback must be
+  dropped with it — `_askForRedirectUri`, `_redirectAddressFromClipboard`,
+  `manualRedirectPrompt`, `_waitForRedirect`'s prompt branch, the `dialog.google_drive_redirect.*`
+  keys in both translation files (the unused-key test fails if they stay), and the
+  corresponding tests. The loopback still needs a real fix on the device side, which is what
+  `bin/oauth_debug` measures.

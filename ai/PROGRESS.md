@@ -751,6 +751,11 @@ hypothesis, and this session is about replacing it with evidence instead of re-g
 (instead of dying on install), and `bin/oauth_debug` makes the same choice and says which
 device it took. `ai/ENVIRONMENT.md` §2.2d has the one-line `export ANDROID_SERIAL=…` form.
 
+**Removed-by-decision, not by code:** a build from `arena/7ba21f51-notely` shows a dialog
+that asks the user to paste the browser's address when the loopback does not answer. The
+user rejected it («چیز قشنگی نیست»); this branch has no such code, so `D-070` records the
+decision and what to delete if that redesign is ever merged.
+
 **Next step (awaiting the user)**
 
 ```bash
