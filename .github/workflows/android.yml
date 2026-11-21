@@ -143,9 +143,6 @@ jobs:
         run: flutter pub get
 
       - name: Prepare dart-defines
-        # android/app/build.gradle.kts reads APP_NAME out of
-        # --dart-define-from-file with defaults, and GoogleDriveCloudService reads
-        # GOOGLE_DESKTOP_CLIENT_ID / GOOGLE_DESKTOP_CLIENT_SECRET when configured.
         env:
           GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}

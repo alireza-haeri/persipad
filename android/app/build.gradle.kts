@@ -1,19 +1,5 @@
-import java.util.Base64
 import java.util.Properties
 import java.io.FileInputStream
-
-// remove this when flutter fix following issue:
-// https://github.com/flutter/flutter/issues/139289
-val dartDefines: Map<String, String> = if (gradle.startParameter.projectProperties.containsKey("dart-defines")) {
-    val encoded = gradle.startParameter.projectProperties["dart-defines"]!!
-    encoded.split(",").associate { entry ->
-        val decoded = String(Base64.getDecoder().decode(entry), Charsets.UTF_8)
-        val (key, value) = decoded.split("=")
-        key to value
-    }
-} else {
-    emptyMap()
-}
 
 fun loadKeystoreProperties(keystoreFilePath: String): Properties {
     val keystoreProperties = Properties()
@@ -76,14 +62,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-
-        // --dart-define-from-file=configs/example.json
-        //
-        // This used to be `resValue(...)`. AGP 9 disables custom *resource* values
-        // in the legacy DSL ("defaultConfig contains custom resource values, but the
-        // feature is disabled"), and the manifest is the only reader, so it is a
-        // manifest placeholder now — the same mechanism `appLogo` below already uses.
-        manifestPlaceholders["appName"] = dartDefines["APP_NAME"] ?: "PersiPad"
 
         // `--target-platform=android-arm64` only selects Flutter's engine and Dart
         // snapshot. Plugin .so files are packaged for **every** ABI regardless, which

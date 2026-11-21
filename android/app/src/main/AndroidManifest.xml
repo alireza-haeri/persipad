@@ -23,7 +23,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
-        android:label="${appName}"
+        android:label="PersiPad"
         android:name="${applicationName}"
         android:icon="@mipmap/${appLogo}"
         android:allowBackup="false"

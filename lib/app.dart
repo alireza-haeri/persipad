@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storypad/app_theme.dart';
+import 'package:storypad/core/constants/app_constants.dart' show kAppName;
 import 'package:storypad/core/constants/locale_constants.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/core/storages/device_preferences_storage.dart';
@@ -60,6 +61,7 @@ class App extends StatelessWidget {
                     context.read<DevicePreferencesProvider>().timeFormatOf(context) == TimeFormatOption.h24,
               ),
               child: MaterialApp(
+                title: kAppName,
                 debugShowCheckedModeBanner: false,
                 themeMode: themeMode,
                 theme: theme,
