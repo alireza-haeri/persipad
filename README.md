@@ -1,5 +1,13 @@
 # PersiPad
 
+**[دانلود نسخه‌های اندروید از GitHub Releases](https://github.com/alireza-haeri/persipad/releases)**
+
+برای گوشی‌های ۶۴ بیتی ARM، در بخش **Assets** نسخهٔ پایدار، فایل APK با نام `arm64-v8a` را انتخاب کنید، نه فایل‌های «Source code». نسخه‌هایی که برچسب **Pre-release** و عنوان **debug** دارند، آزمایشی‌اند.
+
+PersiPad یک فورک مستقل از [StoryPad](https://github.com/theachoem/storypad) است. برنامهٔ اصلی و ویرایشگر دفترچه حاصل کار تیم StoryPad و مشارکت‌کنندگان آن است. [علیرضا حائری](https://github.com/alireza-haeri) این نسخه را بر پایهٔ آن توسعه داده: رابط فارسی، تقویم شمسی و یادآورهای تقویمی، و انتقال تنظیمات هنگام بازیابی بکاپ از جمله تغییرات PersiPad هستند. این نسخه انتشار رسمی StoryPad نیست.
+
+**English:** PersiPad is an independent fork of [StoryPad](https://github.com/theachoem/storypad), maintained by [Alireza Haeri](https://github.com/alireza-haeri). Credit for the original journal goes to the upstream authors and contributors. This fork adds Persian-first defaults, Solar Hijri calendar reminders and portable settings backups. Get Android builds from [GitHub Releases](https://github.com/alireza-haeri/persipad/releases).
+
 [![GitHub stars](https://img.shields.io/github/stars/alireza-haeri/persipad?style=social)](https://github.com/alireza-haeri/persipad/stargazers) [![GitHub license](https://img.shields.io/github/license/alireza-haeri/persipad)](LICENSE) [![GitHub issues](https://img.shields.io/github/issues/alireza-haeri/persipad)](https://github.com/alireza-haeri/persipad/issues)
 
 📝 **PersiPad** is a beautiful, privacy-first, open source journal & diary app designed for people who value simplicity, minimalism, and control over their personal data.
@@ -17,7 +25,7 @@
 - **Privacy first** – PIN, FaceID, fingerprint lock; data stays on your device
 - **Backup & sync** – private Google Drive sync & offline local export
 - **Themes & customization** – 20+ color themes, dark/light mode, fonts & layouts
-- **Export & share** – text, markdown, or full backups with attachments (images, audio, etc.)
+- **Export & share** – text, Markdown, native JSON backups and a separate media archive
 - **Available in Persian and English** – and fully open source for transparency
 
 ## Backups and updates
@@ -34,7 +42,7 @@ Before getting started, ensure you have the following tools:
 
 - Java: 21 [(LTS)](https://www.oracle.com/java/technologies/java-se-support-roadmap.html) (for Android)
 - Ruby: 3.3.5 (for IOS)
-- Flutter: 3.29.0
+- Flutter: see the version pinned in [.tool-versions](.tool-versions)
 
 For easy setup and running, the GoogleService-Info.plist and google-services.json are provided directly in this repo, and `bin/dev` generates an empty Dart-defines fallback automatically (RevenueCat, Maps, Google Sign-In, etc. just no-op). Simply run the project with any of the following commands:
 
