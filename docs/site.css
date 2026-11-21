@@ -1,0 +1,7 @@
+:root { font: 110%/1.65 system-ui, sans-serif; color: #262432; background: #faf8ff; }
+body { max-width: 46rem; margin: auto; padding: 1.3rem; }
+header, footer { border-block-end: 1px solid #ccc7d6; padding-block: 1rem; }
+header { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+a { color: #50338b; } h1, h2 { line-height: 1.2; } h2 { margin-block-start: 2rem; }
+.button { display: inline-block; background: #50338b; color: white; padding: .6rem 1rem; border-radius: .4rem; }
+footer { margin-top: 2rem; overflow-wrap: anywhere; }
