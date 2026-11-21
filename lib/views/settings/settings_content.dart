@@ -20,6 +20,7 @@ class _SettingsContent extends StatelessWidget {
               title: Text(context.tr("general.customization")),
               onTap: () => const AppearanceRoute().push(context),
             ),
+            const GenderTile(weekday: 2),
             buildAppLockTile(context, weekday: 2),
             // Only where a sidebar exists: on a phone this setting would configure
             // something the user cannot see.
@@ -59,6 +60,13 @@ class _SettingsContent extends StatelessWidget {
             const MyTemplatesTile(weekday: 3),
             buildDailyScoreTile(context, weekday: 2),
           ],
+          const Divider(),
+          ListTile(
+            leading: const SpSettingIconBadge(weekday: 1, icon: SpIcons.update),
+            title: Text(context.tr('list_tile.github_releases.title')),
+            subtitle: Text('$kAppName ${kPackageInfo.version} (${kPackageInfo.buildNumber})'),
+            onTap: () => UrlOpenerService.openInCustomTab(context, '$kProjectRepositoryUrl/releases'),
+          ),
           const SizedBox(height: 120),
         ],
       ),

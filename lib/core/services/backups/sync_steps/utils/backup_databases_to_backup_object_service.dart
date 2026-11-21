@@ -54,7 +54,7 @@ class BackupDatabasesToBackupObjectService {
 
       Map<String, dynamic>? filters = isYearlyBucket ? {'created_year': year} : null;
 
-      if (db.tableName == StoryDbModel.db.tableName && storyFilter != null) {
+      if (storyFilter != null && db.tableName == StoryDbModel.db.tableName) {
         filters ??= storyFilter.toDatabaseFilter();
       }
 

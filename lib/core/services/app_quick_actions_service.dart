@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -66,7 +67,7 @@ class AppQuickActionsService {
     _initCompleter.complete();
 
     final homeQuickActions = DevicePreferencesStorage.appInstance.preferences.homeQuickActions;
-    if (homeQuickActions == null || homeQuickActions.isEmpty) await setActions([]);
+    await setActions(homeQuickActions);
   }
 
   Future<void> setActions(List<AppQuickActionObject>? actions) async {
@@ -76,7 +77,7 @@ class AppQuickActionsService {
         ? <AppQuickActionObject>[AppQuickActionObject.editShortcuts()]
         : actions;
 
-    _quickActions.setShortcutItems([
+    await _quickActions.setShortcutItems([
       for (final action in validActions.take(maxActionCount))
         ShortcutItem(
           type: action.toId(),
@@ -171,7 +172,7 @@ class AppQuickActionsService {
 
         break;
       case AppQuickActionTemplateType.gallery:
-        final galleryTemplate = await _findGalleryTemplate(reference.id);
+        final galleryTemplate = await _findGalleryTemplate(reference.id, context.locale.languageCode);
         if (galleryTemplate == null || !context.mounted) return;
 
         final result = await EditStoryRoute(
@@ -297,8 +298,8 @@ class AppQuickActionsService {
     }
   }
 
-  Future<GalleryTemplateObject?> _findGalleryTemplate(String templateId) async {
-    final templatesByCategory = await GalleryTemplateService.loadTemplates();
+  Future<GalleryTemplateObject?> _findGalleryTemplate(String templateId, String languageCode) async {
+    final templatesByCategory = await GalleryTemplateService.loadTemplates(languageCode: languageCode);
     for (final templates in templatesByCategory.values) {
       for (final template in templates) {
         if (template.id != templateId) continue;

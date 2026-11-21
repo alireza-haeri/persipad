@@ -1,0 +1,353 @@
+#!/bin/bash
+#
+# One command that turns "Google sign-in says no internet" into a named cause.
+#
+#   bin/oauth_debug                  # device facts, then record 120s, then analyse
+#   bin/oauth_debug --seconds=180    # record longer
+#   bin/oauth_debug --no-launch      # the app is already running
+#   bin/oauth_debug --analyze FILE   # only analyse a previous capture (no device)
+#   bin/oauth_debug --package=com.tc.writestory   # the non-community flavor
+#   bin/oauth_debug --device=R5CWC1S4P0W          # the phone instead of the emulator
+#   bin/oauth_debug --device=emulator-5554        # pick a serial
+#
+# Why this exists: a Google sign-in crosses four layers — DNS, TCP, TLS and HTTP —
+# and every failure of any of them used to reach the user as the same translated
+# "no internet" line. The app now logs each layer itself (tag `google-oauth`),
+# and this script puts those lines next to what the *guest* resolves and reaches,
+# so the answer is "the proxy hands out a fake IP" instead of "it doesn't work".
+#
+# Nothing secret is captured: no authorization code, no token, no client secret.
+# The app never logs those values, and this script only greps its log lines.
+#
+# Exit status: 0 = capture done (whatever the verdict), 1 = could not capture.
+
+set -uo pipefail
+
+cd "$(dirname "$0")/.." || exit 1
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
+step() { echo; echo "${BOLD}==> $*${RESET}"; }
+ok()   { echo "${GREEN}  ok${RESET}  $*"; }
+warn() { echo "${YELLOW}  !!${RESET}  $*"; }
+die()  { echo "${RED}  err${RESET} $*" >&2; exit 1; }
+
+SECONDS_TO_RECORD=120
+LAUNCH=1
+PACKAGE="com.tc.writestory.community"
+SERIAL="${ANDROID_SERIAL:-}"
+ANALYZE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --seconds)   SECONDS_TO_RECORD="$2"; shift 2 ;;
+  --seconds=*) SECONDS_TO_RECORD="${1#*=}"; shift ;;
+  --no-launch) LAUNCH=0; shift ;;
+  --package)   PACKAGE="$2"; shift 2 ;;
+  --package=*) PACKAGE="${1#*=}"; shift ;;
+  --device)    SERIAL="$2"; shift 2 ;;
+  --device=*)  SERIAL="${1#*=}"; shift ;;
+  --analyze)   ANALYZE="${2:-}"; shift 2 ;;
+  --analyze=*) ANALYZE="${1#*=}"; shift ;;
+  -h | --help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  *) die "unknown option '$1' (try bin/oauth_debug --help)" ;;
+  esac
+done
+
+case "$SECONDS_TO_RECORD" in
+  '' | *[!0-9]*) die "--seconds must be a number of seconds" ;;
+esac
+
+# ---------------------------------------------------------------- log analysis
+# Runs without a device (`--analyze FILE`), so a log sent by someone else can be
+# read here. Prints the story in order, then the one diagnosis that fits.
+analyse() {
+  local file="$1"
+  [ -f "$file" ] || die "no such log file: $file"
+
+  step "DNS/TCP facts from the device (captured before recording)"
+  grep -a '^  ' "$file" | grep -av 'google-oauth\|recording' | head -20 || true
+
+  step "App's own sign-in story (tag google-oauth)"
+  if grep -qa '\[google-oauth\]' "$file"; then
+    grep -a '\[google-oauth\]' "$file" | sed -E 's/^.*I\/flutter *\([ 0-9]+\): //' | tail -40
+  elif grep -qa 'I/flutter' "$file"; then
+    # The app is logging, so the APK is current — the sign-in simply never happened
+    # (an early Ctrl+C, or the button was not tapped while the capture ran).
+    warn "the app logged nothing about a sign-in: none was started during the capture."
+    warn "run it again, and tap Settings → Data backup → Google Drive → Sign in while"
+    warn "the recording is running; Ctrl+C only afterwards."
+  else
+    warn "this capture has no app output at all ([google-oauth] or otherwise)."
+    warn "Either the installed APK predates this logging — rebuild with"
+    warn "    bin/build_apk --install --launch — or the app was not running on that device."
+  fi
+
+  step "Diagnosis"
+  local verdicts
+  verdicts=$(grep -ao 'verdict=[a-zA-Z]*' "$file" | sed 's/verdict=//' | sort -u | tr '\n' ' ')
+  local fake_from_ping=0
+  grep -qaE '^  [a-z0-9.]+ +198\.(18|19)\.' "$file" && fake_from_ping=1
+
+  local found=0
+  for verdict in $verdicts; do
+    case "$verdict" in
+    fakeDns)
+      found=1
+      echo "  ${RED}FAKE-IP DNS${RESET} — the device resolves Google to a proxy address (198.18/15 or similar)."
+      echo "  Browsers work because they use their own secure DNS; the app cannot, so the token"
+      echo "  exchange goes to an address that does not exist outside the proxy."
+      echo
+      echo "  Fix (any one):"
+      echo "    1. proxy config: dns.fake-ip-filter: [\"+.googleapis.com\", \"+.google.com\", \"accounts.google.com\"]"
+      echo "    2. guest encrypted resolver: adb shell settings put global private_dns_mode hostname"
+      echo "                                 adb shell settings put global private_dns_specifier dns.google"
+      echo "    3. reboot the AVD with a real resolver: bin/build_apk --install --avd=<name> --dns-server=8.8.8.8"
+      ;;
+    dnsFailure)
+      found=1
+      echo "  ${RED}DNS FAILURE${RESET} — the name does not resolve at all inside the guest."
+      echo "  Fix: bin/build_apk --install --avd=<name> --dns-server=8.8.8.8 (or repair the host resolver)."
+      ;;
+    tcpBlocked)
+      found=1
+      echo "  ${RED}TCP BLOCKED${RESET} — DNS is fine but nothing accepted a connection on :443."
+      echo "  The host's VPN/TUN is not reaching the emulator, or an egress firewall drops it."
+      ;;
+    tlsBlocked)
+      found=1
+      echo "  ${RED}TLS BLOCKED${RESET} — TCP connects but the handshake fails (intercepting proxy or wrong clock)."
+      ;;
+    httpBlocked)
+      found=1
+      echo "  ${RED}HTTP BLOCKED${RESET} — TLS is fine, the request got no response. Retry; check proxy rules."
+      ;;
+    esac
+  done
+
+  if [ "$fake_from_ping" = 1 ] && [ "$found" = 0 ]; then
+    found=1
+    echo "  ${RED}FAKE-IP DNS${RESET} — the guest's own ping resolves Google into 198.18/15 (see the facts above),"
+    echo "  even though the in-app probe did not report it. Treat it as the fake-IP case."
+  fi
+
+  # The app logs two things when a request dies: `transport failure: <operation>
+  # (<layer>)` from the OAuth service, and `authenticate: failed (<error>)` when the
+  # flow gives up. Both name the half of the sign-in that broke.
+  if grep -qa 'transport failure' "$file"; then
+    echo
+    echo "  The app's own request failed at:"
+    grep -a 'transport failure' "$file" | sed -E 's/^.*\[google-oauth\]: //' | sed 's/^/    /' | tail -5
+  fi
+
+  if grep -qaE 'transport failure: (token exchange|account info)' "$file"; then
+    echo
+    echo "  That is ${BOLD}after${RESET} Google redirected back to the app, so the browser half worked and only"
+    echo "  the app's outbound request is broken — consistent with fake-IP DNS, or a proxy"
+    echo "  that only routes browser traffic."
+  fi
+
+  if [ "$found" = 0 ]; then
+    if grep -qa 'verdict=ok' "$file"; then
+      echo "  ${GREEN}All four layers answered${RESET} during the capture."
+      echo "  If the sign-in still failed, look at the OAuth half of the lines above (exchange HTTP status,"
+      echo "  state mismatch, consent denial) — it is not a network problem."
+    else
+      echo "  No verdict found. Send the log file as-is; the lines above still say where it stopped."
+    fi
+  fi
+
+  echo
+  echo "  Log file: ${BOLD}$file${RESET}"
+}
+
+if [ -n "$ANALYZE" ]; then
+  analyse "$ANALYZE"
+  exit 0
+fi
+
+# ---------------------------------------------------------------- adb + device
+ADB="${ADB:-$(command -v adb 2>/dev/null || true)}"
+if [ -z "$ADB" ] || [ ! -x "$ADB" ]; then
+  for candidate in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Android/Sdk" "$HOME/android-sdk"; do
+    [ -n "$candidate" ] && [ -x "$candidate/platform-tools/adb" ] && ADB="$candidate/platform-tools/adb" && break
+  done
+fi
+[ -n "${ADB:-}" ] && [ -x "$ADB" ] || die "adb not found. Set ADB=/path/to/adb or ANDROID_HOME."
+
+ADB_ARGS=()
+[ -n "$SERIAL" ] && ADB_ARGS=(-s "$SERIAL")
+adb_() { "$ADB" "${ADB_ARGS[@]}" "$@"; }
+
+if [ -z "$SERIAL" ]; then
+  devices=$("$ADB" devices | awk 'NF>=2 && $1!="*" {print $1" "$2}')
+  online=$(printf '%s\n' "$devices" | awk '$2=="device" {print $1}')
+  count=$(printf '%s\n' "$online" | grep -c . || true)
+  if [ "$count" = "0" ]; then
+    pending=$(printf '%s\n' "$devices" | awk '$2!="device" {print $1" ("$2")"}')
+    [ -n "$pending" ] && die "a device is attached but not usable: $pending
+  Accept the RSA prompt on the device, or restart the AVD."
+    die "no device/emulator attached.
+  Start one:  bin/build_apk --install --avd=<name> --launch"
+  fi
+  if [ "$count" != "1" ]; then
+    # A phone next to the emulator is the normal setup (and what made every adb
+    # command fail with "more than one device/emulator"). The emulator is what this
+    # script is about, so take it — as long as there is exactly one.
+    emulators=$(printf '%s\n' "$online" | grep '^emulator-' || true)
+    if [ "$(printf '%s\n' "$emulators" | grep -c . || true)" = "1" ]; then
+      online="$emulators"
+      warn "$count devices attached — using the emulator $online (the other one is left alone)."
+      warn "pass --device=<serial> to choose a different one."
+    else
+      die "multiple devices attached — choose one with --device=<serial>:
+$(printf '%s\n' "$online" | sed 's/^/  /')"
+    fi
+  fi
+  SERIAL="$online"
+  ADB_ARGS=(-s "$SERIAL")
+fi
+
+boot_completed=$(adb_ shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+[ "$boot_completed" = "1" ] || die "device '$SERIAL' has not finished booting."
+
+mkdir -p build
+LOG="build/oauth_debug_$(date +%Y%m%d-%H%M%S).log"
+
+# Fact collection: written into the log file *and* echoed, so the capture is
+# self-contained. `adb shell ping` is the single most informative line here — it
+# prints the address the guest actually got for the name.
+fact() { printf '  %-24s %s\n' "$1" "$2" | tee -a "$LOG"; }
+# The host is where the guest's DNS answer comes from, so a fake IP seen in the guest
+# is usually *the host's* answer arriving there. This section answers "is the proxy
+# still answering DNS even though its tunnel is switched off?" — the one question that
+# decides whether anything app-side matters at all.
+host_facts() {
+  local ip verdict listeners proxies
+  step "Host DNS (what the emulator/phone inherits)"
+
+  ip=$(getent ahostsv4 oauth2.googleapis.com 2>/dev/null | awk 'NR==1{print $1}')
+  if [ -z "$ip" ] && command -v resolvectl >/dev/null 2>&1; then
+    ip=$(resolvectl query oauth2.googleapis.com 2>/dev/null | awk '/^oauth2/{print $2; exit}')
+  fi
+  case "$ip" in
+  "") verdict="unresolved" ;;
+  198.18.* | 198.19.*) verdict="FAKE-IP (something is answering DNS for Google)" ;;
+  10.* | 127.* | 192.168.* | 100.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].* | 169.254.*) verdict="private address" ;;
+  *) verdict="real-looking" ;;
+  esac
+
+  fact "host resolves to" "${ip:-nothing}  ($verdict)"
+  fact "resolv.conf" "$(awk '/^nameserver/{printf "%s ", $2}' /etc/resolv.conf 2>/dev/null)"
+  listeners=$(ss -lun 2>/dev/null | awk '$5 ~ /:53$/ {print $5}' | head -3 | tr '\n' ' ')
+  fact "DNS listeners (:53)" "${listeners:-none}"
+  proxies=$(ps -eo args 2>/dev/null | grep -iE '(clash|mihomo|sing-box|v2ray|xray|hiddify|nekoray)' |
+    grep -v grep | awk '{print $1}' | sort -u | head -4 | tr '\n' ' ')
+  fact "proxy processes" "${proxies:-none}"
+
+  if [ "$verdict" = "FAKE-IP (something is answering DNS for Google)" ]; then
+    warn "the host itself gets a fake IP for Google, so the proxy core is still answering DNS"
+    warn "even if its tunnel/proxy switch is off. Stop the service (or fix its fake-ip-filter:"
+    warn "'+.googleapis.com', '+.google.com'), flush the cache, and re-run this command:"
+    warn "the host and guest addresses must both become real Google ones."
+  fi
+}
+
+ping_fact() {
+  local host="$1" out ip verdict
+  out=$(timeout 25 "$ADB" "${ADB_ARGS[@]}" shell ping -c1 -W3 "$host" 2>&1 | tr -d '\r')
+  # toybox prints `PING host (198.18.0.60) 56(84) bytes of data.` — the *first*
+  # parenthesised value is the address; a greedy match takes `84` out of `56(84)`
+  # and calls a fake IP "real-looking", which is the opposite of the truth.
+  ip=$(printf '%s\n' "$out" | grep -o '([0-9a-fA-F.:]*)' | head -1 | tr -d '()')
+  if [ -z "$ip" ]; then
+    fact "$host" "UNRESOLVED (ping failed)"
+    return 1
+  fi
+  case "$ip" in
+  198.18.* | 198.19.*) verdict="FAKE-IP (a proxy answered DNS)" ;;
+  10.* | 127.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].* | 169.254.* | 100.*) verdict="private/CGNAT address" ;;
+  *) verdict="real-looking" ;;
+  esac
+  fact "$host" "$ip  ($verdict)"
+}
+
+exec 3>&1
+{
+  echo "# oauth_debug capture"
+  echo "# device:   $SERIAL"
+  echo "# package:  $PACKAGE"
+  echo "# date:     $(date -Is)"
+  echo "# host:     $(uname -srm)"
+  echo "#"
+  echo "# device facts"
+} > "$LOG"
+
+host_facts
+
+step "Device"
+fact "serial" "$SERIAL"
+fact "model" "$(adb_ shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
+fact "android/sdk" "$(adb_ shell getprop ro.build.version.release 2>/dev/null | tr -d '\r') / $(adb_ shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')"
+fact "timezone" "$(adb_ shell getprop persist.sys.timezone 2>/dev/null | tr -d '\r')"
+fact "locale" "$(adb_ shell getprop persist.sys.locale 2>/dev/null | tr -d '\r')"
+dns_mode=$(adb_ shell settings get global private_dns_mode 2>/dev/null | tr -d '\r')
+dns_specifier=$(adb_ shell settings get global private_dns_specifier 2>/dev/null | tr -d '\r')
+[ -n "$dns_specifier" ] && [ "$dns_specifier" != "null" ] || dns_specifier=""
+# `settings get` prints the literal string "null" when the key was never set.
+[ "$dns_mode" = "null" ] || [ -z "$dns_mode" ] && dns_mode="off (system default)"
+fact "private DNS mode" "${dns_mode}${dns_specifier:+ ($dns_specifier)}"
+installed=$(adb_ shell pm list packages "$PACKAGE" 2>/dev/null | tr -d '\r' | sed 's/package://' | head -1)
+fact "app installed" "${installed:-NO}"
+[ -n "$installed" ] || die "$PACKAGE is not installed on $SERIAL.
+  Install it first:  bin/build_apk --install --launch
+  (a capture without the app has nothing to record)"
+
+step "Can the device resolve and reach Google? (the decisive check)"
+ping_fact oauth2.googleapis.com
+ping_fact www.googleapis.com
+ping_fact accounts.google.com
+
+if adb_ shell 'command -v nc' >/dev/null 2>&1 || adb_ shell 'command -v toybox' >/dev/null 2>&1; then
+  if timeout 20 "$ADB" "${ADB_ARGS[@]}" shell "toybox nc -w 5 oauth2.googleapis.com 443 </dev/null >/dev/null 2>&1"; then
+    fact "tcp oauth2:443" "open"
+  else
+    fact "tcp oauth2:443" "closed/blocked"
+  fi
+fi
+
+step "Recording for ${SECONDS_TO_RECORD}s"
+echo "  In the app: ${BOLD}Settings → Data backup → Google Drive → Sign in${RESET}"
+echo "  Pick your account, wait until the app answers, THEN press Ctrl+C."
+echo "  (Ctrl+C immediately ends the recording and leaves an empty log.)"
+
+adb_ logcat -c >/dev/null 2>&1 || true
+"$ADB" "${ADB_ARGS[@]}" logcat -v time flutter:V chromium:V AndroidRuntime:E '*:S' >> "$LOG" 2>&1 &
+LOGCAT_PID=$!
+
+if [ "$LAUNCH" = 1 ]; then
+  adb_ shell am start -n "$PACKAGE/com.tc.writestory.MainActivity" >/dev/null 2>&1 ||
+    adb_ shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+fi
+
+STOP=0
+trap 'STOP=1; echo' INT
+elapsed=0
+while [ "$STOP" = 0 ] && [ "$elapsed" -lt "$SECONDS_TO_RECORD" ]; do
+  printf '\r  recording… %3ss left ' "$((SECONDS_TO_RECORD - elapsed))" >&3
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
+printf '\r                              \r' >&3
+trap - INT
+
+kill "$LOGCAT_PID" 2>/dev/null
+wait "$LOGCAT_PID" 2>/dev/null
+
+# A crash would otherwise explain nothing about the network layer.
+adb_ logcat -d -b crash >> "$LOG" 2>/dev/null || true
+
+analyse "$LOG"
+echo
+echo "  Paste this file (or its last ~60 lines) to continue:"
+echo "    ${BOLD}$LOG${RESET}"
+echo "  Re-analyse it any time with:  bin/oauth_debug --analyze $LOG"

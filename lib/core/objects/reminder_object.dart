@@ -1,11 +1,12 @@
 import 'package:copy_with_extension/copy_with_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:storypad/core/types/reminder_recurrence.dart';
 import 'package:storypad/core/types/reminder_type.dart';
 
 part 'reminder_object.g.dart';
 
-/// A single reminder configuration, device-local (stored in DevicePreferencesObject).
+/// A single reminder configuration, backed up with DevicePreferencesObject (native notifications are scheduled locally).
 ///
 /// Covers both built-in reminders (daily/onThisDay/period — singletons) and
 /// user-created custom reminders (many). Time is stored as [hour]/[minute] ints
@@ -29,7 +30,34 @@ class ReminderObject {
   final int minute;
 
   /// 1=Mon .. 7=Sun. Empty = every day.
+  ///
+  /// Only meaningful for [ReminderRecurrence.daily] / [ReminderRecurrence.weekly]
+  /// schedules; calendar-based reminders store an empty list.
   final List<int> weekdays;
+
+  // ---- custom: calendar-relative recurrence ----
+
+  /// The recurrence the user picked. `null` means the reminder predates
+  /// calendar recurrence (or is a built-in one); read it through
+  /// [effectiveRecurrence], never directly, so old records keep their weekday
+  /// schedule instead of silently becoming daily.
+  @JsonKey(unknownEnumValue: ReminderRecurrence.daily)
+  final ReminderRecurrence? recurrence;
+
+  /// 1..12 for [ReminderRecurrence.monthly]; [ReminderRecurrence.yearly] stores
+  /// 12. `null` for weekday-based schedules.
+  final int? intervalMonths;
+
+  /// The Gregorian date the user selected when the calendar series was created.
+  /// It identifies the anchor month; [anchorDay] identifies the day.
+  final DateTime? anchorDate;
+
+  /// The day number the user intends, in the calendar that was active when the
+  /// schedule was saved. Kept separately from [anchorDate] because a Jalali day
+  /// 30 and a Gregorian day 30 are different dates; when the app's calendar
+  /// changes, the anchor month is re-read in the new calendar but this day
+  /// number stays what the user asked for (clamped to shorter months).
+  final int? anchorDay;
 
   // ---- custom only ----
 
@@ -61,6 +89,10 @@ class ReminderObject {
     this.hour = 21,
     this.minute = 0,
     this.weekdays = const [],
+    this.recurrence,
+    this.intervalMonths,
+    this.anchorDate,
+    this.anchorDay,
     this.message,
     this.templateId,
     this.galleryTemplateId,
@@ -86,6 +118,44 @@ class ReminderObject {
   /// The weekday "slots" this reminder schedules against (1..7). Empty weekdays
   /// means a single every-day schedule, represented here by a single 0 slot.
   List<int> get scheduleSlots => isEveryDay ? const [0] : (weekdays.toSet().toList()..sort());
+
+  /// The recurrence actually in effect.
+  ///
+  /// Records written before calendar recurrence existed only have [weekdays], so
+  /// daily/weekly is *inferred* rather than migrated — there is nothing to
+  /// rewrite, and a half-decoded or hand-edited record degrades to the weekday
+  /// schedule it can still honour instead of losing its days.
+  ReminderRecurrence get effectiveRecurrence {
+    switch (recurrence) {
+      case ReminderRecurrence.monthly:
+        return ReminderRecurrence.monthly;
+      case ReminderRecurrence.yearly:
+        return ReminderRecurrence.yearly;
+      case ReminderRecurrence.daily:
+      case ReminderRecurrence.weekly:
+      case null:
+        return weekdays.isEmpty ? ReminderRecurrence.daily : ReminderRecurrence.weekly;
+    }
+  }
+
+  /// True when the next dates depend on the app's displayed calendar.
+  bool get isCalendarRecurring => effectiveRecurrence.isCalendarBased;
+
+  /// 1..12 for a monthly series, always 12 for a yearly one.
+  int get effectiveIntervalMonths {
+    if (effectiveRecurrence == ReminderRecurrence.yearly) return 12;
+    final value = intervalMonths ?? 1;
+    return value < 1 ? 1 : (value > 12 ? 12 : value);
+  }
+
+  /// The intended day number in the displayed calendar, or `null` when this is
+  /// not a calendar series (or the record has no usable anchor yet).
+  int? get effectiveAnchorDay {
+    if (!isCalendarRecurring) return null;
+    final value = anchorDay ?? anchorDate?.day;
+    if (value == null) return null;
+    return value < 1 ? 1 : (value > 31 ? 31 : value);
+  }
 
   /// Factory for a built-in reminder with sensible defaults.
   ///

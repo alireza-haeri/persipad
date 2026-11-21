@@ -255,6 +255,52 @@ question, so the next session does not have to guess.
 **Status:** ✅ done → `D-047`, `D-048`, `D-049`
 **Note:** Confirmed all `D-047` lightweight trims; unified offline fonts (`Vazirmatn` for `fa`, bundled `Quicksand` for `en`); fixed the `Asia/Tehran` DST failure surfaced by `bin/local_verify` on Fedora (`D-049`).
 
+## Session 14 — 2026-11-16
+
+### N-021 — Continue the session-13 AI's work; the emulator sign-in log is the brief
+> «سلام خوبی. روی برنچ ...e5 یه ai داشت کار میکرد خطا خورد و متوقف شد. لطفا پوشه ai رو بخون و
+> تغیراتش رو هم ببین. کارش رو ادامه بدیم» + the current logs: `Sign-in failed: ClientException
+> with SocketException: Failed host lookup: 'oauth2.googleapis.com' … errno = 7` (after trying
+> to sign in on the emulator) and a `bin/local_verify` report ending in
+> `Error: Directory ../static/sources/story_backgrounds not found` / `err build_runner failed`.
+> «سعی کن کار رو سریع انجام بدی. فعلا نیازی به ci نیست. تست ها رو من اجرا میکنم و بیلد میگیریم»
+
+**Status:** ✅ done → `D-055`, `PROGRESS.md` session 14, `CHANGES.md` §8, `NEXT.md` rewritten
+**What I understood:**
+1. *Read `ai/` and the diff first* — the crashed session's state has to be reconstructed from
+   the folder, not from assumptions. It turned out every code change from that session was
+   already committed (`15b28ac`) and green in CI; the crash happened during the bookkeeping,
+   so the folder was half-updated.
+2. *Continue the work* — the one real gap left by `D-053` was that fixing the emulator still
+   required a human to remember `--dns-server`; that is now automatic, and an AVD that was
+   already running is diagnosed before install (`D-055`).
+3. *Speed over process for now* — no CI runs requested, the user runs the tests and the builds.
+   Commits therefore carry no `[full]`/`[build]` marker unless a run is actually wanted.
+**Note:** the two log excerpts are from *before* `15b28ac` (the report names commit `89dc1f0`
+on `arena/446a6eb3-notely`), so they describe the state that session 13 fixed, not a new
+failure. I did not treat them as a fresh bug; I did treat them as evidence that the fix had
+never been exercised, which is why the first item in `NEXT.md` is a single sign-in attempt.
+
+---
+
+## Session 15 — 2026-11-19
+
+### N-022 — Push each completed change and record it as a standing AI rule
+> «چرا تغیراتت رو پوش نمیکنی؟ توی قوانین ai بنویس که باید push انجام بشه بعد از هر تغیر»
+
+**Status:** ✅ recorded in [`../RULES.md`](../RULES.md); the current implementation is included in this task's commit and push to the active Arena branch.
+**What I understood:** each completed requested change/task must be committed and pushed to the current active branch before I report it done. Never switch branches; if GitHub blocks the push, state that explicitly rather than implying success.
+**Correction:** I left the previous implementation only in the shared checkout because I treated persistence as sufficient. That was not enough; I will now push each completed task.
+
+### N-023 — Add synced gender selection for the matching icon
+> «یه چیز دیگه ای که نیازه تنظیم جنسیته. این قابلیت توی برنامه اصلی هست. نسخه ما این رو نداره فکر کنم. و اینکه باید توی sync این قضیه هم قرار بگیره. و اینکه توی لود اولیه من باید مشخص کنم که جنسیتم چیه تا آیکونی که به من نشون میده درست حسابی باشه.»
+>
+> Clarification selected: «زن / مرد».
+
+**Status:** ✅ included in this task's commit and push to the active branch.
+**Ref:** `D-063`
+**Scope:** ask in the existing first-run onboarding, allow changing it in Settings, persist it in the backed-up preferences table, and use the corresponding existing in-app illustration. Gender is not sent to analytics; the community launcher icon stays unchanged.
+
 ---
 
 ## Template for a new note
@@ -267,3 +313,111 @@ question, so the next session does not have to guess.
 **Ref:** D-0XX or the relevant file
 **Note:** where I guessed, or what is still ambiguous
 ```
+
+### N-024 — Calendar reminders and Android build error (2026-11-19)
+> «لطفا قابلیت تقویم رو هم کامل انجام بده. میدونم خیلی کار داره ولی میخوام کامل انجام بدی و از قوانین پوشه ai هم پیروی کنی. و اینکه این خطا برای چیه»
+
+**Status:** ⏳ Calendar reminder implementation pending; investigate reported Android compile failure.
+**Clarifications:** Custom intervals of 1–12 months; clamp missing days to month end; follow the active calendar; Persian translations for bundled templates only.
+
+### N-025 — Google sign-in on emulator and close button (2026-11-19)
+> «روی emulator ... میره توی گوگل، وارد حسابم میشم. وقتی میگه authentication recived و خودم پنجره رو میبندم. توی برنامه میگه اینترنت نیست ... این رو باید درست حسابی درست کنیم که توی همه دستگاه ها خوب کار کنه ... توی صفحه html ... یه دکمه بزار که خودش اون مرورگر رو بننده»
+
+**Status:** ⏳ Investigation and verification in progress. The successful loopback page only proves that a redirect arrived, not that token exchange or account lookup succeeded. Root cause on the user's devices remains unconfirmed.
+
+### N-026 — Redesign the OAuth callback page (2026-11-19)
+> «فکر کنم مشکل از طراحی نیست. مشکل از تحریم و ... هست ولش کن. ولی اون صفحه رو قشنگ تر طراحی کن. ریسپانسیو نیست. قشنگ هم نیست. پیامش هم باید با توجه زبان انتخاب کاربر نشون داده بشه. اون دکمه هم هیچ کاری نمیکنه»
+
+**Status:** ⏳ callback page implementation and verification in progress; Google connectivity investigation intentionally paused at user request. The cause of the connection failure remains unknown.
+
+### N-027 — Reminder editor provider lifecycle error (2026-11-19)
+> «موقع ایجاد یادآور جدید: Tried to listen to an InheritedWidget in a life-cycle ... create callback of a provider»
+> The user also notes that Google account selection opens even though the app subsequently reports a connection failure.
+
+**Status:** ⏳ Fix and CI verification in progress. Google connectivity investigation remains paused; the browser and app requests can follow different network paths.
+
+### N-028 — Complete calendar-aware reminder scheduling (2026-11-19)
+> «خب کامل انجامش بده الان»
+
+**Status:** ⏳ Not complete. The user requests actual monthly/yearly reminders, not merely date calculation. Weekly selection already exists. Chosen behavior: intervals of 1–12 months, clamp missing days, follow the active calendar.
+
+### N-029 — Complete and test reminders without another partial handoff (2026-11-19)
+> «این بار دیگه قابل قبول نیست. کامل این رو انجامش بده. انجامش بده. کامل کامل. تستش هم بکن.»
+
+**Status:** ⏳ Not complete. The request includes the editor, persistence, calendar-aware scheduling, reliable background delivery and device verification.
+
+### N-030 — Implement reminders, user will test (2026-11-19)
+> «کار رو انجام بده. من تست ها رو اجرا میکنم و برسی میکنم»
+
+**Status:** ⏳ Requested end-to-end feature remains unfinished. User is willing to perform device testing; absence of a local device is not a reason to claim the feature complete.
+---
+
+## Session 22 — 2026-11-20
+
+### N-021 — Find the newest branch with a plan, read the whole `ai/` folder, then execute that plan
+> «سلام خوبی. آخیرین branch که تغیرات داشته رو پیدا کن / یه plan توش ایجاد شده / اون plan رو به همراه فایل های داخل پوشه ai کامل مطالعه کن / بعد plan رو اجرا کن»
+
+**Status:** ✅ done → `REMINDER_IMPLEMENTATION_PLAN.md` implemented; `D-068`; `PROGRESS.md` §Session 22
+**What I understood, in order:**
+1. *Find the latest branch that has changes* — `git ls-remote` showed `arena/7ba21f51-notely`
+   (`eda047c`, nine commits newer than `main`'s `a87f014`), and its last commit
+   (`docs(ai): record reminder implementation plan`) is where the plan lives.
+2. *Read the plan and the whole `ai/` folder* — I read the plan, `GOAL`, `RULES`,
+   `ARCHITECTURE`, `PROGRESS` (handoff), `DECISIONS` (`D-062`…`D-067`, the reminder-relevant
+   ones), `ENVIRONMENT`, `NEXT`, `ANALYSIS`, `BACKLOG` and the note log.
+3. *Execute the plan* — on **this** session's branch, as the rules require. The foundation
+   the plan refers to (recurrence calculator, schedule object, reschedule queue + their
+   tests) is not on `main`, so it was ported here first; the rest of the plan (editor,
+   persistence, notification scheduling, renewal, reboot/timezone/permission handling,
+   tests, docs) was implemented.
+**Note:** I did not merge the unrelated work that shares that branch (gender onboarding,
+device-preferences sync, OAuth redesign, branding). Porting it would have mixed three
+different features into one change, and the plan only needs the reminder part.
+
+### N-022 — Google sign-in says "no internet": log it properly first, then decide
+> «می‌خوام یه موضوع دیگه رو کار کنم… مشکل من گوگل لاگینه: می‌زنم sign in → می‌ره گوگل → اکانت رو انتخاب می‌کنم → برمی‌گرده می‌گه اینترنت نیست، ارتباط قطعه. با VPN هم امتحان کردم فرقی نکرد. یه دستور بده که درست لاگ کنه؛ لاگ‌ها رو بررسی کنیم بفهمیم دقیقاً مشکل چیه»
+
+**Status:** 🔎 diagnostics implemented (`D-069`); waiting for one capture from the user's emulator before naming a cause
+**What was asked:** a **command** that produces real logs, so we stop guessing and know exactly what breaks.
+**What was built:**
+1. The app now logs where the request dies — DNS, TCP, TLS or HTTP — for each Google host
+   (`google-oauth` tag), including the state *after* a failure, and never logs a code or token.
+2. `bin/oauth_debug` is that command: device facts, the guest's own `ping` of the three Google
+   names with the address classified (real / private / **fake-IP**), a TCP check, a 120 s
+   `adb logcat`, then the diagnosis and the fix that matches it. `--analyze <file>` reads a
+   capture without a device.
+3. `ai/ENVIRONMENT.md` §2.2d documents both the fake-IP case and the two fixes.
+**Why not a fix yet:** the previous round diagnosed the *same* symptom as DNS (`D-053`,
+session 13) and it came back, so repeating that guess would be dishonest. "A VPN doesn't
+help" fits a host↔guest resolver/routing problem, and fake-IP DNS explains "browser works,
+app doesn't" exactly — but both stay hypotheses until the capture says so.
+**Next:** `bin/build_apk --install --launch` then `bin/oauth_debug`; send back the
+`build/oauth_debug_*.log` (or its `[google-oauth]` lines).
+
+### N-023 — Remove the "paste the redirect URL" box; act on the emulator, not the phone
+> «اون کادری که باز میشه و می‌گه اگه لاگین ناموفق بود و خودتون دستی اون لینک رو بزارید اینجا رو حذف کن. چیز قشنگی نیست»
+
+**Status:** 🧭 recorded (`D-070`); the code it refers to is on `arena/7ba21f51-notely`, not here
+**What was asked:** delete the manual-paste fallback dialog shown when the browser cannot
+reach the app's loopback server.
+**Finding:** no such dialog exists in this branch — `git grep google_drive_redirect` is empty.
+It is part of the OAuth redesign that lives only on `arena/7ba21f51-notely`
+(`BackupProvider._askForRedirectUri`), which this session cannot push to.
+**Also reported in the same message:** `adb: more than one device/emulator` — a phone and
+`emulator-5554` were both attached. Fixed in the tooling: `bin/build_apk` and
+`bin/oauth_debug` now act on the single emulator and say so (`ENVIRONMENT.md` §2.2d also
+documents `export ANDROID_SERIAL=emulator-5554`).
+**Open:** confirm which branch the user builds, so the dialog removal can land where the code
+actually is.
+
+### N-024 — Delete every branch except `main` and this one, without losing their work
+> «همه برنچ های پروژه رو به غیر از main و برنچ خودت پاک کن. فقط مطمئن شو تغیراتی از اون برنچ ها حذف نشه»
+
+**Status:** ✅ done (`D-071`, `PROGRESS.md` §Session 24)
+**What I did:** merged `arena/7ba21f51-notely` into this branch first (`b88c101`) — so its
+redesign, onboarding, prefs sync, branding and Android tooling are part of the branch that
+goes to `main` — tagged its tip `archive/arena-7ba21f51-notely`, deleted the branch refs
+`arena/7ba21f51-notely` and `ci/codegen`, and removed the paste-the-address dialog (`D-070`)
+that the same message thread rejected.
+**Kept as this branch's version:** the reminder feature (completed here) and the sign-in
+connectivity probe; the redesign's OAuth flow sits underneath it.

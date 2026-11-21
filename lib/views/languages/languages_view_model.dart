@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
 import 'package:storypad/core/services/analytics/analytics_user_propery_service.dart';
+import 'package:storypad/core/storages/device_preferences_storage.dart';
 
 // ignore: depend_on_referenced_packages
 import 'package:intl/intl_standalone.dart';
@@ -54,11 +55,14 @@ class LanguagesViewModel extends ChangeNotifier with DisposeAwareMixin {
   }
 
   Future<void> useDeviceLocale(BuildContext context) async {
-    if (_deviceLocale != null) context.setLocale(_deviceLocale!);
-    _scollToLocale(_deviceLocale!);
+    final locale = _deviceLocale;
+    if (locale == null) return;
+    await context.setLocale(locale);
+    _scollToLocale(locale);
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove('locale');
+    await DevicePreferencesStorage.appInstance.syncLocaleCode(locale.languageCode, followDevice: true);
     await loadLocales();
   }
 
@@ -67,6 +71,7 @@ class LanguagesViewModel extends ChangeNotifier with DisposeAwareMixin {
       useDeviceLocale(context);
     } else {
       context.setLocale(locale);
+      DevicePreferencesStorage.appInstance.setLocaleCode(locale.languageCode);
       loadLocales();
     }
 

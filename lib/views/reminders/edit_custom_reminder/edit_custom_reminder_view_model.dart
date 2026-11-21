@@ -4,8 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/databases/models/template_db_model.dart';
 import 'package:storypad/core/mixins/dispose_aware_mixin.dart';
+import 'package:storypad/core/objects/calendar_reminder_schedule.dart';
 import 'package:storypad/core/objects/reminder_object.dart';
+import 'package:storypad/core/services/calendar/calendar_config.dart';
+import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/gallery_template_service.dart';
+import 'package:storypad/core/services/notifications/reminder_schedule_planner.dart';
+import 'package:storypad/core/types/reminder_recurrence.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
 import 'package:storypad/providers/tags_provider.dart';
 import 'package:storypad/views/templates/templates_view.dart';
@@ -18,6 +23,17 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
     required this.isNew,
   }) : messageController = TextEditingController(text: reminder.message ?? '') {
     time = reminder.timeOfDay;
+
+    // Show the stored recurrence as-is: a legacy weekday reminder opens on
+    // "selected days" with its days checked, a monthly one on its interval and
+    // anchor, so editing never silently rewrites the schedule.
+    recurrence = reminder.effectiveRecurrence;
+    intervalMonths = reminder.effectiveIntervalMonths;
+
+    final today = DateTime.now();
+    final anchor = reminder.anchorDate ?? DateTime(today.year, today.month, today.day);
+    anchorDate = DateTime(anchor.year, anchor.month, anchor.day);
+
     // Every day is stored as an empty set — show it as all 7 chips checked
     // so the user can see the current schedule before pruning it down.
     weekdays = reminder.weekdays.isEmpty ? ReminderObject.allWeekdays.toSet() : reminder.weekdays.toSet();
@@ -46,6 +62,14 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
 
   late TimeOfDay time;
   late Set<int> weekdays;
+  late ReminderRecurrence recurrence;
+
+  /// 1..12, only used by [ReminderRecurrence.monthly].
+  late int intervalMonths;
+
+  /// Gregorian date of the anchor month with the selected day. Always date-only.
+  late DateTime anchorDate;
+
   late int? templateId;
   late String? galleryTemplateId;
   late List<int> tagIds;
@@ -56,6 +80,11 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
 
   bool get hasTemplate => templateId != null || galleryTemplateId != null;
 
+  bool get isCalendarRecurring => recurrence.isCalendarBased;
+
+  /// The day number the user is choosing, in the calendar they are reading.
+  int get anchorDay => CalendarDisplay.dayOf(anchorDate);
+
   void setTime(TimeOfDay value) {
     time = value;
     notifyListeners();
@@ -64,6 +93,61 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
   void setWeekdays(Set<int> value) {
     weekdays = value;
     notifyListeners();
+  }
+
+  void setRecurrence(ReminderRecurrence value) {
+    recurrence = value;
+    // Entering "selected days" with nothing selected would be a schedule with no
+    // days at all; start from every day so the chips always mean what they show.
+    if (value == ReminderRecurrence.weekly && weekdays.isEmpty) {
+      weekdays = ReminderObject.allWeekdays.toSet();
+    }
+    notifyListeners();
+  }
+
+  void setIntervalMonths(int value) {
+    intervalMonths = value.clamp(1, 12);
+    notifyListeners();
+  }
+
+  void setAnchorDate(DateTime value) {
+    anchorDate = DateTime(value.year, value.month, value.day);
+    notifyListeners();
+  }
+
+  /// The reminder `save` would persist. Pure, so the mapping between the editor
+  /// and the stored schedule can be tested without a widget.
+  ReminderObject build() {
+    final trimmedMessage = messageController.text.trim();
+    final normalizedWeekdays = ReminderObject.normalizeWeekdays(weekdays);
+    final effectiveRecurrence = recurrence == ReminderRecurrence.weekly && normalizedWeekdays.isEmpty
+        ? ReminderRecurrence.daily
+        : recurrence;
+
+    return reminder.copyWith(
+      hour: time.hour,
+      minute: time.minute,
+      recurrence: effectiveRecurrence,
+      weekdays: effectiveRecurrence == ReminderRecurrence.weekly ? normalizedWeekdays : const <int>[],
+      intervalMonths: effectiveRecurrence == ReminderRecurrence.monthly
+          ? intervalMonths
+          : (effectiveRecurrence == ReminderRecurrence.yearly ? CalendarReminderSchedule.maxIntervalMonths : null),
+      anchorDate: effectiveRecurrence.isCalendarBased ? anchorDate : null,
+      anchorDay: effectiveRecurrence.isCalendarBased ? anchorDay : null,
+      message: trimmedMessage.isNotEmpty ? trimmedMessage : null,
+      templateId: templateId,
+      galleryTemplateId: galleryTemplateId,
+      tagIds: tagIds.isNotEmpty ? tagIds : null,
+    );
+  }
+
+  /// When this draft would next notify, or null for a disabled reminder.
+  DateTime? nextOccurrence() {
+    return ReminderSchedulePlanner.nextOccurrence(
+      build(),
+      system: CalendarConfig.system,
+      now: DateTime.now(),
+    );
   }
 
   Future<void> chooseTemplate(BuildContext context) async {
@@ -136,19 +220,8 @@ class EditCustomReminderViewModel extends ChangeNotifier with DisposeAwareMixin 
 
   Future<void> save(BuildContext context) async {
     if (formKey.currentState?.validate() != true) return;
-    final trimmedMessage = messageController.text.trim();
 
-    final updated = reminder.copyWith(
-      hour: time.hour,
-      minute: time.minute,
-      weekdays: ReminderObject.normalizeWeekdays(weekdays),
-      message: trimmedMessage.isNotEmpty ? trimmedMessage : null,
-      templateId: templateId,
-      galleryTemplateId: galleryTemplateId,
-      tagIds: tagIds.isNotEmpty ? tagIds : null,
-    );
-
-    await context.read<DevicePreferencesProvider>().upsertReminder(updated);
+    await context.read<DevicePreferencesProvider>().upsertReminder(build());
     if (context.mounted) Navigator.of(context).pop(true);
   }
 

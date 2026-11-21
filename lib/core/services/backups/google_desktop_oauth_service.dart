@@ -5,6 +5,9 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:storypad/core/services/backups/google_connectivity_service.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
+import 'package:storypad/core/services/logger/app_logger.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 
 /// Where the desktop client credentials come from.
@@ -105,6 +108,12 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   static const String userInfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
   static const String revokeUrl = 'https://oauth2.googleapis.com/revoke';
 
+  /// One tag for the whole sign-in flow, so `bin/oauth_debug` (and
+  /// `adb logcat -s flutter | grep google-oauth`) shows it in order: where it
+  /// started, whether the browser opened, whether the redirect came back, and
+  /// where the token request stopped. Never a code, token or client secret.
+  static const String logTag = 'google-oauth';
+
   /// `drive.appdata` is the same scope the mobile build uses: backups live in
   /// the app's private appDataFolder, invisible in the user's Drive, so the
   /// existing `GoogleDriveCloudService` file layout is unchanged.
@@ -127,6 +136,12 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
        _openBrowser = openBrowser ?? UrlOpenerService.launchUrlString,
        _client = client ?? http.Client();
 
+  /// Localized by the UI before opening the browser; reset when sign-in ends.
+  static OAuthCompletionText? completionPageText;
+
+  /// Set only on Android: the button returns to the matching installed flavor.
+  static String? returnToAppPackage;
+
   @override
   bool get isConfigured => config.isConfigured;
 
@@ -135,33 +150,60 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   /// otherwise hang for minutes with no feedback at all.
   static const Duration requestTimeout = Duration(seconds: 30);
 
-  /// `package:http` surfaces a dead network as [http.ClientException] (which
-  /// carries the underlying `SocketException` text); a host name the device
-  /// cannot resolve — a broken DNS, as inside an Android emulator without
-  /// `-dns-server` — is the most common instance.
-  ///
-  /// None of that is an OAuth failure, so it becomes a [GoogleOAuthException]
-  /// tagged `offline` and the UI can answer with a translated "no internet"
-  /// instead of echoing `ClientException with SocketException: Failed host
-  /// lookup … errno = 7` at the user.
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  /// How long the sign-in page may stay open before the flow gives up. The
+  /// browser has to reach Google, the user has to pick an account, and the
+  /// redirect has to come back to 127.0.0.1 — five minutes is generous on
+  /// purpose, and the timer only starts once a browser was actually opened.
+  static const Duration redirectTimeout = Duration(minutes: 5);
+
+  /// Never log transport exception text: it can contain URLs and credentials.
+  /// Keep a coarse failure class and operation so diagnostics remain actionable.
+  Future<http.Response> _send(
+    String operation,
+    Future<http.Response> Function() request, {
+    int dnsRetries = 0,
+  }) async {
+    Future<http.Response> retryLookup() async {
+      AppLogger.info('retry: $operation after DNS lookup failure', tag: logTag);
+      await Future<void>.delayed(Duration(seconds: dnsRetries == 2 ? 2 : 5));
+      return _send(operation, request, dnsRetries: dnsRetries - 1);
+    }
+
     try {
       return await request().timeout(requestTimeout);
+    } on io.TlsException {
+      _logTransportFailure(operation, 'tls');
+      throw GoogleOAuthException(_offlineMessage(operation, 'tls'), error: GoogleOAuthException.offline);
     } on io.SocketException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+      final kind = e.message.toLowerCase().startsWith('failed host lookup') ? 'dns' : 'connection';
+      if (kind == 'dns' && dnsRetries > 0) return retryLookup();
+      _logTransportFailure(operation, kind);
+      throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on http.ClientException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
-    } on io.TlsException catch (e) {
-      throw GoogleOAuthException(_offlineMessage(e.message), error: GoogleOAuthException.offline);
+      final message = e.message.toLowerCase();
+      final kind = message.startsWith('failed host lookup')
+          ? 'dns'
+          : message.contains('handshake')
+          ? 'tls'
+          : 'connection';
+      if (kind == 'dns' && dnsRetries > 0) return retryLookup();
+      _logTransportFailure(operation, kind);
+      throw GoogleOAuthException(_offlineMessage(operation, kind), error: GoogleOAuthException.offline);
     } on TimeoutException {
-      throw GoogleOAuthException(
-        _offlineMessage('no answer within ${requestTimeout.inSeconds}s'),
-        error: GoogleOAuthException.offline,
-      );
+      _logTransportFailure(operation, 'timeout');
+      throw GoogleOAuthException(_offlineMessage(operation, 'timeout'), error: GoogleOAuthException.offline);
     }
   }
 
-  static String _offlineMessage(String detail) => "Couldn't reach Google ($detail).";
+  /// Logs *what* failed and *where*, never the exception text: `package:http`
+  /// quotes the request URI, and a token request's URI is a credential
+  /// (RULES §2). The layer is what a diagnosis needs, and the connectivity probe
+  /// measures it independently.
+  static void _logTransportFailure(String operation, String kind) {
+    AppLogger.warning('transport failure: $operation ($kind)', tag: logTag);
+  }
+
+  static String _offlineMessage(String operation, String kind) => "Couldn't reach Google ($operation: $kind).";
 
   /// RFC 7636 §4.1 verifier: 43–128 chars from the unreserved set. 32 random
   /// bytes base64url-encoded is 43 chars, which is the sweet spot every
@@ -277,11 +319,17 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   @override
   Future<GoogleDesktopToken> authenticate() async {
     if (!config.isConfigured) {
+      AppLogger.warning('authenticate: no OAuth client is configured for this build', tag: logTag);
       throw const GoogleOAuthException(
         'No Google OAuth client is configured for this build.',
         error: 'not_configured',
       );
     }
+
+    AppLogger.info('authenticate: start', tag: logTag);
+    // Fire-and-forget: the probe takes a few seconds and must never delay the
+    // browser, but its lines are what turn "no internet" into a named layer.
+    unawaited(_logConnectivity('on start'));
 
     final codeVerifier = generateCodeVerifier();
     final state = generateState();
@@ -290,6 +338,18 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     // the port as a wildcard for desktop clients, so this needs no registration
     // and cannot collide with another instance.
     final server = await io.HttpServer.bind(io.InternetAddress.loopbackIPv4, 0);
+
+    // The listener is attached **before** the browser opens, and that order is the
+    // whole point: the redirect can arrive while the tab is still loading (a warm
+    // Chrome, or a Google account that is already signed in and only needs a tap).
+    // When it lands before `listen` is attached, the connection sits in the accept
+    // backlog unanswered — the phone shows a spinner that never finishes while this
+    // method waits for a redirect the browser already sent. Moving the await below
+    // `_openBrowser` also means the 5-minute timer only starts once a browser exists.
+    final completer = Completer<Uri>();
+    final subscription = _listenForRedirect(server, completer);
+    AppLogger.info('loopback: listening on 127.0.0.1:${server.port}', tag: logTag);
+
     try {
       final redirectUri = 'http://127.0.0.1:${server.port}';
 
@@ -301,6 +361,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
       );
 
       final opened = await _openBrowser(url.toString());
+      AppLogger.info('browser: opened=$opened', tag: logTag);
       if (!opened) {
         throw const GoogleOAuthException(
           'Could not open a browser for the Google sign-in page.',
@@ -308,62 +369,112 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
         );
       }
 
-      final redirect = await _awaitRedirect(server);
-      final code = parseRedirectCode(redirect, expectedState: state);
-
-      return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
-    } finally {
-      await server.close(force: true);
-    }
-  }
-
-  Future<Uri> _awaitRedirect(io.HttpServer server) async {
-    final completer = Completer<Uri>();
-
-    final subscription = server.listen((request) async {
-      if (completer.isCompleted) {
-        request.response.statusCode = io.HttpStatus.notFound;
-        await request.response.close();
-        return;
-      }
-
-      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
-      if (request.uri.queryParameters.containsKey('code') || request.uri.queryParameters.containsKey('error')) {
-        request.response
-          ..statusCode = io.HttpStatus.ok
-          ..headers.contentType = io.ContentType.html
-          ..write(_completionPage());
-        await request.response.close();
-        if (!completer.isCompleted) completer.complete(request.uri);
-        return;
-      }
-
-      request.response
-        ..statusCode = io.HttpStatus.ok
-        ..headers.contentType = io.ContentType.html
-        ..write(_completionPage());
-      await request.response.close();
-    });
-
-    try {
-      return await completer.future.timeout(
-        const Duration(minutes: 5),
+      final redirect = await completer.future.timeout(
+        redirectTimeout,
         onTimeout: () => throw const GoogleOAuthException(
           'Timed out waiting for the Google sign-in to finish in the browser.',
           error: 'timeout',
         ),
       );
+
+      final code = parseRedirectCode(redirect, expectedState: state);
+      AppLogger.info('redirect: authorization code received (${code.length} chars, value never logged)', tag: logTag);
+
+      return await _exchangeCode(code: code, codeVerifier: codeVerifier, redirectUri: redirectUri);
+    } on GoogleOAuthException catch (error) {
+      AppLogger.warning('authenticate: failed (${error.error}) — re-probing the network', tag: logTag);
+      // A sign-in fails precisely when the network is the suspect, so the probe is
+      // repeated *after* the failure: it shows the state at the moment it broke,
+      // not only what it was when the browser opened.
+      unawaited(_logConnectivity('after failure'));
+      rethrow;
     } finally {
       await subscription.cancel();
+      await server.close(force: true);
     }
   }
 
-  /// Shown in the browser tab once the redirect lands. Plain and unbranded on
-  /// purpose: it is the only HTML this app serves.
-  String _completionPage() =>
-      '<!doctype html><meta charset="utf-8"><title>StoryPad</title>'
-      '<body style="font-family:sans-serif;text-align:center;padding-top:4em">'
-      '<h2>Signed in</h2><p>You can close this tab and return to StoryPad.</p></body>';
+  /// Answers every loopback request until the redirect with a `code` (or an
+  /// `error`) arrives, then completes [completer].
+  ///
+  /// Nothing secret is logged: whether the query had a code is useful when the
+  /// flow appears stuck, the code itself is a credential (RULES §2).
+  StreamSubscription<io.HttpRequest> _listenForRedirect(io.HttpServer server, Completer<Uri> completer) {
+    return server.listen((request) async {
+      final hasCode = request.uri.queryParameters.containsKey('code');
+      final hasError = request.uri.queryParameters.containsKey('error');
+      AppLogger.info(
+        'loopback: request (code: $hasCode, error: $hasError, alreadyCompleted: ${completer.isCompleted})',
+        tag: logTag,
+      );
+
+      request.response
+        ..statusCode = io.HttpStatus.ok
+        ..headers.contentType = io.ContentType.html
+        ..write(_completionPage(authorizationReceived: hasCode && !hasError));
+      await request.response.close();
+
+      // Browsers ask for /favicon.ico unprompted; that must not consume the code.
+      if ((hasCode || hasError) && !completer.isCompleted) completer.complete(request.uri);
+    });
+  }
+
+  /// The probe that is currently running, if any.
+  ///
+  /// A sign-in starts a probe and a *failing* sign-in queues another one; without
+  /// this chain the two would interleave their lines and make the log unreadable —
+  /// and the post-failure probe would report an older state than it claims.
+  static Future<void>? _probeInFlight;
+
+  /// Logs one four-layer probe per Google host. Never throws: a diagnostic that
+  /// can break the flow it is diagnosing is worse than no diagnostic.
+  static Future<void> _logConnectivity(String phase) async {
+    final previous = _probeInFlight;
+    final current = _runProbes(phase, previous);
+    _probeInFlight = current;
+    try {
+      await current;
+    } finally {
+      if (identical(_probeInFlight, current)) _probeInFlight = null;
+    }
+  }
+
+  static Future<void> _runProbes(String phase, Future<void>? previous) async {
+    // A probe the caller never awaited can still fail; that must not kill this one.
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    for (final host in GoogleConnectivityService.hosts) {
+      try {
+        final result = await GoogleConnectivityService.check(host: host);
+        for (final step in result.steps) {
+          AppLogger.info('connectivity[$phase] $host $step', tag: logTag);
+        }
+        AppLogger.info('connectivity[$phase] ${result.summary}', tag: logTag);
+        final advice = result.advice;
+        if (advice != null) AppLogger.warning('connectivity[$phase] advice: $advice', tag: logTag);
+      } catch (error) {
+        AppLogger.warning('connectivity[$phase] $host probe failed (${error.runtimeType})', tag: logTag);
+      }
+    }
+  }
+
+  /// Shown in the browser tab once the redirect lands. Receiving an authorization
+  /// code is not the same as completing sign-in: token exchange and user-info
+  /// requests still happen in the app, so the page must not claim that the user is
+  /// signed in yet. A denied/cancelled redirect gets a distinct, truthful message.
+  String _completionPage({required bool authorizationReceived}) {
+    return OAuthCompletionPage.render(
+      authorizationReceived: authorizationReceived,
+      text: completionPageText ?? OAuthCompletionText.english,
+      androidPackage: returnToAppPackage,
+    );
+  }
 
   Future<GoogleDesktopToken> _exchangeCode({
     required String code,
@@ -371,6 +482,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     required String redirectUri,
   }) async {
     final response = await _send(
+      'token exchange',
       () => _client.post(
         Uri.parse(tokenUrl),
         body: {
@@ -382,8 +494,11 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
           'code_verifier': codeVerifier,
         },
       ),
+      // DNS failed before connecting; never replay a code after an ambiguous send.
+      dnsRetries: 2,
     );
 
+    AppLogger.info('exchange: HTTP ${response.statusCode}', tag: logTag);
     return parseTokenResponse(response);
   }
 
@@ -396,6 +511,7 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
     if (refreshToken == null) return null;
 
     final response = await _send(
+      'token refresh',
       () => _client.post(
         Uri.parse(tokenUrl),
         body: {
@@ -420,11 +536,13 @@ class GoogleDesktopOAuthService implements GoogleOAuthClient {
   @override
   Future<GoogleUserInfo> fetchUserInfo(String accessToken) async {
     final response = await _send(
+      'account info',
       () => _client.get(
         Uri.parse(userInfoUrl),
         headers: {'Authorization': 'Bearer $accessToken'},
       ),
     );
+    AppLogger.info('userinfo: HTTP ${response.statusCode}', tag: logTag);
 
     if (response.statusCode != 200) {
       throw GoogleOAuthException(

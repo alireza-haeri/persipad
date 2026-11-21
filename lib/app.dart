@@ -5,9 +5,12 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storypad/app_theme.dart';
+import 'package:storypad/core/constants/app_constants.dart' show kAppName;
 import 'package:storypad/core/constants/locale_constants.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
+import 'package:storypad/core/storages/device_preferences_storage.dart';
 import 'package:storypad/core/types/font_size_option.dart';
 import 'package:storypad/core/types/time_format_option.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
@@ -24,56 +27,59 @@ class App extends StatelessWidget {
       path: 'translations',
       supportedLocales: kSupportedLocales,
       fallbackLocale: kFallbackLocale,
-      startLocale: kFallbackLocale,
-      child: AppTheme(
-        builder: (context, preferences, theme, darkTheme, themeMode) {
-          MediaQueryData mediaQuery = MediaQuery.of(context);
-          TextScaler textScaler = switch (preferences.fontSize) {
-            null => MediaQuery.textScalerOf(context),
-            FontSizeOption.small => const TextScaler.linear(0.85),
-            FontSizeOption.normal => const TextScaler.linear(1.0),
-            FontSizeOption.large => const TextScaler.linear(1.15),
-            FontSizeOption.extraLarge => const TextScaler.linear(1.3),
-          };
+      startLocale: const Locale('fa'),
+      child: _LocalePreferenceSync(
+        child: AppTheme(
+          builder: (context, preferences, theme, darkTheme, themeMode) {
+            MediaQueryData mediaQuery = MediaQuery.of(context);
+            TextScaler textScaler = switch (preferences.fontSize) {
+              null => MediaQuery.textScalerOf(context),
+              FontSizeOption.small => const TextScaler.linear(0.85),
+              FontSizeOption.normal => const TextScaler.linear(1.0),
+              FontSizeOption.large => const TextScaler.linear(1.15),
+              FontSizeOption.extraLarge => const TextScaler.linear(1.3),
+            };
 
-          double topMainMenuPadding = 0;
+            double topMainMenuPadding = 0;
 
-          // Add padding for macOS main menu bar.
-          if (Platform.isMacOS) topMainMenuPadding = 24;
+            // Add padding for macOS main menu bar.
+            if (Platform.isMacOS) topMainMenuPadding = 24;
 
-          // Add extra top padding for iPadOS windowed mode main menu bar.
-          // In big window mode, the sidebar is present, so top menu padding has minimal UI impact.
-          // For big windows, apply only a smaller top padding.
-          if (Platform.isIOS && WindowedDetectorService.isWindowed(context)) {
-            topMainMenuPadding = WindowedDetectorService.isBigWindow(context) ? 8 : 36;
-          }
+            // Add extra top padding for iPadOS windowed mode main menu bar.
+            // In big window mode, the sidebar is present, so top menu padding has minimal UI impact.
+            // For big windows, apply only a smaller top padding.
+            if (Platform.isIOS && WindowedDetectorService.isWindowed(context)) {
+              topMainMenuPadding = WindowedDetectorService.isBigWindow(context) ? 8 : 36;
+            }
 
-          return MediaQuery(
-            data: mediaQuery.copyWith(
-              padding: mediaQuery.padding.copyWith(top: mediaQuery.padding.top + topMainMenuPadding),
-              viewPadding: mediaQuery.viewPadding.copyWith(top: mediaQuery.viewPadding.top + topMainMenuPadding),
-              viewInsets: _nonNegative(mediaQuery.viewInsets),
-              textScaler: textScaler,
-              alwaysUse24HourFormat:
-                  context.read<DevicePreferencesProvider>().timeFormatOf(context) == TimeFormatOption.h24,
-            ),
-            child: MaterialApp(
-              debugShowCheckedModeBanner: false,
-              themeMode: themeMode,
-              theme: theme,
-              darkTheme: darkTheme,
-              home: const RootView(),
-              localizationsDelegates: [
-                ...EasyLocalization.of(context)!.delegates,
-                DefaultCupertinoLocalizations.delegate,
-                DefaultMaterialLocalizations.delegate,
-                DefaultWidgetsLocalizations.delegate,
-              ],
-              supportedLocales: context.supportedLocales,
-              locale: context.locale,
-            ),
-          );
-        },
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                padding: mediaQuery.padding.copyWith(top: mediaQuery.padding.top + topMainMenuPadding),
+                viewPadding: mediaQuery.viewPadding.copyWith(top: mediaQuery.viewPadding.top + topMainMenuPadding),
+                viewInsets: _nonNegative(mediaQuery.viewInsets),
+                textScaler: textScaler,
+                alwaysUse24HourFormat:
+                    context.read<DevicePreferencesProvider>().timeFormatOf(context) == TimeFormatOption.h24,
+              ),
+              child: MaterialApp(
+                title: kAppName,
+                debugShowCheckedModeBanner: false,
+                themeMode: themeMode,
+                theme: theme,
+                darkTheme: darkTheme,
+                home: const RootView(),
+                localizationsDelegates: [
+                  ...EasyLocalization.of(context)!.delegates,
+                  DefaultCupertinoLocalizations.delegate,
+                  DefaultMaterialLocalizations.delegate,
+                  DefaultWidgetsLocalizations.delegate,
+                ],
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -89,4 +95,50 @@ class App extends StatelessWidget {
       math.max(0, insets.bottom),
     );
   }
+}
+
+class _LocalePreferenceSync extends StatefulWidget {
+  const _LocalePreferenceSync({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_LocalePreferenceSync> createState() => _LocalePreferenceSyncState();
+}
+
+class _LocalePreferenceSyncState extends State<_LocalePreferenceSync> {
+  @override
+  void initState() {
+    super.initState();
+    DevicePreferencesStorage.localeCodeNotifier.addListener(_applySavedLocale);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applySavedLocale();
+  }
+
+  void _applySavedLocale() {
+    final code = DevicePreferencesStorage.localeCodeNotifier.value;
+    if (code == null || code == context.locale.languageCode) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || DevicePreferencesStorage.localeCodeNotifier.value != code) return;
+      if (code != context.locale.languageCode) await context.setLocale(Locale(code));
+      if (DevicePreferencesStorage.appInstance.followsDeviceLocale) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('locale');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    DevicePreferencesStorage.localeCodeNotifier.removeListener(_applySavedLocale);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -432,7 +432,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: storypad-linux-debug
+          name: persipad-linux-debug
           path: build/linux/x64/debug/bundle/
           retention-days: 3
           if-no-files-found: warn

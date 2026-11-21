@@ -85,7 +85,12 @@ The ones that matter most for us:
   `google_drive_auth_strategy.dart`, `google_desktop_oauth_service.dart` (unified PKCE loopback
   OAuth2 across Android and Linux), and `sync_steps/`.
 - `cloud_storage/adaptors/` — ObjectBox/file adaptors for assets.
-- `notifications/`, `voice_recorder_service` → voice recording and reminders.
+- `notifications/` → reminders: `reminder_schedule_planner.dart` (pure occurrence math),
+  `local_notification_service.dart` (OS alarms, permissions, resume/renewal),
+  `reschedule_queue.dart` (serialized updates), `reminder_navigation_service.dart` (tap →
+  screen), plus `services/calendar/calendar_recurrence.dart` +
+  `objects/calendar_reminder_schedule.dart` for calendar-relative dates.
+- `voice_recorder_service` → voice recording.
 - `quill/`, `export/`, `markdown_*`, `story_plain_text_exporter` → editor and export.
 - `analytics/`, `error_reporting/`, `remote_config/` → all built via
   `Base*Adaptor.create()` and resolve to no-op adaptors on Linux.

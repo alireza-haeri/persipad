@@ -6,6 +6,17 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() async {
+  test('localized copy does not display the legacy brand', () {
+    final legacyName = RegExp(r'story[\s_-]*pad|استوری[\s‌-]*پد', caseSensitive: false);
+    for (final file in Directory('translations').listSync().whereType<File>()) {
+      if (!file.path.endsWith('.json')) continue;
+      final messages = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      for (final entry in messages.entries) {
+        expect(entry.value.toString(), isNot(matches(legacyName)), reason: '${file.path}: ${entry.key}');
+      }
+    }
+  });
+
   test('translation keys are used, exist, and match across all locales', () async {
     await _checkUnusedAndMissingKeys();
     await _checkLocalesMatchEnKeys();

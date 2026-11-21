@@ -6,29 +6,11 @@ class _CommunityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Widget> socials = [
-      if (RemoteConfigService.redditUrl.get().isNotEmpty)
-        IconButton.filled(
-          icon: const Icon(SpIcons.reddit),
-          onPressed: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.redditUrl.get()),
-        ),
-      if (RemoteConfigService.tiktokUsername.get().isNotEmpty)
-        IconButton.filledTonal(
-          icon: const Icon(Icons.tiktok_outlined),
-          onPressed: () => UrlOpenerService.openInCustomTab(
-            context,
-            "https://www.tiktok.com/@${RemoteConfigService.tiktokUsername.get()}",
-          ),
-        ),
-      if (RemoteConfigService.twitterUrl.get().isNotEmpty)
-        IconButton.filledTonal(
-          icon: const Icon(SpIcons.twitter),
-          onPressed: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.twitterUrl.get()),
-        ),
-      if (RemoteConfigService.bugReportUrl.get().isNotEmpty)
-        IconButton.filledTonal(
-          icon: const Icon(SpIcons.bug),
-          onPressed: () => UrlOpenerService.openInCustomTab(context, RemoteConfigService.bugReportUrl.get()),
-        ),
+      IconButton.filledTonal(
+        icon: const Icon(SpIcons.bug),
+        tooltip: tr('general.reach_us_description'),
+        onPressed: () => UrlOpenerService.openInCustomTab(context, '$kProjectRepositoryUrl/issues'),
+      ),
     ];
 
     return Container(

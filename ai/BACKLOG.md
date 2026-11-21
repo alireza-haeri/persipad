@@ -34,6 +34,9 @@ Labels: `💡 idea` (undecided) · `⏸ awaiting decision` · `🔜 next` · `�
 |---|---|---|
 | A-1 | `✅` CI APK workflow (`.github/workflows/android.yml`) | Builds arm64 `community` APK on `[apk]` commit subject + publishes pre-release (D-038, D-039) |
 | A-2 | `✅` Local Fedora APK loop (`bin/build_apk` + `bin/android_doctor`) | Handles offline `dl.google.com` via Tencent/Huawei Maven mirror, `android-36.1` minor SDK, `--no-ndk` `forceNdkDownload` bypass, and `--avd` (D-040) |
+| A-4 | `✅` AVD resolver (emulator DNS) | `bin/build_apk` reads the host's real upstream resolver when `/etc/resolv.conf` only has a loopback stub, diagnoses an already-running emulator, and `--no-dns-server` opts out (`D-053`, `D-055`) |
+| A-5 | `👤` Emulator Google sign-in | Attempted; the app side behaves (browser + account OK, no raw exception) but the AVD resolves Google to a fake IP (`198.18.0.60`), so the token exchange cannot reach Google — one proxy/DNS setting away (`D-056`, `NEXT.md` §1) |
+| A-6 | `✅` Fake-IP DNS is detected | `bin/build_apk` classifies the guest's answer (`ok`/`fake`/`unresolvable`) instead of trusting a ping that a fake-IP layer answers itself (`D-056`) |
 | A-3 | `✅` **Lightweight mobile (phone) build** | Trimmed Maps/Location, Relax Sounds, Period Calendar, Add-ons, Fonts picker, IAP/Paywall/Support Us, non-Drive backups (`Nextcloud`/`Dropbox`/`iCloud`), and 19 unused locales (`D-047`) |
 
 ## 0b. Calendar (the Persian-calendar track)
@@ -92,7 +95,7 @@ Generic journaling-app ideas; your preferences set the priority.
 
 ## 3. Open questions
 
-1. Product name — `notely`, or keep StoryPad?
+1. Product name — PersiPad (chosen; see `GOAL.md`).
 2. Keep the Pro/paywall or unlock everything? (On Linux IAP doesn't work at all, so a
    gate would be dead weight there.)
 3. 21 languages, or just fa/en?
@@ -112,3 +115,9 @@ Generic journaling-app ideas; your preferences set the priority.
 | I-12 | `🔴` | Verify Nextcloud sync against the **official** phone app (same account, same folder) | the only path-based provider both apps already support — this is the realistic phone↔desktop bridge |
 | I-13 | `✅` | Android build that reuses the **desktop** OAuth client id (loopback flow, not `google_sign_in`) | Unified in `D-047`: both Linux and Android now use `GoogleDesktopAuthStrategy` so both devices share one Drive `appDataFolder` |
 | I-14 | `🟡` | One-time migration flow: import a phone-exported JSON, then let Drive take over | existing notes must not be stranded on the old app |
+
+## Calendar reminder implementation (D-064)
+
+- `⏳` Integrate recurrence data, editing UI and localized summaries with existing reminders.
+- `⏳` Design and verify durable notification renewal when the app is not running, reboot/time-zone handling and OS limits; do not expose a schedule that silently expires.
+- `⏳` Define and implement re-anchoring on calendar setting changes; run Flutter tests, Linux CI and Android device verification.

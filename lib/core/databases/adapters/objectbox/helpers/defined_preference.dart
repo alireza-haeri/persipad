@@ -11,7 +11,7 @@ class _DefinedPreference<T> {
 
   T? get() {
     PreferenceObjectBox? record = PreferencesBox().box.get(id);
-    if (record == null) return null;
+    if (record == null || record.permanentlyDeletedAt != null || record.key != key) return null;
 
     if (T == bool) {
       if (record.value.trim().toLowerCase() == "true") return true as T;

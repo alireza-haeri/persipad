@@ -4,7 +4,7 @@ abstract class EnumStorage<T> extends DefaultStorage<String> {
   List<T> get values;
 
   Future<void> writeEnum(T value) async {
-    (await adapter).write(key: key, value: "$value");
+    await (await adapter).write(key: key, value: "$value");
   }
 
   Future<T?> readEnum() async {

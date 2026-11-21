@@ -1,40 +1,162 @@
 # What to do next — an ordered plan
 
-> Written 2026-11-16 at the end of Session 11. Supersedes the roadmap in
-> `PROGRESS.md` §"Remaining" wherever the two disagree; that section keeps the older
-> phase view for history.
+> Rewritten 2026-11-16 at the end of session 14. Supersedes the session-11 version (which
+> still listed the Fedora APK loop as "unknown" — it has since been verified, and the
+> font-picker and lightweight-scope questions are answered by `D-047`/`N-020`).
 >
-> **The ordering rule:** risk removed per hour of your time. Items that need *you*
-> (a device, a keystore, a decision) are marked **👤**; items I can do alone are **🤖**.
+> **The ordering rule:** risk removed per hour of your time. Items that need *you* (a
+> device, a keystore, a judgement call) are **👤**; items I can do alone are **🤖**.
 > Nothing here is a wish-list — each item names the evidence that it is worth doing.
 
 ---
 
-## 1. Do these first — they are blocked only on information you have
+## 0. 👤 Verify the completed reminders feature (session 22, 2026-11-20)
 
-### 1.1 👤 The Fedora APK verdict (blocks everything about Android)
+`REMINDER_IMPLEMENTATION_PLAN.md` is implemented (`D-068`): the editor, persistence,
+calendar-aware calculation and the OS scheduling path all exist, and the pure logic is
+tested in CI. What is left is exactly what no sandbox can prove — that Android delivers the
+alarm with the app closed, after a reboot, and after a time-zone change. The eight concrete
+steps are in `PROGRESS.md` §Session 22 → "What only you can check".
 
-**What I need:** one line — did `bin/build_apk --install --avd=storypad_dev -v` ever
-finish? Success, or the last log?
-
-**Why it blocks:** `PROGRESS.md` has carried it as "unknown" since Session 10. Three
-separate plans (A-3 lightweight build, release signing, the whole "is the phone app
-real?" question) all sit behind it. Until it is answered, Android work is guesswork.
-
-**If it succeeded:** say so and I will record it; the next Android item is 1.2.
-**If it failed:** paste the log tail — the two known failure modes (NDK
-`forceNdkDownload` hang, `dl.google.com`) already have fixes (D-040).
+**Why this is first:** the feature's whole value is "the notification arrives". Everything
+below is older and less visible than a reminder that quietly does not fire.
 
 ---
 
-### 1.2 👤 Release-signed APK instead of trimming features
+## 0.1 👤 Send one Google sign-in capture (session 23, 2026-11-20)
 
-**Why before A-3:** the 138 MB number everyone reacts to is a **debug build**. It has
-nothing to do with how much code we ship. Cutting features to shrink a number that is
-an artifact of the build type would be destroying value to fix a measurement error
-(`ANALYSIS.md` §4).
+The app now says *where* a Google request dies and `bin/oauth_debug` captures it (device
+facts, the guest's own `ping` of the three Google names, a 120 s `adb logcat`, then the
+diagnosis). The cause is not claimed until that log exists — the same symptom was already
+once diagnosed as plain DNS (`D-053`) and came back, so guessing again would waste the round.
 
-**What it needs from you** — four repository secrets, ~10 minutes:
+```bash
+bin/build_apk --install --launch          # app-side logging: needs a rebuilt APK
+bin/oauth_debug                           # Settings → Data backup → Google Drive → Sign in
+```
+
+**Then:** read `build/oauth_debug_*.log` (or `bin/oauth_debug --analyze <file>`). The verdict
+line decides the fix — `fakeDns` (proxy fake-IP DNS, the "browser works, app doesn't" case),
+`dnsFailure` (`--dns-server=8.8.8.8`), `tcpBlocked`/`tlsBlocked` (VPN routing/interception),
+or `ok` (not the network: look at `exchange: HTTP <status>`). Details: `ENVIRONMENT.md` §2.2d.
+
+**Why it is above the reminders list:** a sign-in that always fails blocks the entire Drive
+feature, and one paste of a log settles it.
+
+---
+
+## 1. Do these first — they are blocked only on information you have
+## 1. 👤 One DNS setting, then the sign-in attempt again
+
+**Where it stands (session 15).** The old `Failed host lookup` is gone, the browser opened,
+the Google account was accepted — and then the app said "No internet connection!". That
+message is truthful: `adb shell ping -c1 oauth2.googleapis.com` from the guest returned
+**198.18.0.60 (ttl 255, 1 ms)**, a fake address from the `198.18.0.0/15` pool that
+Clash/mihomo-style proxies use for fake-IP DNS. The app's token exchange goes to that
+address and dies; Chrome still logged in because it resolves through its own secure DNS.
+
+So nothing in the Dart code is implicated: **the guest must resolve Google to a real
+address.** Chrome reaching Google from inside the same AVD also proves the emulator's
+TCP path is fine — only the name resolution is being hijacked.
+
+**Three fixes, cheapest first:**
+
+| # | Fix | Command / change | Cost |
+|---|---|---|---|
+| 1 | Let those names resolve for real in the proxy (best) | add to the proxy's config: `dns.fake-ip-filter: ["+.googleapis.com", "+.google.com", "accounts.google.com"]`, or switch `dns.enhanced-mode` to `redir-host`; restart the proxy | one config edit, fixes every app in the guest |
+| 2 | Encrypted resolver inside the guest, even while it keeps running | `adb shell settings put global private_dns_mode hostname` then `adb shell settings put global private_dns_specifier dns.google` | two commands, no reboot |
+|   | ...and to undo it | `adb shell settings put global private_dns_mode off` | |
+| 3 | A resolver the fake-IP layer does not answer for | reboot the AVD with `bin/build_apk --install --avd=storypad_dev --dns-server=8.8.8.8` | a reboot; works only if that resolver is reachable from here |
+
+**The check that says you are done** — the address must change from `198.18.*` to something
+like `142.250.*`, `172.217.*`, `216.58.*` or `74.125.*`:
+
+```bash
+adb shell ping -c1 oauth2.googleapis.com
+```
+
+Then in the app: `Settings → Backup → Google Drive → sign in`. `bin/build_apk` now prints
+exactly this diagnosis itself (`D-056`), so it can tell you which of the three cases you are
+in before you open the app.
+
+**Why this is still 👤:** it is one setting on your proxy or your AVD. If you prefer, tell me
+which proxy you run and I will write the exact config block for it.
+
+---
+
+## 1b. ✅ "Make the final app lighter" — measured, not guessed
+
+`D-057` answers it: 238 MB is a **debug, four-ABI** artifact (`bin/apk_report` shows it), and
+the ladder is debug×4 ABIs → debug×1 ABI (~120 MB) → release×1 ABI (~30–45 MB expected, R8 +
+no Dart symbols). `bin/build_apk --release --sign-debug --abi arm64` produces the last one
+today, with no keystore. What is left is one measurement on your machine:
+
+```bash
+bin/build_apk --release --sign-debug --abi arm64 && bin/apk_report
+```
+
+Where the 237 MB actually is (measured, `bin/apk_report`): **142.2 MB `kernel_blob.bin`** +
+11.1 MB `isolate_snapshot_data` (the Dart VM snapshot, debug-only), **3 engines** for 3 ABIs
+(one of them carrying a 15 MB Vulkan validation layer), **37.2 MB of unminified dex**, and
+**~2 MB of the app's own pictures and fonts** (0.2%). So the release build should land around
+**25–40 MB**, and nothing user-visible has to be removed to get there.
+
+**Measured:** 40.5 MB (`--release --sign-debug --abi arm64`) against 237.3 MB debug — R8
+needed no keep rule. `D-059` now also filters Gradle's `abiFilters` to the chosen ABI, which
+removes the last 4.3 MB of ObjectBox JNI libraries for ABIs the phone cannot load (**~36 MB
+expected on the next build**).
+
+---
+
+## 1c. 📱 Phone sign-in — retest on a build that is actually installed (`D-058` + `D-060`)
+
+The first phone attempt stopped at `http://127.0.0.1:44399/?code=…` (a spinner). Two things are
+now in the app, and both matter:
+
+- **`D-058`** attaches the loopback listener *before* the browser opens. Right, tested, but the
+  round that "retested" it never installed anything: `bin/build_apk --install` printed
+  `nothing attached`, because the phone was not visible to `adb`. So the phone still ran the old
+  APK. **Check `adb devices` shows `device` (not `unauthorized`) before trusting a retest.**
+- **`D-060`** makes the stuck page survivable: after 12 s without a redirect the app offers a
+  dialog to paste the address from the browser. The loopback still wins whenever it arrives, so
+  a working device never sees the dialog.
+
+```bash
+bin/build_apk --install --abi arm64 --launch        # the fix is in Dart, so the APK must be rebuilt
+```
+
+Then sign in on the phone. Three outcomes, and they are all informative:
+
+| what you see | what it means |
+| --- | --- |
+| Sign-in completes by itself | the loopback works on this device; nothing else to do |
+| A dialog asks for the address, and pasting it completes the sign-in | the browser could not reach the app (freezing or VPN); the fallback is doing its job |
+| The dialog appears but pasting does not help | the *exchange* is failing, which is the DNS problem in §2.2d — not this flow |
+
+If it still hangs with no dialog, the dialog itself did not get a chance to run, so send me **one**
+line from:
+
+```bash
+adb logcat -d -s flutter | grep -i "Google sign-in"
+```
+
+- `waiting for the loopback redirect on 127.0.0.1:<port>` but **no** `loopback request` →
+  the browser never reached the app (OEM process freezing, or a phone-side VPN blocking
+  loopback). Next step is a paste-the-redirect-URL fallback, which I will write once that is
+  confirmed.
+- `loopback request (code: …)` → the app answered; the remaining failure is the token
+  exchange, i.e. the same fake-IP DNS story as §1, now on the phone.
+
+---
+
+## 2. 👤 Decisions that are yours, not mine
+
+### 2.1 Release-signed APK instead of a bigger trim
+
+The 138 MB number that keeps looking alarming is a **debug** build. Cutting features to
+shrink it would be destroying value to fix a measurement error (`ANALYSIS.md` §4). Four
+repository secrets, ~10 minutes, and then `[release]` produces a signed APK that can also be
+*measured*:
 
 | Secret | What it is |
 |---|---|
@@ -43,126 +165,81 @@ an artifact of the build type would be destroying value to fix a measurement err
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key password |
 
-**What I do after:** wire them into `android.yml`, produce a signed release APK on
-`[release]`, and **measure it**. Only then does "is the APK too big?" become a question
-with a number attached.
+> ⚠️ Add them in *Settings → Secrets*. Do not paste them in chat; I never need to see them.
 
-> ⚠️ Do not paste these in chat. Add them in the repository's *Settings → Secrets*.
-> I never need to see them.
+### 2.2 Ten minutes with a screen reader (T-15)
 
----
+The calendar cell is labelled; the rest gets whatever Material infers. The cheapest useful
+script: open the calendar → swipe a month → open a story → open search. Tell me what sounds
+wrong and I fix exactly that.
 
-### 1.3 👤 Ten minutes on a screen reader (closes T-15 properly)
+### 2.3 What "search quality" should mean (T-11)
 
-The calendar cell is now labelled; everything else gets whatever Material infers. The
-honest way to find the real gaps is **not** for me to add `Semantics` to files nobody
-has listened to — it is for you to turn on VoiceOver/TalkBack and tell me where it
-sounds wrong.
+Today `contains` on an unindexed column, and it is linear. A prefix index, ObjectBox
+full-text, or "do nothing but measure" are all defensible and carry different migration
+costs. **My recommendation:** measure on a realistic database (a few thousand stories)
+first — nobody knows whether this is a 20 ms or a 2-second problem, and the answer picks the
+row.
 
-**Cheapest useful script:** open the calendar → swipe through one month → open a story
-→ open search. Three places where I would expect problems: the score bar's slider
-value, the month header's navigation arrows, and the story list rows' "x min read"
-text. Tell me what is confusing and I will fix exactly that.
+### 2.4 A coverage threshold — or not (T-14)
 
----
-
-## 2. Then — decisions I should not make for you
-
-### 2.1 🧠 What "search quality" should mean (T-11)
-
-Today: `contains` on an unindexed `searchMetadata` column. It works, and it is linear.
-Replacing it is a real design choice with different costs:
-
-| Option | Cost | Gains | Risk |
-|---|---|---|---|
-| Prefix index | small; `@Index` on a new column + migration | `foo*` is fast; `*foo*` still scans | needs an ObjectBox schema migration (D-016 codegen) |
-| ObjectBox full-text (`@HnswIndex`/FTS) | medium | real relevance ranking | preview-version dependency (T-0) on an already-preview ObjectBox |
-| Do nothing, just measure | zero | honesty | none |
-
-**My recommendation:** measure first on a realistic database (a few thousand stories)
-and only then choose. Right now nobody knows whether this is a 20 ms problem or a
-2-second problem — and the answer decides which row of that table is correct.
-
-### 2.2 🧠 A coverage threshold — or not (T-14)
-
-We now know it is **13.9%**. That number is the *start* of a conversation, not a
-verdict: much of `lib/` is UI that pure-logic tests cannot reach, and the editor
-package is measured separately (or not at all yet).
-
-**My recommendation:** do not add a threshold. Instead, when we next touch a risky
-file (backup merge, calendar conversion, search filter), require its tests *in that
-commit*. That grows coverage where it matters instead of where it is easy.
-
-### 2.3 🧠 Is the font picker worth keeping online? (D-043 remainder)
-
-The default family is bundled and works offline. The **picker's ~1500 families** still
-download on demand. Two defensible answers:
-
-- **Keep it** — it is a catalogue; a user choosing "Playfair Display" expects to fetch it.
-- **Make it offline-only** — bundle a curated 10–15 families and delete the rest of the
-  picker. Smaller surface, fully offline, but a real feature reduction.
-
-I did not choose, because it changes what the app *is*. If you pick the second, I will
-need a list of families (or a curated default set — I would propose the 12 most common).
+It is 14.7% and that is a starting fact, not a verdict: much of `lib/` is UI, and the editor
+package is measured separately. **My recommendation:** still no threshold; instead, when we
+touch a risky file (backup merge, calendar conversion, search filter), its tests go in that
+same commit.
 
 ---
 
-## 3. Items I can do alone, in order
+## 3. 🤖 What I can do without you, in order
 
-These need nothing from you. Listed so you can say "do them" or reorder.
+### 3.1 Close the rest of the backup-merge surface (T-10 remainder)
 
-### 3.1 🤖 Close the rest of the backup-merge surface (T-10 remainder)
+The merge decision is tested. **Not** tested: `BackupLatestCheckerService`'s "older app on
+another device" detection and `BackupObject.fromContents`'s v2/v3/v4 branches. Same
+technique as `D-042` (a seam + a table). This is the remaining "can silently lose notes"
+code, so it is the highest-value thing I can do alone.
 
-The merge decision is tested. **Not** tested: `BackupLatestCheckerService`'s "older
-app on another device" detection and `BackupObject.fromContents`'s v2/v3/v4 branches.
-Same technique as D-042 (a seam + a table). This is the remaining "can silently lose
-notes" code, so it is the highest-value thing I can do without you.
+### 3.2 Make the formatting gate blocking (T-7) — carefully
 
-### 3.2 🤖 Make the formatting gate blocking (T-7) — carefully
+The gate is advisory only because the sandbox cannot run `dart format`. One commit formats
+exactly the known-unformatted files, a second flips `continue-on-error` off. Risk: a
+formatter version difference touching more files than expected — so that first commit stays
+alone and revertable.
 
-The gate is advisory because the sandbox cannot run `dart format`. But we now know
-exactly **9 files** are unformatted, and 8 were unformatted at the base commit. The
-plan: one commit that runs `bin/format` on exactly those 9, then flip
-`continue-on-error` off. Risk: a formatter version difference could touch more files
-than expected — so that commit stays alone and revertable.
+### 3.3 The `.g.dart` freshness check (T-2)
 
-### 3.3 🤖 The `.g.dart` freshness check (T-2)
+Committed generated code can drift from its source. A CI job that runs `build_runner` and
+fails if the tree changes would close it (~75 s), preferably only when a model or a
+`@CopyWith` file changed — `bin/changed_tests` already knows how to detect that.
 
-Committed generated code can silently drift from its source. A CI job that runs
-`build_runner` and fails if the tree changes would close it — but it costs ~75s per
-run, which is why it is not already done. Better: run it only when a model or a
-`@CopyWith` file changed (`bin/changed_tests` already knows how to detect that).
-
-### 3.4 🤖 Delete upstream CI that targets nothing (T-5)
+### 3.4 Delete upstream CI that targets nothing (T-5)
 
 `.github/workflows/ci.yml` comes from upstream, targets `develop`, and assumes an
-Android-era setup nobody runs. It is dead weight that makes the Actions tab confusing.
-Deleting it is a one-line change — I have not done it because it is not mine to
-delete without asking.
+Android-era setup nobody runs. One line to delete; I have not done it because it is not mine
+to delete without asking.
 
 ---
 
 ## 4. Explicitly **not** recommended right now
 
-Repeating these because they keep looking attractive:
-
-- **Trimming features to shrink the APK** — see 1.2. The number is a build artifact.
-- **A big refactor toward feature-based layering** (T-1) — 1013 files, no user-visible
-  gain, and every one of this session's bugs would have been *harder* to find in a
-  moving tree.
-- **Disabling `allowRuntimeFetching` globally** — D-043 explains why, and it needs an
-  SDK to verify.
-- **Adding `Semantics` broadly** — see 1.3. Listening beats guessing.
-- **Chasing the `ReminderNavigationService` failure** — that is real, but it belongs to
-  `arena/e3e3866a-notely` (commit `b210885`), the parallel session's branch. Fixing it
-  here would be fixing someone else's tree.
+- **Trimming more features to shrink the APK** — see 2.1, the number is a build artifact.
+- **A big refactor toward feature-based layering** (T-1) — ~1000 files, no user-visible
+  gain, and every bug of the last three sessions would have been harder to find.
+- **Disabling `allowRuntimeFetching` globally** — `D-043` explains why; needs an SDK to verify.
+- **Adding `Semantics` broadly** — see 2.2; listening beats guessing.
+- **Chasing the `ReminderNavigationService` failure** — real, but it belongs to
+  `arena/e3e3866a-notely` (`b210885`), which is already merged and pruned; if it still
+  fails, it fails on `main` too and becomes a fresh, reproducible bug rather than a branch
+  difference.
 
 ---
 
-## 5. Two traps this session found, so nobody re-finds them
+## 5. Traps this project has already found, so nobody re-finds them
 
-1. **`gh api .../actions/runs` is repo-wide, not branch-scoped.** Filter on
-   `head_branch` before reading an annotation. I spent a while chasing a failure from
-   the other branch.
+1. **`gh api .../actions/runs` is repo-wide, not branch-scoped.** Filter on `head_branch`.
 2. **An empty commit triggers no workflow.** `[full]` on `--allow-empty` runs nothing.
-   If you want the marker to mean something, the commit must touch a file.
+3. **`bin/build_runner` used to die without the artwork submodule** (`D-054`) — that is a
+   skip now, not a signal.
+4. **A "sign-in failed" can be DNS** (`D-053`). Check `adb shell ping -c1 oauth2.googleapis.com`
+   from the guest before touching OAuth config, and note that the resolver is only chosen at
+   **boot** — an AVD that is already running keeps whatever it had (`D-055`).

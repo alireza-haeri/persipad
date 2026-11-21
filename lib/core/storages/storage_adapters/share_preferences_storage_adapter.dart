@@ -2,13 +2,15 @@ import 'package:storypad/core/storages/storage_adapters/base_storage_adapter.dar
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SharePreferencesStorageAdapter<T> extends BaseStorageAdapter<T> {
+  static Future<void> Function(String key, String? value)? onLocalWrite;
   Future<SharedPreferences> get _instance => SharedPreferences.getInstance();
   SharedPreferences? instance;
 
   @override
   Future<void> remove({required String key}) async {
     instance ??= await _instance;
-    instance!.remove(key);
+    await instance!.remove(key);
+    await onLocalWrite?.call(key, null);
   }
 
   @override
@@ -21,5 +23,6 @@ class SharePreferencesStorageAdapter<T> extends BaseStorageAdapter<T> {
   Future<void> writeStr({required String key, required String value}) async {
     instance ??= await _instance;
     await instance!.setString(key, value);
+    await onLocalWrite?.call(key, value);
   }
 }

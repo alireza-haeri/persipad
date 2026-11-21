@@ -1,11 +1,19 @@
 # Status
 
-**Last updated:** 2026-11-16
-> Integration note: parallel branches `arena/c5b3ddac-notely`, `arena/e3e3866a-notely`, `arena/f59917e7-notely`, and `ci/codegen` are integrated onto `main` via `arena/41be3147-notely`. Exact historical snapshots live under `ai/merge-history/` and the full review is in [`MERGE_REVIEW.md`](MERGE_REVIEW.md).
+**Last updated:** 2026-11-20 (session 24)
+> **Branch consolidation (session 24).** Every branch except `main` and
+> `arena/95cdc5fd-persipad` was retired: the work on `arena/7ba21f51-notely` (OAuth
+> completion page and localized callback, gender illustration setting, device-preferences
+> sync, Persian gallery localization, branding) is merged into this branch, its commits are
+> kept under the tag `archive/arena-7ba21f51-notely`, and `ci/codegen` (generated, rebuilt on
+> demand by the `[codegen]` marker) is deleted. Nothing was dropped: the reminder subsystem
+> stayed this branch's version, which is the completed one (`D-068`).
 
-**Current session:** session 12 — parallel branch review, integration, local+CI verification, and `main` consolidation (`D-047`..`D-049`)
-**Branch:** `main` (integrated via `arena/41be3147-notely`)
-**Phase:** ✅ Consolidated on `main` — Linux CI (7/7 jobs), Android APK CI, and local Fedora Linux + Android APK verification all green
+**Current session:** session 24 — branch consolidation + no manual redirect prompt (`D-070`)
+**Branch:** `arena/95cdc5fd-persipad` (only branch besides `main`)
+**Phase:** 🔎 Merged and building; the Google sign-in cause is still unconfirmed until a
+`bin/oauth_debug` capture comes back (`D-069`). Session 22 (custom reminders, `D-068`) is
+finished and CI-verified (Linux run `44703732346`, 7/7); its device steps are in §Session 22.
 
 ---
 
@@ -16,12 +24,16 @@
    - **Unified Google Drive sync (Linux + Android):** Both platforms authenticate through `GoogleDesktopAuthStrategy` (`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET`, wrapped in `SpAppLockWrapper.disableAppLockIfHas`), sharing the same `appDataFolder`.
    - **Two locales & 100% offline dual-font typography (`D-048`):** `translations/en.json` and `translations/fa.json` (`485` keys in exact parity), using bundled `Quicksand` (`Quicksand-Variable.ttf`) for English and bundled `Vazirmatn` for Persian (`AppTheme.fontFamilyForLocale` / `fontFamilyForLanguageCode`), with zero network font fetching.
    - **Performance, tests, CI & DST-safe calendar (`D-042`..`D-046`, `D-049`):** Non-blocking search reindex (`count()` probe), backup merge unit tests (`BackupRepository.overrideDatabases`), `SearchFilterObject` tests, calendar cell accessibility semantics, DST-safe civil/UTC date math (`Asia/Tehran` verified), editor package test job (`390` cases) + `Coverage` job (`14.7%`) in `linux.yml`, fail-closed `apksigner` signature check + `[apk-test]` mode in `android.yml`, and `bin/local_verify` for one-command local Linux + Android verification.
+   - **Custom reminders (session 22, `D-068`):** daily, selected weekdays, monthly, every 1–12 months and yearly, calculated in the displayed calendar (Gregorian or Shamsi) with short months clamped and the intended day preserved. Monthly/yearly reminders are scheduled as a window of 24 real OS alarms and renewed on start/resume/edit; the reminders screen names the fix when Android reports notifications blocked. Code map: `ReminderSchedulePlanner`, `CalendarRecurrence`, `CalendarReminderSchedule`, `LocalNotificationService`.
    - **Daily Score in Settings:** Daily Score toggle lives in Settings → Stories (`list_tile.daily_score.{title,subtitle}`); all remaining features are unlocked directly without paywall indirection.
+   - **Runtime defects from real Fedora/Android logs (`D-050`..`D-055`):** Linux voice notes play through a system CLI player (`LinuxVoicePlayerBackend`), no-op syncs no longer reload the home screen, story lists watch a filter notifier, a missing artwork submodule is a codegen *skip*, and an **unreachable Google is a network error** — `signIn` shows `snack_bar.no_internet`, `refresh` marks the service `noInternet`, `restore()` keeps the account while offline, and app startup cannot throw because of it. The AVD now gets a working resolver by itself (`bin/build_apk` reads `resolvectl dns` when the host uses the `127.0.0.53` stub) and an already-running emulator with broken DNS is named as such before you install.
    - **Android (`community` flavor, local Fedora & CI verified):** `bin/android_doctor` + `bin/build_apk` confirmed working end-to-end on Fedora (`NDK 28.2.13676358` + `CMake 3.22.1` + `android-36.1` + Tencent Maven mirror → APK built in `1m32s`), alongside `.github/workflows/android.yml` on GitHub Actions.
 2. **Verified metrics (2026-11-16):**
    - **Fedora local (`bin/local_verify`):** `analyze` PASS (`12s`), `root tests` PASS (`+1087`, `56s`), `editor tests` PASS (`+11088` steps / 57 files, `24s`), `linux build` PASS (`13s`), `android apk` PASS (`1m32s`).
-   - **GitHub Actions CI:** Linux (`43854176350`) 7/7 jobs green; Android (`43849981463`) APK build + signature verification green.
+   - **GitHub Actions CI:** Linux (`43868965727` on `15b28ac`, the session-13 commit): `Scope`, `Analyze`, `Test (1)`, `Test (2)`, `Editor package tests`, `Build Linux desktop` all green; `Coverage` (advisory) was still running when the session ended. Earlier full runs: Linux `43854176350` 7/7; Android `43849981463` APK build + signature verification green.
 3. **What is planned next:**
+   - **Reminder device test (session 22):** the steps are in §Session 22 → "What only you can check". Nothing else in this feature can be verified from the sandbox.
+   - **👤 One emulator sign-in attempt** — `bin/build_apk --install --avd=storypad_dev` (no flags: the resolver is automatic now) → Settings → Backup → Google Drive → sign in. This is the only open question in the sync path, and it needs your machine.
    - **Real-device Google Drive OAuth E2E check:** configure `GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET` via `bin/setup_sync` and test sign-in + sync between Linux desktop and Android phone.
    - **Release keystore secrets (optional):** add `ANDROID_KEYSTORE_*` secrets in GitHub Settings if smaller, updatable release-signed APKs are wanted from `[apk]`.
 4. **Hard rules & invariants for any agent touching this repo:**
@@ -626,3 +638,491 @@ adb shell ping -c1 oauth2.googleapis.com     # must answer before the app can si
 
 The remaining log noise (GTK `border-spacing` / cursor theme, Impeller, Gradle/AGP
 deprecations) is unchanged and still benign or backlogged as noted in Session 12.
+
+### Session 14 — Session 13 finished, and the AVD fixes its own DNS (2026-11-16)
+
+Session 13's AI stopped right after its commit (`15b28ac`); the code, the tests and the
+`ENVIRONMENT.md` section were in, but `PROGRESS.md` still said "session 12", `NEXT.md` was
+written before the DNS finding, and `CHANGES.md` had no entry. This session finished that
+bookkeeping and closed the one real gap left in the fix.
+
+| # | Gap after `15b28ac` | Fix |
+|---|---|---|
+| 1 | The AVD only got a working resolver if a human remembered `--dns-server=8.8.8.8` | `bin/build_apk` reads the stub-resolver state and passes the host's real upstream (`resolvectl dns`, else `8.8.8.8,1.1.1.1`) automatically; `--dns-server` still wins, `--no-dns-server` opts out (**D-055**) |
+| 2 | An AVD started from Android Studio can never be repaired by a boot flag, and its broken DNS surfaces minutes later as a "sign-in failure" | after `--install`, an attached emulator (`ro.kernel.qemu=1`) that cannot resolve `oauth2.googleapis.com` is reported with the exact one-line recovery (`adb -s <serial> emu kill && bin/build_apk --install --avd=<name>`) |
+| 3 | Docs were half-updated after the crash | `NEXT.md` rewritten to the two questions that are actually open, `CHANGES.md` §8 tells session 13's story, `notes/user-instructions.md` N-021, `ENVIRONMENT.md` §2.2c documents the automatic behaviour, `D-055`, handoff snapshot refreshed |
+
+**What the app does now** (unchanged by this session, worth restating because it is what you
+will see): with no network, sign-in says "No internet connection!" instead of printing
+`ClientException … errno = 7`, the stored Google account is *not* thrown away when a token
+refresh fails offline, and app startup cannot fail because Google is unreachable.
+
+**Verification** — `bash -n bin/build_apk`, the new `host_upstream_dns` helper against a fake
+`resolvectl` (stub + link + IPv6 line → `192.168.1.1,1.1.1.1`) and against a `PATH` with no
+resolver tool at all (empty output, no `set -e` abort), then the whole script against stubbed
+`flutter`/`java`/`adb`/`emulator`/`resolvectl`:
+
+| Scenario | Observed |
+|---|---|
+| stub-resolver host, `--avd` | `emulator -avd storypad_dev -dns-server 192.168.1.1,1.1.1.1` |
+| same, `--no-dns-server` | `emulator -avd storypad_dev` (no flag), message says so |
+| same, `--dns-server=9.9.9.9` | `-dns-server 9.9.9.9` — the explicit flag wins |
+| booted AVD that still cannot resolve | `still cannot resolve oauth2.googleapis.com … --dns-server=1.1.1.1` |
+| already-running emulator, broken DNS, no `--avd` | `adb -s emulator-5554 emu kill && bin/build_apk --install --avd=storypad_dev` |
+| already-running emulator, healthy DNS | silent (no false alarm) |
+
+No Dart/Flutter in the sandbox, so nothing app-side was rebuildable here; the test suite you
+run is the proof.
+
+### Session 15 — The first real sign-in attempt: the AVD resolves Google to a fake IP (2026-11-16)
+
+The user ran `bin/build_apk --install --avd=storypad_dev` on the branch, installed on
+`emulator-5554`, and tried to sign in. Result, in order:
+
+1. **The old failure is gone.** No `Failed host lookup`, no raw `ClientException`.
+2. The browser opened and the Google account was accepted.
+3. The app then said **"No internet connection!"** — the translated
+   `snack_bar.no_internet`, i.e. `BackupErrorType.network` (D-053) working as designed.
+4. `adb shell ping -c1 oauth2.googleapis.com` → **`198.18.0.60`, ttl 255, 1.05 ms**, and
+   Chrome is installed (`com.android.chrome`).
+
+**Diagnosis.** `198.18.0.0/15` is the benchmarking range that Clash/mihomo-style proxies use
+as their default fake-IP pool, and `ttl 255 / 1 ms` says the answer came from the local
+fake-IP layer, not from Google. So: the redirect and the loopback callback worked (that is
+why the app got as far as the token exchange), and the **token exchange** is the call that
+died — the system resolver handed `dart:io` a fake address. Chrome succeeded because it
+resolves through its own secure DNS, bypassing the host's fake-IP answers.
+
+The AVD could not be repaired automatically because it was **already running** when the build
+started (D-055's limit), and D-055's health check did not notice anyway: it only asked
+whether `ping` exited 0, and a fake-IP layer answers ICMP itself.
+
+**Fixed here (tooling only — the app needed nothing):** `emulator_dns_verdict` classifies the
+resolved address (`ok` / `fake` / `unresolvable`) and `explain_dns_verdict` prints the
+remedy for each case: proxy `fake-ip-filter`/`redir-host`, the guest's Private DNS setting
+(no reboot), or an explicit `--dns-server` (**D-056**). Verified against a stubbed `adb` in
+all three cases.
+
+**Open, and it is on the network side, not in Dart:** the guest must resolve Google to a real
+address before a successful sign-in is possible. `NEXT.md` §1 lists the three ways, cheapest
+first.
+
+**Addendum (session 15, after the sign-in attempt):** the user asked how to get the APK onto a
+real phone. The answer is now `ENVIRONMENT.md` §2.2e, because the trap is easy to miss: the
+ABI defaults to *whatever is attached*, so a build made next to the emulator is `x86_64` and
+a phone rejects it with `INSTALL_FAILED_NO_MATCHING_ABIS` — the artifact name
+(`app-community-debug.apk`) says nothing about the ABI.
+
+### Session 16 — "Can the final app be lighter?" Measure, then cut the build type (2026-11-16)
+
+`--abi all` produced **238 MB**, and the honest answer is that almost none of it is features:
+`assets/` is 2.0 MB, `translations/` 920 KB, committed `.g.dart` 344 KB. What the number
+contains is four copies of the Flutter engine (one per ABI), a Dart **kernel snapshot** with
+no AOT code, no minification, and ~40 plugins' Java/Kotlin. `ANALYSIS.md` §4 had already
+predicted this; what was missing was a way to *prove* it on this machine without spending an
+afternoon.
+
+| Added | What it answers |
+|---|---|
+| `bin/apk_report [apk]` | where the megabytes are: grouped by `lib/<abi>` / `dex` / `res/` / `assets/flutter_assets/` (Dart) / `assets/` (app files), plus the biggest files, a **debug-only total** (kernel snapshot + Vulkan validation layer) and the ABI count |
+| `bin/build_apk --release --sign-debug` | a real release build signed with the existing `~/.android/debug.keystore`, so the size question is answerable today without creating a keystore |
+| R8 + `isShrinkResources` for release | removes unused Java/Kotlin + resources that Dart's AOT tree-shaking cannot see (`-PnotelyMinify=false` is the documented escape hatch) |
+| `--split-debug-info=build/symbols` | keeps the Dart symbol table out of the APK (it is only needed by `flutter symbolize`) |
+| `--abi arm64/arm/armv7` | **bug fix:** the values `--help` advertises fell through to `unknown --abi` |
+
+**Measured on the user's Fedora box** (`bin/apk_report` on the real artifact, 2026-11-16):
+
+| Group | Unpacked | Share | Notes |
+|---|---|---|---|
+| `assets/flutter_assets/` | 158.7 MB | **48.9%** | of which `kernel_blob.bin` **142.2 MB** and `isolate_snapshot_data` 11.1 MB — the Dart VM's snapshot, debug-only |
+| `lib/arm64-v8a` | 53.8 MB | 16.6% | engine ×1 of 3, incl. `libVkLayer_khronos_validation.so` **15.0 MB** (debug-only) |
+| `lib/x86_64` | 39.7 MB | 12.2% | a second engine for a phone that has none |
+| `dex` | 37.2 MB | 11.5% | four `classesN.dex`, R8 has not touched them |
+| `lib/armeabi-v7a` | 32.8 MB | 10.1% | a third engine |
+| app assets (`assets/`) | ~2 MB | 0.2% | the pictures and fonts everyone blames: 0.2% |
+
+The APK was 237.3 MB on disk / 324.6 MB unpacked; 3 ABIs, not 4.
+
+Expected ladder — 237 MB (debug, 3 ABIs, measured) → ~120 MB (debug, 1 ABI, measured earlier)
+→ roughly 25–40 MB (release, 1 ABI, R8; **expectation**: `kernel_blob`, the snapshots and the
+Vulkan validation layer all disappear, three engines become one, and R8 shrinks 37 MB of dex). The first number is a *measurement*, the last is an
+*expectation* until someone runs it: no SDK here, so `--release` is unverified in the sandbox,
+which is exactly why `-PnotelyMinify=false` exists.
+
+**Verification:** `bash -n` on both scripts; `bin/apk_report` exercised on a synthetic APK with
+four ABIs, `dex`, `assets/` and empty directory entries; `bin/build_apk` against stubbed
+`flutter`/`java`/`adb`/`emulator` for the ABI aliases (7 values + one invalid), the
+release-without-keystore message, `--sign-debug` (debug key exported, warning printed),
+`--split-debug-info` reaching Flutter, and `--target-platform=android-arm64` for `--abi arm64`, and `-Pname=value` in both spellings
+(`-Pfoo=1` / `-P foo=1`) with two rejection cases.
+
+### Session 17 — Phone sign-in hangs on the loopback redirect address (2026-11-16)
+
+Reported: on the **phone**, after choosing the Google account, Chrome sat on
+`http://127.0.0.1:44399/?state=…&code=4/0AUn6…&scope=…` and never finished. That URL is the
+app's own loopback server, and it was not answering.
+
+**Cause (a real ordering bug, not a network problem):** `authenticate()` bound the HTTP
+server, opened the browser, and only then called `_awaitRedirect` — which is what attaches
+`server.listen`. A redirect arriving in that window is accepted by the kernel (so Chrome shows
+a spinner rather than an error) and then waits with nobody to serve it. The emulator never
+showed this because its Chrome was cold; a phone with a warm browser and an account one tap
+away sends the redirect almost immediately.
+
+| Change | Why |
+|---|---|
+| listener attached **before** `_openBrowser`, `_awaitRedirect` → `_listenForRedirect` | the redirect can arrive while the tab loads |
+| `redirectTimeout` timer starts only once a browser exists | a failed launch no longer leaves a 5-minute timer running |
+| `AppLogger.d` per loopback request (`code:`, `error:`, `alreadyCompleted:` — never the code) | separates "never reached the app" from "reached it and failed", from a logcat |
+| two tests that redirect from inside `openBrowser`, via a raw socket | the first deadlocks under the old order; `HttpClient` would have been answered by `flutter_test`'s HttpOverrides with 400 and hidden the bug |
+
+**Honest limits:** if the phone *freezes* the app while the browser is foreground (some OEMs)
+or its VPN refuses loopback, no ordering fix helps — the log line will say no request ever
+arrived, and the remedy is a paste-the-URL fallback that is not written yet.
+
+### Session 18 — Release size measured: 237 MB → 40.5 MB (2026-11-16)
+
+The user's first release build on Fedora, `bin/build_apk --release --sign-debug --abi arm64`:
+
+| Artifact | Size | Note |
+|---|---|---|
+| debug, 3 ABIs (previous) | **237.3 MB** | 168.2 MB of it debug-only payload |
+| release, ≈1 ABI (this build) | **40.5 MB** | 5.9x smaller; `libapp.so` 14.9 MB, engine 10.8 MB, dex 5.6 MB after R8 |
+| release, strictly 1 ABI (expected next) | ~36 MB | the remaining `x86_64` + `armeabi-v7a` ObjectBox JNI libs (`D-059`) |
+
+`bin/apk_report` on the release build also confirmed the tooling works on a real artifact:
+it reported the leftover ABIs, which is what produced `D-059` (Gradle `abiFilters`). R8 did
+not need any keep rule — `proguard-rules.pro` is still just the line-number attributes.
+Tree-shaking of the three icon fonts also showed up in the log (99.7% / 99.6% / 98.9%).
+
+**Open at the time of writing:** the release APK was built from `a7a7def`, i.e. **before**
+`D-058`; the phone sign-in fix still has to be rebuilt and tried on the device.
+
+### Session 19 — Phone sign-in: the fallback that always works (2026-11-16)
+
+The phone still parked Chrome on `http://127.0.0.1:33509/?code=…` after `D-058`. Two facts
+came out of that round, and both are recorded rather than argued:
+
+1. **The retest was not a retest.** `bin/build_apk --install --abi arm64` printed
+   `nothing attached` — the phone was not visible to `adb` — so the build with `D-058` was
+   never installed. (The `--install` message now says how to fix that: USB debugging, the
+   on-device prompt, and `adb devices` showing `device`, not `unauthorized`.)
+2. **Even a correct ordering cannot cover every device.** An OEM that freezes background apps
+   the moment the browser comes forward, or a phone-side VPN owning the routing table, can stop
+   the redirect from ever arriving. The user then holds a valid `code` in an address bar and
+   has nowhere to put it.
+
+So `D-060` adds the escape hatch: after 12 s without a redirect, the app offers a dialog with
+one text field ("paste the address from the browser"). It races the loopback server — whichever
+arrives first wins — and the pasted address goes through the same `state` / `no_code` checks as
+a real redirect. A cancelled dialog does not abort anything; the loopback keeps waiting.
+
+**Verification (this is the round where CI is the judge):**
+- three new tests for the fallback (pasted address succeeds; no code → `no_code`; foreign
+  state → `invalid_state`) plus the two `D-058` tests that redirect from inside `openBrowser`;
+- `Linux` CI on this commit — `[full]`, so Scope/Analyze/Test 1/Test 2/Editor package
+  tests/Build Linux desktop/Coverage all run. The run id is appended below once it lands.
+
+**CI — the whole suite on the final commit (`962b70a`, dispatched full run `43879483211`):**
+
+| job | result |
+| --- | --- |
+| Scope | ✅ |
+| Analyze | ✅ 0 errors, *All Dart files are formatted* |
+| Test (1) / Test (2) | ✅ 51 + 51 files (full suite, every test file) |
+| Coverage | ✅ 4198/27113 lines (15.5%) |
+| Build Linux desktop | ✅ |
+
+Getting there took two CI rounds, and that is the part worth remembering: the first run
+(`43878322378`) failed with **`Undefined name 'io'`** (the new test called `io.Socket` in a file
+that imports `dart:io` unprefixed) and **`Future<Object>` cannot be assigned to `Future<Uri>`** (a
+`Future<void>` prompt whose value came back as `void` inside `then<Uri>`). Neither could have been
+found in the sandbox — there is no Dart SDK here — which is exactly why the user's "test with CI"
+was the right call. Fixed in `8eddb61`; the scoped run `43879014732` then went green, and the
+full dispatch above is the final word.
+
+### Session 19b — the device log finally spoke (2026-11-16)
+
+The retest was real this time: `adb devices` showed `R5CWC1S4P0W device`, `bin/build_apk
+--install --abi arm64 --launch` printed *Installed and launched*, and logcat has exactly one
+line from the flow:
+
+```
+Google sign-in: waiting for the loopback redirect on 127.0.0.1:41185
+```
+
+while the browser showed Firefox's **"The connection has timed out"**. Nothing else — no
+`loopback request` line at all. Read literally:
+
+- the app did start a loopback server and did hand a URL to the browser (the line exists);
+- Google *did* redirect (the browser ended up on a page it could not load);
+- **the browser's request never reached the app**, and it was a *timeout*, not "connection
+  refused", so something between the two processes swallowed it. Two candidates remain, and
+  both are device-level: the OEM/app freezer pausing this process while the browser is
+  foreground, or the phone's proxy/VPN (the same setup that produced the `198.18.0.60` fake-IP
+  DNS) intercepting `127.0.0.1`. Neither is fixable from inside the app.
+
+So `D-060` is not a workaround for a bug — it is the only path that survives this class of
+device. One line was added at the 12 s mark (`no redirect after 12s — offering the manual
+fallback`) because "the dialog never appeared" and "the dialog appeared and nobody looked" were
+indistinguishable in logcat.
+
+The dialog also prefills from the clipboard when what the user copied is a loopback
+address (`http://127.0.0.1…`), so the step is: copy in the browser → switch back → Confirm.
+Anything else on the clipboard is ignored — pasting a note's text into that field is a
+mistake, not an instruction.
+
+`D-061` came out of the same round: the CI run for `4c03e62` changed the OAuth service and
+selected only two backup tests, because the scoper's mirror rule is a directory rule and the
+OAuth test sits one level above its mirror. A green run that never loaded the relevant test is
+worse than a red one. Fixed and verified locally by running `bin/changed_tests --files …`.
+
+### Session 20 — Full settings backup and Persian-first defaults (2026-11-19)
+
+- **Implemented:** serialize `DevicePreferencesObject` and selected locale into a reserved
+  record in the existing global `preferences` database table. Existing full-backup and
+  Google Drive sync paths therefore carry the settings. Restore applies the snapshot locally;
+  first sync seeds legacy local settings only after importing remote data, avoiding default
+  settings overwriting an existing cloud snapshot.
+- **Fresh-install defaults:** Persian language, Persian calendar, Friday weekend, Saturday
+  week start, and Daily Score enabled. Explicitly saved Daily Score `false` remains respected.
+- **Rule from user:** commit and push each completed requested task to the active branch before
+  reporting completion; captured in `ai/RULES.md` and `ai/notes/user-instructions.md`.
+- **Verification:** `git diff --check` passed. Flutter/Dart tests and formatting could not be
+  run because the SDK is absent from this sandbox. User-side Debug build and Google Drive
+  cross-device restore remain to be exercised.
+
+### Session 21 — Gender selection and matching illustration (2026-11-19)
+
+- **Implemented:** first-run onboarding requires woman/man selection, shows the corresponding
+  existing illustration, and updates the in-app logo. Settings can change the choice later.
+- **Sync:** gender is a normal `preferences` table record (id 5), so existing global/full backup
+  and Google Drive sync import/export it; restore refreshes the app's local illustration.
+  Gender is not logged to analytics; the community launcher icon remains unchanged.
+- **Tests/checks:** added pure mapping/parsing tests. Translation JSON parses and `en`/`fa` key
+  sets match (494 each); `git diff --check` passes. Flutter tests/analyzer/formatter unavailable.
+
+### 2026-11-19 — Onboarding compile fix and calendar reminder follow-up
+- Fixed missing `kProjectRepositoryUrl` import in the onboarding library; the user's build log identified this Dart compilation error, not the preceding dependency/toolchain warnings.
+- Calendar-aware recurring reminders remain in progress. Flutter/Dart are unavailable in the sandbox; CI and device verification are required.
+- Added a standalone recurrence calculator and tests for Gregorian and Persian months, intervals and end-of-month clamping. It is not connected to reminders and does not complete the requested feature. Dart formatting and Flutter tests remain unverified locally.
+
+### 2026-11-19 — Google sign-in diagnostics and browser close
+- Added a best-effort localized close button with explicit manual fallback, and changed the misleading Google sign-in network message to say Google could not be reached.
+- Transport exceptions now report only coarse failure class and operation, without raw exception text; added regression cases for token exchange failure and HTML escaping.
+- The actual phone/emulator network cause is **not confirmed or fixed** by this change; the callback page precedes token exchange and account lookup. Flutter is unavailable locally; CI and device tests remain necessary.
+- CI run 44695934685 exposed an existing translation-key scanner failure: gender keys were built dynamically. Made those existing keys explicit without changing behavior; re-running CI.
+
+### 2026-11-19 — OAuth callback page redesign
+- Replaced the fixed-width callback page with an offline, responsive, dark-mode-aware layout; all status and action copy uses the app-selected Persian/English locale and RTL direction. Authorization receipt is not described as completed sign-in.
+- Android now offers a package-specific return-to-app intent rather than claiming to close a browser tab, with visible fallback instructions. Desktop retains best-effort close. Added tests for markup, localization, failure messages and intent sanitization.
+- The user asked to pause the Google connectivity investigation. No root cause or solution has been confirmed. Android browser/phone verification and CI remain pending.
+
+### 2026-11-19 — Custom reminder editor lifecycle crash
+- Moved the locale lookup out of Provider's `create` callback and into the widget's `build`, so it is read in a lifecycle that can subscribe. Added widget regression coverage for new and existing reminders in both supported locales.
+- Flutter is unavailable locally; CI and the user's Android device must verify the editor opens. No changes to Google network settings or DNS.
+- CI run 44697363116: analyzer passed but the new widget tests failed. Adjusted the test double to be a ChangeNotifier and used ChangeNotifierProvider rather than Provider; rechecking CI.
+
+### 2026-11-19 — Calendar reminder follow-up (unfinished)
+- Added a standalone serializable schedule model and tests for calendar switching, day preservation and invalid persisted values. It is not wired into reminder storage or the editor, and does not schedule notifications.
+- Critical remaining work: durable background renewal and delivery on Android (including reboot and timezone changes), editor and summary, storage migration, rescheduling on calendar changes and end-to-end device tests. Do not claim the feature is complete.
+
+### 2026-11-19 — Reminder scheduler hardening (feature still incomplete)
+- Fixed the existing rescheduling queue so a notification plugin error does not permanently block all later rescheduling attempts; added tests for failure recovery, serialization and coalescing.
+- This does not implement monthly/yearly reminders: no editor, persistence integration or durable calendar-aware background delivery exists yet. Flutter SDK and Android devices are not available in this sandbox. CI verification is required.
+
+### 2026-11-19 — Calendar recurrence coverage
+- Added 720 sequential date checks across both calendars and all 12 intervals. These exercise calculation only; reminder persistence, editing and background notification delivery are still not connected. The user offered to run device tests once the feature exists.
+### Session 22 — custom calendar reminders, end to end (2026-11-20)
+
+Branch `arena/95cdc5fd-persipad`. The starting point was `ai/REMINDER_IMPLEMENTATION_PLAN.md`
+on `arena/7ba21f51-notely`: the calculator, the standalone schedule object and the reschedule
+queue existed there, but nothing connected them to the editor, the stored reminder or the
+notifier. Those pieces are ported here and the missing half is implemented (`D-068`).
+
+**What now works end to end**
+
+- The custom reminder editor has **Repeat**: every day · selected days · monthly (interval
+  1–12) · yearly, a **Starting date** picker in the app's own calendar dialog, a live
+  schedule summary, a clamping hint, and the next occurrence.
+- The stored reminder carries the recurrence, interval, Gregorian anchor and the intended
+  day number. Old reminders have none of these and keep their weekday schedule through
+  `effectiveRecurrence` — no migration, no data loss.
+- Occurrences are computed in the displayed calendar; 31 Farvardin clamps to 30 in a 30-day
+  month and returns to 31 afterwards; switching calendars re-anchors on the same day number
+  and reschedules.
+- Monthly/yearly reminders become a window of 24 concrete OS alarms (`ReminderSchedulePlanner`),
+  replenished on app start, on resume and on every edit/delete/toggle. Daily/weekly stay on
+  repeating OS rules. Reminder ids are allocated per pass, so the old id arithmetic cannot
+  collide any more.
+- Android reports when the app's notifications are blocked, and the reminders screen says
+  what to change instead of silently dropping the reminder.
+- Time-zone changes are detected on resume (Dart gets no broadcast) and everything is
+  rescheduled; reboots are handled by the plugin's boot receiver that was already declared.
+
+**Tests added** (all pure, no plugin needed): recurrence vectors incl. Persian leap-year and
+short-month clamping, schedule read/clamp/re-anchor, planner for daily/weekly/monthly/
+every-N-months/yearly incl. disabled + legacy records, JSON round-trip of the new fields,
+editor→model mapping incl. the Persian day number, and the reschedule queue's failure and
+coalescing rules.
+
+**Verification**
+
+- **CI green:** Linux run [`44703732346`](https://github.com/alireza-haeri/persipad/actions/runs/44703732346)
+  on `e9e519f` — 7/7 jobs (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+  package tests, Coverage). The earlier full run `44702351509` was already green on the same
+  code apart from formatting; `e9e519f` takes the generated model and the formatting from the
+  `[codegen]` job (`44703366204`), so committed generated code matches the pinned toolchain.
+- The format gate is now silent on every touched file (no `Not formatted` annotation).
+- Anything that needs an OS — delivery while the app is closed, reboot, Doze, time zone —
+  is **not** claimed here; it is in the device list below.
+
+**What only you can check (device test)**
+
+1. `bin/build_apk --install --abi arm64 --launch` (a Dart change needs a rebuilt APK).
+2. Settings → Reminders → add a reminder with **Repeat = monthly**, interval 1, a starting
+   date whose day is 31, and a time ~3 minutes ahead. Save, close the app completely, wait:
+   the notification must arrive with the app not running.
+3. Edit it to **Repeat = every 3 months**, interval 3 → the summary must read "Every 3 months
+   on day 31 at …", and the next occurrence must be three months away.
+4. Switch the calendar in Settings (Shamsi ↔ Gregorian) and reopen the reminder: the day
+   number must be unchanged, and the next-occurrence line must move.
+5. Delete the reminder → the pending notification must disappear (nothing fires at that time).
+6. Reboot the phone with a reminder pending → it must still fire.
+7. Change the phone's time zone (or set it manually), open the app once, then check that the
+   reminder still fires at its local wall-clock time.
+8. Turn notifications off for the app in Android settings → the reminders screen must show
+   the "Notifications are blocked" banner.
+
+**Known limits, on purpose:** delivery is inexact (may be a few minutes late under Doze), and
+an app that is never opened for years stops renewing its 24-date window.
+
+### Session 23 — Google sign-in: the log names the layer, not "no internet" (2026-11-20)
+
+**The report.** Tap *Sign in* → the browser opens the Google consent page → pick the account →
+return to the app → `No internet connection!` / "connection lost". A VPN on the host changes
+nothing.
+
+**What the code already tells us** (read, not guessed):
+
+| Layer | Where | What it does today |
+|---|---|---|
+| Message | `BackupProvider.signIn` | every `BackupErrorType.network` becomes `snack_bar.no_internet` — DNS, TCP, TLS, timeout *and* a rejected token request all look identical |
+| Transport | `GoogleDesktopOAuthService._send` | `SocketException`/`ClientException`/`TlsException`/30 s timeout → `GoogleOAuthException(error: 'offline')`, text `Couldn't reach Google (<detail>)`. The `<detail>` (`Failed host lookup … errno = 7`, `Connection refused`, `HandshakeException`) is the only real evidence |
+| Visible logs | `AppLogger` | 50 lines in memory, printed **only in debug builds**, one line per failure |
+| Build | `bin/build_apk` | already knows Fedora's `systemd-resolved` (`127.0.0.53`) is unusable in the guest: warns, offers `--dns-server=8.8.8.8`, and pings `oauth2.googleapis.com` after boot |
+
+So the same symptom was diagnosed once before as **DNS** (session 13, `D-053`) and "a VPN
+doesn't help" fits a host↔guest resolver/routing problem, not credentials — but that is a
+hypothesis, and this session is about replacing it with evidence instead of re-guessing.
+
+**What changed (`D-069`)**
+
+- `GoogleConnectivityService` probes one Google host layer by layer — `lookup` → TCP :443 →
+  TLS handshake → one anonymous `GET https://<host>/` — and returns a verdict:
+  `ok` · `dnsFailure` · `fakeDns` · `tcpBlocked` · `tlsBlocked` · `httpBlocked`, with a
+  timing per step and one line of device-side advice. `fakeDns` is the reason it exists:
+  `198.18.0.0/15` (Clash/mihomo "fake IP") plus private/CGNAT/loopback ranges, IPv4 and
+  IPv6, are flagged, because that pattern makes a browser work and every app fail.
+- `GoogleDesktopOAuthService` logs the flow under one tag, `google-oauth`: start, loopback
+  port, `browser: opened=`, `loopback: redirect received`, `exchange: HTTP <status>`,
+  `userinfo: HTTP <status>`, plus `transport failure: <class> — <message>` (240 chars) and a
+  full connectivity probe **on start and again after a failure**. No code, token or client
+  secret is ever logged.
+- `bin/oauth_debug` — one command: device facts (model, time zone, private-DNS mode), the
+  guest's own `ping` of the three Google names with the address it got classified as
+  real/private/fake-IP, a `toybox nc` TCP check, a 120 s `adb logcat` capture filtered to
+  `flutter`/`chromium`/`AndroidRuntime`, then the analysis and the matching fix. Works
+  without a device on a saved log: `bin/oauth_debug --analyze <file>`.
+
+**Verification**
+
+- **CI green:** Linux run [`44709983334`](https://github.com/alireza-haeri/persipad/actions/runs/44709983334)
+  on `3286f10` — 7/7 jobs (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+  package tests, Coverage), format gate silent. The first push (`5262cdc`) failed Analyze
+  and the Linux build on a wrong `AppLogger` import path — caught by CI, fixed in `3b3a5be`.
+- The probe's address classification is unit-tested (`test/core/services/backups/google_connectivity_service_test.dart`):
+  fake-IP/private/CGNAT/loopback ranges flagged, real Google addresses not, IPv6 and
+  IPv4-mapped forms handled, and every failing verdict carries advice.
+- `bin/oauth_debug --analyze` was run on a synthetic log and prints the fake-IP diagnosis
+  correctly; `bash -n` is clean.
+- **Not verified:** anything that needs the user's machine — the probe against their real
+  network, and the actual sign-in. That is the next step, not a conclusion.
+
+**Device selection (same day):** with a phone and the emulator both attached, every plain
+`adb` command failed with `more than one device/emulator`. `first_online_device` in
+`bin/build_apk` now resolves to `ANDROID_SERIAL` → the only device → the single emulator
+(instead of dying on install), and `bin/oauth_debug` makes the same choice and says which
+device it took. `ai/ENVIRONMENT.md` §2.2d has the one-line `export ANDROID_SERIAL=…` form.
+
+**Removed-by-decision, not by code:** a build from `arena/7ba21f51-notely` shows a dialog
+that asks the user to paste the browser's address when the loopback does not answer. The
+user rejected it («چیز قشنگی نیست»); this branch has no such code, so `D-070` records the
+decision and what to delete if that redesign is ever merged.
+
+**Cause found — it is fake-IP DNS (2026-11-20).** `bin/build_apk` said it before the
+capture did: on the user's Fedora box the emulator resolves `oauth2.googleapis.com` to
+`198.18.0.60`, and `bin/oauth_debug`'s own `ping` check agrees. That is Clash/mihomo-style
+"fake IP" DNS (pool `198.18.0.1/16`) answering on the host. Chrome signs in because it uses
+its own secure DNS; every app that asks the *system* resolver — this one — gets an address
+that only exists inside the proxy, so the token exchange dies after the redirect (the
+sign-in half in the browser succeeds, the app-side HTTPS does not). Not credentials, not the
+client id, not Google.
+
+**Tooling bug found while reading that capture:** `bin/oauth_debug`'s `ping` parser was
+greedy — `PING host (198.18.0.60) 56(84) bytes` yielded `84`, so a fake IP was printed as
+"real-looking". Fixed (first parenthesised value), and the analysis now also reads the
+merged `transport failure: <operation> (<layer>)` line.
+
+**Fix (host side, nothing to rebuild):** add Google to the proxy's `dns.fake-ip-filter`
+(`+.googleapis.com`, `+.google.com`, `+.gstatic.com`) or switch `enhanced-mode` to
+`redir-host`/turn TUN off, then re-check
+`adb -s emulator-5554 shell ping -c1 oauth2.googleapis.com` — the address must become a real
+Google one (142.250.x / 172.217.x / 216.58.x). Details and the ordering in
+`ENVIRONMENT.md` §2.2d.
+
+**Next step (awaiting the user)**
+
+```bash
+bin/build_apk --install --launch          # the new logging needs a rebuilt APK
+bin/oauth_debug                           # then: Settings → Data backup → Google Drive → Sign in
+```
+
+The capture answers the open question in one line: `verdict=fakeDns` (proxy fake-IP DNS),
+`verdict=dnsFailure` (no resolver in the guest), `tcpBlocked`/`tlsBlocked` (VPN routing or
+interception), or `verdict=ok` (then it is the OAuth half, and the `exchange: HTTP <status>`
+line says which).
+
+### Session 24 — one working branch; the paste-the-address dialog is gone (2026-11-20)
+
+The user asked for every branch except `main` and this one to be deleted, with the work
+preserved (`N-024`). `arena/7ba21f51-notely` was merged first (`b88c101`), not deleted:
+its OAuth completion page, gender illustration, device-preferences sync, Persian gallery
+localization, branding, automatic AVD resolver and fake-IP check all live here now, and
+the tag `archive/arena-7ba21f51-notely` keeps the exact history. `ci/codegen` was deleted —
+the `[codegen]` marker rebuilds it.
+
+**Conflict policy** (17 files): the reminder subsystem is this branch's (the completed one,
+`D-068`); the OAuth service is the redesign's flow plus this branch's connectivity probe
+(`D-069`); translations are the union of both sides (515 keys, en/fa parity); the docs keep
+both sessions' entries.
+
+**The dialog the user rejected is removed** (`D-070`): `manualRedirectPrompt`,
+`manualPromptDelay`, `_waitForRedirect`'s prompt branch, `BackupProvider._askForRedirectUri`,
+`_redirectAddressFromClipboard`, the `dialog.google_drive_redirect.*` keys and the tests that
+drove it. `bin/oauth_debug` stays as the way to find out why a redirect did not arrive.
+
+**Verification:** Linux CI [`44715821324`](https://github.com/alireza-haeri/persipad/actions/runs/44715821324)
+on `0945df5` — 7/7 green (Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor
+package tests, Coverage) with the format gate silent. The merge itself was green first
+(`44713743039` on `b88c101`); the follow-up took the formatter and the regenerated
+`lib/gen/assets.gen.dart` (the new `assets/template_translations/fa.json` needed an entry)
+from the `[codegen]` run `44715247146`, and taught `bin/oauth_debug` the merged log format
+(`transport failure: <operation> (<layer>)` instead of the old exception text).
+
+**Result:** `origin` now has exactly two branches — `main` and
+`arena/95cdc5fd-persipad` — plus the tag `archive/arena-7ba21f51-notely` (`eda047c`).
+`ci/codegen` is gone and reappears whenever a commit carries the `[codegen]` marker.
+
+What CI cannot prove is the runtime: the merged build's sign-in on the device is the next
+thing to look at, with `bin/oauth_debug`.

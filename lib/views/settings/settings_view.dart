@@ -1,5 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/services/notifications/local_notification_service.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/providers/app_lock_provider.dart';
@@ -18,6 +20,7 @@ import 'package:storypad/views/sidebar_order/sidebar_order_view.dart';
 import 'package:flutter/material.dart';
 import 'package:storypad/widgets/base_view/base_route.dart';
 import 'package:storypad/views/settings/local_widgets/default_story_preferences_tile.dart';
+import 'package:storypad/views/settings/local_widgets/gender_tile.dart';
 import 'package:storypad/widgets/sp_icons.dart';
 import 'package:storypad/widgets/sp_section_title.dart';
 import 'package:storypad/widgets/sp_setting_icon_badge.dart';

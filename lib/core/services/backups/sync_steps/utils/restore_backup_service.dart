@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:storypad/core/databases/models/preference_db_model.dart';
+import 'package:storypad/core/storages/portable_settings.dart';
 import 'package:storypad/core/databases/adapters/base_db_adapter.dart';
 import 'package:storypad/core/databases/models/base_db_model.dart';
 import 'package:storypad/core/repositories/backup_repository.dart';
@@ -42,7 +44,7 @@ class RestoreBackupService {
             bool deviceHasNewerContent = existingRecord.updatedAt!.isAfter(newRecord.updatedAt!);
 
             if (backupHasNewerContent) {
-              await db.set(newRecord, runCallbacks: false);
+              await _apply(db, newRecord);
               changesCount++;
             } else if (deviceHasNewerContent) {
               // Update `updatedAt` to mark the record as unsynced, ensuring the backup provider picks it up later.
@@ -53,7 +55,7 @@ class RestoreBackupService {
               // so we can ignore them.
             }
           } else {
-            await db.set(newRecord, runCallbacks: false);
+            await _apply(db, newRecord);
             changesCount++;
           }
         }
@@ -77,12 +79,17 @@ class RestoreBackupService {
       List<BaseDbModel>? items = datas[db.tableName];
       if (items != null) {
         for (BaseDbModel item in items) {
-          await db.set(item, runCallbacks: false);
+          await _apply(db, item);
         }
       }
     }
 
     await _triggerCallback();
+  }
+
+  Future<void> _apply(BaseDbAdapter db, BaseDbModel record) async {
+    await db.set(record, runCallbacks: false);
+    if (record is PreferenceDbModel) await PortableSettings.restore(record);
   }
 
   Future<void> _triggerCallback() async {

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
 
 void main() {
   group('GoogleDesktopOAuthService.codeChallengeFor', () {
@@ -187,6 +188,169 @@ void main() {
       await expectLater(
         service.authenticate(),
         throwsA(isA<GoogleOAuthException>().having((e) => e.isNotConfigured, 'isNotConfigured', isTrue)),
+      );
+    });
+  });
+
+  // The phone bug these cover: Chrome was sent to
+  // `http://127.0.0.1:<port>/?state=…&code=…` and the tab spun forever. The
+  // listener used to be attached only after the "open browser" call returned, so a
+  // redirect that arrived first waited in the accept backlog with nobody to serve
+  // it — and a warm browser that is already signed in sends it immediately.
+  group('GoogleDesktopOAuthService.authenticate loopback', () {
+    const config = GoogleDesktopOAuthConfig(clientId: 'id', clientSecret: 'secret');
+    final tokenBody = jsonEncode({
+      'access_token': 'access-token',
+      'refresh_token': 'refresh-token',
+      'expires_in': 3599,
+    });
+
+    /// Performs the redirect from *inside* the "open browser" call, exactly like a
+    /// warm Chrome that is already signed in.
+    ///
+    /// A raw socket, not `HttpClient`: `flutter_test` installs an HttpOverrides
+    /// that answers every request with 400, which would make this test lie about
+    /// the very code path it is here to protect.
+    Future<String> redirectFromInsideBrowser(
+      String url, {
+      String? overrideState,
+      String? authorizationError,
+    }) async {
+      final authorizeUri = Uri.parse(url);
+      final redirectUri = Uri.parse(authorizeUri.queryParameters['redirect_uri']!);
+      final state = overrideState ?? authorizeUri.queryParameters['state']!;
+      final query = authorizationError == null
+          ? 'code=the-code&state=${Uri.encodeQueryComponent(state)}'
+          : 'error=${Uri.encodeQueryComponent(authorizationError)}&state=${Uri.encodeQueryComponent(state)}';
+
+      final socket = await Socket.connect(redirectUri.host, redirectUri.port);
+      try {
+        socket.write(
+          'GET /?$query HTTP/1.1\r\n'
+          'Host: ${redirectUri.host}:${redirectUri.port}\r\n'
+          'Connection: close\r\n\r\n',
+        );
+        await socket.flush();
+        return await socket.cast<List<int>>().transform(utf8.decoder).join();
+      } finally {
+        socket.destroy();
+      }
+    }
+
+    GoogleDesktopOAuthService serviceWith(Future<bool> Function(String url) openBrowser) => GoogleDesktopOAuthService(
+      config: config,
+      client: MockClient((request) async => http.Response(tokenBody, 200)),
+      openBrowser: openBrowser,
+    );
+
+    test('serves the redirect even when it arrives before the browser call returns', () async {
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url);
+        return true;
+      });
+
+      final token = await service.authenticate();
+
+      expect(token.accessToken, 'access-token');
+      expect(token.refreshToken, 'refresh-token');
+      // The tab must be answered while it is open, not when the app comes back.
+      expect(page, startsWith('HTTP/1.1 200'));
+      expect(page, contains('Authorization received'));
+      expect(page, contains('Return to PersiPad to finish signing in.'));
+      expect(page, isNot(contains('Signed in')));
+      expect(page, contains('window.close()'));
+      expect(page, contains('close this tab manually'));
+    });
+
+    test('escapes localized close instructions in the browser page', () async {
+      GoogleDesktopOAuthService.completionPageText = const OAuthCompletionText(
+        receivedTitle: '<Title>',
+        receivedDetail: 'Return & continue',
+        deniedTitle: 'Denied',
+        deniedDetail: 'Try again',
+        close: '<Close>',
+        returnToApp: 'Return',
+        help: 'Return & close',
+        isRtl: true,
+      );
+      addTearDown(() => GoogleDesktopOAuthService.completionPageText = null);
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url);
+        return true;
+      });
+      await service.authenticate();
+      expect(page, contains('dir="rtl"'));
+      expect(page, contains('&lt;Title&gt;'));
+      expect(page, contains('&lt;Close&gt;'));
+      expect(page, contains('Return &amp; close'));
+      expect(page, isNot(contains('<Close>')));
+    });
+
+    test('exchanges the code when a transient DNS failure clears', () async {
+      var attempts = 0;
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        client: MockClient((request) async {
+          if (++attempts == 1) throw const SocketException('Failed host lookup');
+          return http.Response(tokenBody, 200);
+        }),
+        openBrowser: (url) async {
+          await redirectFromInsideBrowser(url);
+          return true;
+        },
+      );
+      expect((await service.authenticate()).accessToken, 'access-token');
+      expect(attempts, 2);
+    });
+
+    test('reports a token exchange network failure without leaking transport details', () async {
+      final service = GoogleDesktopOAuthService(
+        config: config,
+        client: MockClient((request) async => throw const SocketException('Failed host lookup: private-host')),
+        openBrowser: (url) async {
+          await redirectFromInsideBrowser(url);
+          return true;
+        },
+      );
+      await expectLater(
+        service.authenticate(),
+        throwsA(
+          isA<GoogleOAuthException>()
+              .having((e) => e.isOffline, 'offline', isTrue)
+              .having((e) => e.message, 'message', contains('token exchange: dns'))
+              .having((e) => e.message, 'message', isNot(contains('private-host'))),
+        ),
+      );
+    });
+
+    test('an authorization denial is not shown as a successful sign-in', () async {
+      String? page;
+      final service = serviceWith((url) async {
+        page = await redirectFromInsideBrowser(url, authorizationError: 'access_denied');
+        return true;
+      });
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'access_denied')),
+      );
+
+      expect(page, startsWith('HTTP/1.1 200'));
+      expect(page, contains('Sign-in not completed'));
+      expect(page, isNot(contains('Signed in')));
+    });
+
+    test('a redirect with the wrong state is refused after being answered', () async {
+      final service = serviceWith((url) async {
+        await redirectFromInsideBrowser(url, overrideState: 'not-this-flow');
+        return true;
+      });
+
+      await expectLater(
+        service.authenticate(),
+        throwsA(isA<GoogleOAuthException>().having((e) => e.error, 'error', 'invalid_state')),
       );
     });
   });

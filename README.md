@@ -1,103 +1,38 @@
-# StoryPad
+# PersiPad
 
-[![GitHub stars](https://img.shields.io/github/stars/theachoem/storypad?style=social)](https://github.com/theachoem/storypad/stargazers) [![GitHub license](https://img.shields.io/github/license/theachoem/storypad)](LICENSE) [![GitHub issues](https://img.shields.io/github/issues/theachoem/storypad)](https://github.com/theachoem/storypad/issues)
+PersiPad is an offline-first journal for writing in Persian or English. It is an independent fork of [StoryPad](https://github.com/theachoem/storypad). The original diary, editor and timeline are the work of the StoryPad authors and contributors. [Alireza Haeri](https://github.com/alireza-haeri) maintains this fork and adapted it for Persian-first journaling. PersiPad releases are not official StoryPad releases.
 
-📝 **StoryPad** is a beautiful, privacy-first, open source journal & diary app designed for people who value simplicity, minimalism, and control over their personal data.
+## Download for Android
 
-[![Play Store](https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.tc.writestory) [![App Store](https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white)](https://apps.apple.com/us/app/storypad-timeline-diary/id6744032172)
+**[Download PersiPad for ARM64 phones](https://github.com/alireza-haeri/persipad/releases/latest)**. Under **Assets**, choose the `.apk` ending in `arm64-v8a.apk`. The `.sha256` file is its checksum; the source archives are not installers. The ARM64 build is not intended for x86 Android emulators.
 
-![og_1200x630](https://github.com/user-attachments/assets/d1aeab6b-af2d-4503-9953-bf02d914ee45)
+If Android refuses to update an existing debug installation, the two builds may have different signing keys. **Back up your journal and media and verify the backup before uninstalling anything.** Settings shows the installed version and links to GitHub Releases; the app does not install updates automatically.
 
-## 🌟 Key Features
+## What's different in PersiPad?
 
-- **Timeline journaling** – your life flows naturally, no folders or tabs
-- **Dedicated tablet UI** – optimized layouts for iPad & Android tablets, making writing and reading more immersive
-- **Fully customizable writing** – bold, lists, checkboxes, colors, 1300+ Google Fonts
-- **Throwback memories** – see what you wrote on this day years ago
-- **Photo memories** – add multiple photos per page with custom layout
-- **Feelings & moods tracker** – 45+ emotions, history & calendar view
-- **Multi-page entries** – perfect for novels, prompts, or daily notes
-- **Tags, stars & search** – keep your story organized and easy to find
-- **Privacy first** – PIN, FaceID, fingerprint lock; data stays on your device
-- **Backup & sync** – private Google Drive sync & offline local export
-- **Themes & customization** – 20+ color themes, dark/light mode, fonts & layouts
-- **Export & share** – text, markdown, or full backups with attachments (images, audio, etc.)
-- **StoryPad Pro** (one-time purchase):
-  - **Customize Backgrounds** – Personalize your writing space with themed backgrounds for enhanced focus & creativity
-  - **Templates**– Create your own daily writing templates
-  - **Relaxing Sounds** – Set the mood before you write or read
-  - **Period Calendar** – Track your period and create related story entries
-  - **Voice Journal** – Record and organize voice notes
-  - **Markdown Export** – Export entries in markdown format, fully compatible with Obsidian, Notion, and other editors
-  - **Writing Stats** – View word and character count for your story
-  - **Pinned Notes** – Keep important entries at the top of your timeline for easy access
-  - **Auto Backup** – Keep your stories safe with automatic Google Drive sync
-- **Available in 20+ languages** – and fully open source for transparency
+- A Persian interface with right-to-left layouts, a Solar Hijri calendar, and configurable first days of the week and weekends.
+- Calendar-based reminders, including monthly intervals and yearly schedules.
+- Daily scores, customizable shortcuts and sidebar order, and profile illustrations.
+- Portable settings in backups, including language, calendar preferences, reminder rules and daily scores.
 
-## ⚙️ Setup & Run
+## Back up and restore
 
-Before getting started, ensure you have the following tools:
+Entries are stored locally. You can sync with Google Drive or export files yourself. For an offline move, keep **both** the native JSON export (entries, settings and attachment metadata) **and** the **Export Media** archive (the actual photos, audio and videos). Check that entries and attachments open on the destination before removing the originals.
 
-- Java: 21 [(LTS)](https://www.oracle.com/java/technologies/java-se-support-roadmap.html) (for Android)
-- Ruby: 3.3.5 (for IOS)
-- Flutter: 3.29.0
+Google credentials, app-lock PINs, recovery answers, biometric enrollment and system permissions do not transfer. Sign in and grant notification permission on the new device.
 
-For easy setup and running, the GoogleService-Info.plist and google-services.json are provided directly in this repo, and `bin/dev` generates an empty Dart-defines fallback automatically (RevenueCat, Maps, Google Sign-In, etc. just no-op). Simply run the project with any of the following commands:
+## Build from source
+
+Use the Flutter and Java versions in [`.tool-versions`](.tool-versions) and install the Android SDK. From the repository root:
 
 ```sh
-# For android
-bin/dev --community
-
-# For ios
-bin/dev --community-ios
-
-# For macos
-bin/dev --community-macos
+flutter pub get
+bin/build_apk --install --launch     # Debug build for a connected device
+bin/build_apk --release --abi arm64  # Release build; requires your signing key
 ```
 
-## 🛠 <StoryPad> Project Overview
+See `bin/build_apk --help` for build options and [the environment guide](ai/ENVIRONMENT.md) for setup. Run `flutter test` for the app, and run `flutter test` inside `packages/storypad_editor` for the editor.
 
-StoryPad is designed with simplicity in mind, both in its UI and codebase. We aimed to keep the code understandable while staying true to Flutter's principles.
+## Contributing and license
 
-### 1. State Management:
-
-StoryPad uses Provider and Stateful widgets to manage its state, distinctly organized into three levels to avoid confusion:
-
-- Global State: Managed by [ProviderScope](lib/provider_scope.dart), disposed when the app closes.
-- View State: Managed by ChangeNotifierProvider (package:provider/provider.dart), disposed when the page closes.
-- Widget State: Managed by Stateful widgets, where the widget itself controls its own state and is disposed when removed from the tree.
-
-### 2. MVVM Pattern:
-
-StoryPad leverages the MVVM (Model-View-ViewModel) pattern while each view is composed of three to four key files:
-
-- Model (optional): Represents the data structure, e.g., StoryDbModel.
-- View: Constructs the view model and builds the UI content, e.g., EditStoryView.
-- ViewContent: Displays the actual UI, keeping the visual layout separate from business logic, e.g., EditStoryContent.
-- ViewModel: Manages business logic, provides data & operations to the view, keeping the UI free from unnecessary logic, e.g., EditStoryViewModel.
-
-[![MVVM with layers](https://docs.flutter.dev/assets/images/docs/app-architecture/guide/mvvm-intro-with-layers.png)](https://docs.flutter.dev/app-architecture/guide#mvvm)
-
-### 3. Local Database:
-
-StoryPad uses ObjectBox as the local database solution for persistent data storage. ObjectBox provides fast, efficient, and scalable database operations with rich search capabilities, making it ideal for mobile apps that require high-performance data handling.
-
-## 🤝 Learn & Contribute
-
-Feel free to clone the StoryPad repository and explore the code. It's a great resource for learning how to build efficient, maintainable mobile apps with Flutter. You can also contribute improvements or new features, helping enhance the project for everyone.
-
-Check out our [Contribution Guide](CONTRIBUTING.md) for more details on how to contribute. Raise an issue if you need any support.
-
-A big thank you to the maintainers of the packages StoryPad relies on - without their work, StoryPad wouldn't be possible. You can view all the dependencies in the [pubspec.yaml](pubspec.yaml) file.
-
-## 📄 License
-
-StoryPad is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for details.
-
-We chose the GPL license to ensure that StoryPad's source code remains free and open. Anyone can use, study, modify, and distribute it - but any modifications must also remain open-source under the same license.
-
-## 🔗 Connect with Us
-
-- 🌐 **Official Website:** [StoryPad.me](https://storypad.me) - Explore features, screenshots, and more
-- 💬 **Community:** [r/storypad](https://www.reddit.com/r/storypad/) - Join our Reddit community
-- 🐦 **Follow Us:** [@storypadapp](https://x.com/storypadapp) - Get the latest updates on X
+Report bugs and suggest changes in [GitHub Issues](https://github.com/alireza-haeri/persipad/issues). See the [contribution guide](CONTRIBUTING.md) and the [GNU General Public License v3](LICENSE).

@@ -1,12 +1,12 @@
-# Contributing to StoryPad
+# Contributing to PersiPad
 
 ## How to Help
 
-- **Report Bugs:** [Open an issue](https://github.com/theachoem/storypad/issues) with steps to reproduce
+- **Report Bugs:** [Open an issue](https://github.com/alireza-haeri/persipad/issues) with steps to reproduce
 - **Suggest Features:** Create an issue with your idea
 - **Improve Docs:** Fix typos or unclear parts
 - **Code:** Pick an issue or suggest improvements
-- **Localization:** Translations are AI-assisted and maintained in `app/translations/`; if you spot a mistranslation, [open an issue](https://github.com/theachoem/storypad/issues) or send a PR fixing that key
+- **Localization:** Translations are AI-assisted and maintained in `translations/`; if you spot a mistranslation, [open an issue](https://github.com/alireza-haeri/persipad/issues) or send a PR fixing that key
 
 ## Quick Start
 
@@ -22,6 +22,6 @@
 - VS Code settings are pre-configured for style
 - Keep commits and PRs focused
 - Be friendly and respectful
-- Check the `/docs` directory for detailed documentation about the app's architecture and features
+- Check the [README](README.md) for PersiPad's architecture and setup details
 
-Need help? Check the [README](./README.md), [docs](/docs), or [open an issue](https://github.com/theachoem/storypad/issues).
+Need help? Check the [README](./README.md), [project repository](https://github.com/alireza-haeri/persipad), or [open an issue](https://github.com/alireza-haeri/persipad/issues).

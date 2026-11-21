@@ -14,7 +14,6 @@ import 'package:storypad/core/services/welcome_message_service.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/providers/backup_provider.dart';
 import 'package:storypad/providers/device_preferences_provider.dart';
-import 'package:storypad/providers/in_app_update_provider.dart';
 import 'package:storypad/providers/nickname_provider.dart';
 import 'package:storypad/providers/root_provider.dart';
 import 'package:storypad/views/home/local_widgets/end_drawer/home_end_drawer.dart';
@@ -42,7 +41,6 @@ import 'package:storypad/widgets/story_list/sp_story_tile.dart';
 import 'home_view_model.dart';
 
 part 'home_content.dart';
-part 'local_widgets/app_update_floating_button.dart';
 part 'local_widgets/home_app_bar.dart';
 part 'local_widgets/home_app_bar_message.dart';
 part 'local_widgets/home_app_bar_nickname.dart';

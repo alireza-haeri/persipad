@@ -1,9 +1,12 @@
 import 'package:storypad/core/services/calendar/calendar_config.dart';
 import 'package:storypad/core/storages/device_preferences_storage.dart';
+import 'package:storypad/core/storages/portable_settings.dart';
+import 'package:storypad/core/storages/storage_adapters/share_preferences_storage_adapter.dart';
 
 class ThemeInitializer {
   static Future<void> call() async {
     await DevicePreferencesStorage.appInstance.load();
+    SharePreferencesStorageAdapter.onLocalWrite = PortableSettings.record;
     publishCalendarConfig();
   }
 

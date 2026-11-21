@@ -3,6 +3,7 @@ import 'package:storypad/core/objects/monthly_score_average.dart';
 import 'package:storypad/core/services/calendar/calendar_display.dart';
 import 'package:storypad/core/services/scores/daily_score_scale.dart';
 import 'package:storypad/core/storages/daily_scores_storage.dart';
+import 'package:storypad/core/storages/portable_settings.dart';
 
 /// The app-wide store of "how was this day, 0–100".
 ///
@@ -14,7 +15,15 @@ import 'package:storypad/core/storages/daily_scores_storage.dart';
 /// stored one. That split is D-025's rule, and it is why a user can switch to
 /// Shamsi without their history sliding by a day.
 class DailyScoreProvider extends ChangeNotifier {
-  DailyScoreProvider({DailyScoresStorage? storage}) : _storage = storage ?? DailyScoresStorage();
+  DailyScoreProvider({DailyScoresStorage? storage}) : _storage = storage ?? DailyScoresStorage() {
+    PortableSettings.scoresRestored.addListener(load);
+  }
+
+  @override
+  void dispose() {
+    PortableSettings.scoresRestored.removeListener(load);
+    super.dispose();
+  }
 
   final DailyScoresStorage _storage;
   final Map<String, int> _scores = {};

@@ -10,6 +10,8 @@ part './helpers/defined_preference.dart';
 
 class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
   _DefinedPreference get nickname => _DefinedPreference<String>(id: 2, key: 'nickname');
+  _DefinedPreference<String> get gender =>
+      _DefinedPreference<String>(id: PreferenceDbModel.genderPreferenceId, key: 'gender');
 
   _DefinedPreference<String> storageQuotaFor(BackupServiceType serviceType) {
     return switch (serviceType) {
@@ -69,6 +71,8 @@ class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
       value: model.value,
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
+      permanentlyDeletedAt: model.permanentlyDeletedAt,
+      lastSavedDeviceId: model.lastSavedDeviceId,
     );
   }
 
@@ -84,6 +88,8 @@ class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
         value: model.value,
         createdAt: model.createdAt,
         updatedAt: model.updatedAt,
+        permanentlyDeletedAt: model.permanentlyDeletedAt,
+        lastSavedDeviceId: model.lastSavedDeviceId,
       );
     }).toList();
   }

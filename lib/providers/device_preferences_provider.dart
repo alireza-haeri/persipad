@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:storypad/core/services/window_appearance_service.dart';
+import 'package:storypad/providers/backup_provider.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/extensions/font_weight_extension.dart';
 import 'package:storypad/core/objects/app_quick_action_object.dart';
@@ -30,8 +31,8 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
   DevicePreferencesObject get preferences => _preferences;
   ThemeMode get themeMode => preferences.themeMode;
 
-  /// Opt-in daily score feature: off by default, free for all users.
-  bool get enableDailyScore => preferences.enableDailyScore ?? false;
+  /// Daily score is enabled for fresh installs; an explicit saved false still wins.
+  bool get enableDailyScore => preferences.enableDailyScore ?? true;
 
   /// The desktop sidebar order, repaired against [SidebarItemId.defaults].
   List<SidebarItemId> get sidebarOrder => SidebarItemId.parse(preferences.sidebarOrder);
@@ -177,6 +178,12 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
     CalendarConfig.apply(system: value);
     storage.writeObject(_preferences);
     notifyListeners();
+
+    // Monthly/yearly reminders are calculated in the displayed calendar, so the
+    // stored Gregorian anchor means different dates in the other calendar.
+    // Rebuild the OS schedules with the new one — a reminder set for "day 31"
+    // must move to the same *day number* in the calendar the user now reads.
+    unawaited(LocalNotificationService.instance.rescheduleAll(reminders));
   }
 
   void setFirstDayOfWeek(FirstDayOfWeekOption value) {
@@ -380,10 +387,28 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
     }
   }
 
+  late final Future<void> Function() _restoreSettingsListener = _restoreSyncedSettings;
+
   DevicePreferencesProvider() {
     WidgetsBinding.instance.addObserver(this);
+    BackupProvider.repoInstance.restoreService.addListener(_restoreSettingsListener);
 
     _setPlatformTheme();
+  }
+
+  Future<void> _restoreSyncedSettings() async {
+    final restored = await storage.restoreFromBackupRecord();
+    if (restored == null) return;
+
+    _preferences = restored;
+    CalendarConfig.apply(
+      system: restored.calendarSystem,
+      firstDayOfWeek: restored.firstDayOfWeek,
+      weekendDays: restored.weekendDays,
+    );
+    notifyListeners();
+    await LocalNotificationService.instance.rescheduleAll(reminders);
+    await AppQuickActionsService.instance.setActions(restored.homeQuickActions);
   }
 
   @override
@@ -405,6 +430,7 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    BackupProvider.repoInstance.restoreService.removeListener(_restoreSettingsListener);
     super.dispose();
   }
 }

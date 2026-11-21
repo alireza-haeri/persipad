@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:easy_localization/easy_localization.dart' show tr;
 import 'package:flutter/material.dart';
 import 'package:storypad/core/constants/app_constants.dart';
@@ -12,6 +14,8 @@ import 'package:storypad/core/services/analytics/analytics_service.dart';
 import 'package:storypad/core/services/assets/db_asset_loader_service.dart';
 import 'package:storypad/core/services/backups/backup_cloud_service.dart';
 import 'package:storypad/core/services/backups/backup_service_type.dart';
+import 'package:storypad/core/services/backups/google_desktop_oauth_service.dart';
+import 'package:storypad/core/services/backups/oauth_completion_page.dart';
 import 'package:storypad/core/services/backups/google_drive_cloud_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_images_uploader_service.dart';
 import 'package:storypad/core/services/backups/sync_steps/backup_importer_service.dart';
@@ -247,10 +251,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       return;
     }
 
-    final result = await SpAppLockWrapper.disableAppLockIfHas(
-      context,
-      callback: () => repository.signIn(serviceType),
-    );
+    final result = await _signInWithCompletionPage(context, serviceType);
 
     if (result.isSuccess == true) {
       AnalyticsService.instance.logSignInWithGoogle();
@@ -262,7 +263,7 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
       AppLogger.d('Sign-in failed: ${result.error!.message}');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_signInMessage(result.error!))),
+          SnackBar(content: Text(_signInMessage(result.error!, serviceType))),
         );
       }
 
@@ -279,13 +280,49 @@ class BackupProvider extends ChangeNotifier with DebounchedCallback {
     notifyListeners();
   }
 
-  /// A sign-in that failed only because the device cannot reach Google gets the
-  /// translated "no internet" line: the raw transport text
-  /// (`ClientException with SocketException: Failed host lookup … errno = 7`)
-  /// tells the user nothing they can act on. Every other failure keeps the
-  /// specific message the stack produced.
-  String _signInMessage(BackupError error) {
-    if (error.type == BackupErrorType.network) return tr('snack_bar.no_internet');
+  /// Runs the sign-in with the browser tab localized before it opens: the page the
+  /// loopback server answers with is the only HTML this app serves, and it has to
+  /// speak the user's language and offer a way back to the app.
+  ///
+  /// There is deliberately **no** "paste the address" dialog (`D-070`): the flow is
+  /// the loopback server or a clear failure, and `bin/oauth_debug` measures why a
+  /// redirect did not arrive.
+  Future<BackupResult<bool>> _signInWithCompletionPage(BuildContext context, BackupServiceType serviceType) async {
+    if (repository.getService(serviceType) is GoogleDriveCloudService) {
+      GoogleDesktopOAuthService.completionPageText = OAuthCompletionText(
+        receivedTitle: tr('google_oauth.received_title'),
+        receivedDetail: tr('google_oauth.received_detail'),
+        deniedTitle: tr('google_oauth.denied_title'),
+        deniedDetail: tr('google_oauth.denied_detail'),
+        close: tr('google_oauth.close_tab'),
+        returnToApp: tr('google_oauth.return_to_app'),
+        help: tr('google_oauth.close_tab_help'),
+        isRtl: Directionality.of(context) == TextDirection.rtl,
+      );
+      // Android browsers may reject window.close(); an explicit app intent can
+      // return to the existing activity without putting OAuth data in the link.
+      GoogleDesktopOAuthService.returnToAppPackage = Platform.isAndroid ? kPackageInfo.packageName : null;
+    }
+
+    try {
+      return await SpAppLockWrapper.disableAppLockIfHas(
+        context,
+        callback: () => repository.signIn(serviceType),
+      );
+    } finally {
+      GoogleDesktopOAuthService.completionPageText = null;
+      GoogleDesktopOAuthService.returnToAppPackage = null;
+    }
+  }
+
+  /// A Google transport failure does not prove the entire device is offline.
+  /// Other providers keep the existing network message.
+  String _signInMessage(BackupError error, BackupServiceType serviceType) {
+    if (error.type == BackupErrorType.network) {
+      return serviceType == BackupServiceType.google_drive
+          ? tr('snack_bar.google_connection_failed')
+          : tr('snack_bar.no_internet');
+    }
     return error.message;
   }
 

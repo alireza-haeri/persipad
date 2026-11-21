@@ -43,20 +43,6 @@ class PlatformCapabilities {
   /// [cloudSync] for the platform we are actually running on.
   static bool get firebaseOnThisDevice => firebase(isLinux: isLinux);
 
-  /// Whether App Store / Play Store update checks can run at all.
-  ///
-  /// `new_version_plus` and `in_app_update` only talk to the Play Store and
-  /// the App Store. On Linux/macOS/Windows they print
-  /// `The target platform "linux" is not yet supported by this package.` and
-  /// then report `null null` on every cold start, so the check is skipped
-  /// entirely there instead of failing noisily.
-  static bool storeUpdates({
-    required bool isAndroid,
-    required bool isIOS,
-  }) => isAndroid || isIOS;
-
-  static bool get storeUpdatesOnThisDevice => storeUpdates(isAndroid: isAndroid, isIOS: isIOS);
-
   /// Whether `video_player` has a native implementation on a platform.
   ///
   /// It ships Android/iOS/macOS/web backends only -- on Linux and Windows

@@ -311,3 +311,160 @@ Beyond the code, `ai/` was corrected in three places and extended with the analy
 | `ENVIRONMENT.md` | JDK block explains *requirement* (17+) vs *observed* (21 / 17) | it stated one version as if it were the contract |
 | `README.md` | file table grew `ANALYSIS.md` | new file must be discoverable |
 | **`CHANGES.md`** | **this file** | the diff in one narrative place, so nobody has to reconstruct it from 27 commits |
+
+---
+
+## 8. Appendix — session 13 and 14: "Sign-in failed" was DNS (`15b28ac`, D-053…D-055)
+
+> Written in session 14. Sessions 12–14 are runtime-fix sessions driven by **your** logs
+> from Fedora, not by my analysis; this section exists so the next reader does not have to
+> reconstruct them from commit messages.
+
+**The report.** Signing in to Google Drive on the Android emulator showed:
+
+```
+Sign-in failed: ClientException with SocketException: Failed host lookup:
+'oauth2.googleapis.com' (OS Error: No address associated with hostname, errno = 7)
+```
+
+**The diagnosis.** The AVD had no usable resolver: your Fedora box resolves through
+systemd-resolved's `127.0.0.53` stub, and the guest does not follow that stub. The OAuth
+client, the consent screen and the account were all fine the whole time. The message only
+*looked* like an auth bug because three layers of code handed you the raw transport
+exception and labelled it "sign-in failed".
+
+**What that cost, and why it got fixed in three places rather than one.** A misleading
+error is not a cosmetic problem: it sends the reader (you) to the wrong place, and it did —
+this is the third session spent on it. So the fix attacks the cause (DNS), the mapping
+(transport ≠ auth), and the diagnosis (say it before the app is even opened):
+
+| Layer | Before | After | Proof |
+|---|---|---|---|
+| Transport | `package:http` exceptions escaped unwrapped | one `_send` wrapper, 30 s timeout, `SocketException`/`ClientException`/`TlsException`/`TimeoutException` → `GoogleOAuthException(error: 'offline')`; HTTP status codes and `invalid_grant` keep their own meanings | `test/core/services/google_desktop_oauth_service_test.dart` (injectable `http.Client`, no network) |
+| Auth strategy | anything non-auth became `AuthException(signInFailed)`; `restore()` forgot the account and `_renew` rethrew | offline → `NetworkException`; `restore()` keeps the stored account and only a null renewal (dead grant) forgets it; `initialize()` cannot throw into app startup | `test/core/services/google_drive_auth_strategy_test.dart`, `google_drive_cloud_service_test.dart` |
+| UI | printed `result.error!.message` verbatim | `BackupErrorType.network` → `snack_bar.no_internet`, service marked `noInternet`; `BackupRepository` maps `NetworkException` instead of collapsing it into `unknown` (which is why the honest branch was dead code until now) | `test/core/repositories/backup_repository_test.dart` |
+| Diagnosis | the AVD booted with no resolver and nothing said so | `-dns-server` at boot, a stub-resolver warning, a post-boot `ping oauth2.googleapis.com` from the guest, and `bin/local_verify` forwarding the flag. **Session 14:** the resolver is now chosen automatically from `resolvectl dns` (`D-055`) | `bash -n` + the helper exercised against a fake `resolvectl`; the real proof is your next emulator run |
+
+**The unrelated codegen failure in the same log.** `bin/setup_linux` printed
+`Error: Directory ../static/sources/story_backgrounds not found` → `err build_runner failed`.
+The artwork lives in a sibling submodule that a plain checkout does not have, while
+`lib/gen/story_backgrounds.dart` is committed and perfectly usable. That is a skip, not a
+failure (`D-054`).
+
+**Honest limits.** No Flutter SDK in the sandbox, so all of the above is graded by
+`flutter analyze`/tests in CI and by your machine — CI `43868965727` (Linux, commit
+`15b28ac`) is green on every job except the advisory `Coverage`. And nothing here proves
+that a *successful* emulator sign-in works: that needs the guest to have DNS, a browser,
+and a Google account. Hence one open question at the top of `NEXT.md`, not a claim.
+# Session 22 — custom calendar reminders, end to end (2026-11-20)
+
+> Branch `arena/95cdc5fd-persipad`, from `main` at `a87f0147`. Scope: `REMINDER_IMPLEMENTATION_PLAN.md`
+> (written on `arena/7ba21f51-notely`). The plan named its own starting point: "the calendar
+> calculation and standalone schedule model exist, but monthly and yearly schedules are not
+> yet connected to the editor, persistence or notification scheduling." That foundation was
+> not on this branch, so it was ported first and completed here. Decision record: `D-068`.
+
+## 1. The missing half was the whole feature
+
+The tempting reading of the plan was "add two date formulas". The real gap was the path a
+reminder travels:
+
+```
+editor → ReminderObject (JSON in SharedPreferences) → planner → OS alarms → tap → editor
+```
+
+Only the middle-left piece (a calculator) existed, and it was unreachable from the UI. So the
+work is described in that order.
+
+## 2. Model — old reminders must not move
+
+`ReminderObject` gained four fields:
+
+| Field | Why it exists |
+|---|---|
+| `recurrence` (`daily/weekly/monthly/yearly`, nullable) | the user's choice; `null` on every reminder stored before today |
+| `intervalMonths` | 1–12 for "every N months"; 12 for yearly |
+| `anchorDate` | the Gregorian date the user picked — it names the anchor month |
+| `anchorDay` | the day **number** they meant in the calendar they were reading |
+
+`effectiveRecurrence` infers daily/weekly from `weekdays` when `recurrence` is null, so a
+legacy record keeps its exact schedule and there is no migration step that could half-run.
+`anchorDay` is separate from `anchorDate.day` because Jalali 30 Esfand and Gregorian March 30
+are different dates; keeping the number is what lets the series clamp one month and recover
+the next.
+
+## 3. Calculation — the displayed calendar, clamped per occurrence
+
+`CalendarRecurrence.next` walks whole months from the anchor, computes the day (clamped to
+the month length) and rebuilds a local `DateTime` from components. No `Duration(days:)` on a
+local date (`D-049`). `CalendarReminderSchedule` binds that to a reminder and adds
+`upcoming(count)` so the notifier can ask for a series instead of one date.
+
+## 4. Delivery — a bounded window of real alarms, not a promise of infinity
+
+A repeating OS rule cannot express "every 3 months, day 31, clamp in short months" in either
+calendar. `ReminderSchedulePlanner` therefore expands monthly/yearly reminders into up to 24
+concrete occurrences, and `LocalNotificationService` schedules each one as an inexact
+`zonedSchedule` alarm:
+
+- daily/weekly → unchanged repeating rules (they never expire),
+- monthly/yearly → 24 alarms (≥ 2 years of monthly, ~24 years of yearly),
+- renewed on app start, on resume and on every edit — the app does not have to run for the
+  alarms to fire, only to renew the window.
+
+Notification ids are now allocated per reschedule pass after `cancelAll()`. The old
+`reminderId * 10 + slot` scheme could collide with a calendar reminder's slot ids; payloads
+carry the reminder id, so ids only need to be unique within one pass.
+
+`RescheduleQueue` (ported with its tests) serializes updates, drops superseded snapshots and —
+unlike the previous inline queue — keeps working after a plugin or permission failure.
+
+## 5. The parts that only exist because the OS is involved
+
+| Concern | What was done | What proves it |
+|---|---|---|
+| Reboot | the plugin's `ScheduledNotificationBootReceiver` was already declared; nothing to add | device test |
+| Time-zone change | Dart gets no broadcast → compare the device zone on resume and reschedule | device test |
+| Notifications blocked | `notificationsBlocked()` + a banner on the reminders screen with the exact fix | device test |
+| Calendar switch | `setCalendarSystem` reschedules; the anchor month is re-read in the new calendar | unit test (`planner`) + device test |
+| Delete / disable / edit | every write goes through `_writeReminders` → `rescheduleAll` | unit tests + device test |
+
+## 6. Editor
+
+`Repeat` (with a bottom sheet), `Interval` (1–12), `Starting date` (the app's own calendar
+dialog, so Shamsi is picked in Shamsi), a live summary, a clamping hint for monthly series and
+"your next reminder will be on …". `build()` is pure, which is why the mapping is tested
+without a widget.
+
+## 7. What is *not* claimed
+
+- Exact delivery: scheduling stays inexact on purpose (no `SCHEDULE_EXACT_ALARM`), so Doze can
+  delay an alarm by minutes.
+- Infinite renewal: an app that is never opened for years stops renewing its window.
+- Android/OEM background killers are not defeated by any of this; the notification may never
+  arrive if the OEM drops alarms, which is why the device test exists.
+
+## 8. Verification
+
+| What | Evidence |
+|---|---|
+| Analyzer + full suite + Linux build | Linux CI `44703732346` on `e9e519f`: Scope, Analyze, Test (1), Test (2), Build Linux desktop, Editor package tests, Coverage — **7/7 green** |
+| Generated code + formatting | the `[codegen]` job (`44703366204`) published `ci/codegen`; the regenerated `reminder_object.g.dart` and the two formatting fixes were taken from it, and the final run above is green with no format annotation |
+| Pure logic (recurrence, clamping, leap years, calendar switch, legacy records, editor mapping, queue) | new tests listed in `PROGRESS.md` §Session 22 |
+| Delivery while closed / reboot / time zone / blocked notifications | **not verified** — device steps in `PROGRESS.md` |
+
+## 9. Session 23 — "no internet" now names the layer (2026-11-20)
+
+A Google sign-in that returns `No internet connection!` after the consent page used to be
+one indistinguishable message for DNS, TCP, TLS, a 30 s timeout and a rejected token request.
+
+| File | What it does | What proves it |
+|---|---|---|
+| `lib/core/services/backups/google_connectivity_service.dart` (new) | probes one Google host through DNS → TCP :443 → TLS → HTTPS, returns `ok`/`dnsFailure`/`fakeDns`/`tcpBlocked`/`tlsBlocked`/`httpBlocked` with per-step timings and advice; flags fake-IP (`198.18/15`) and private/CGNAT/loopback addresses, IPv4 and IPv6 | `test/core/services/backups/google_connectivity_service_test.dart` (classification + summary/advice) |
+| `lib/core/services/backups/google_desktop_oauth_service.dart` | one `google-oauth` tag: start, loopback port, `browser: opened=`, redirect, `exchange: HTTP`, `userinfo: HTTP`, `transport failure: <class> — <message>`, and a probe on start and after a failure | analyzer + existing OAuth tests; log lines are device-only |
+| `bin/oauth_debug` (new) | device facts, guest `ping` of the three Google names with the address classified, `toybox nc` check, 120 s `adb logcat`, then the diagnosis and the matching fix; `--analyze <file>` for a saved capture | `bash -n`, and `--analyze` on a synthetic fake-IP log prints the fake-IP diagnosis |
+| `ai/ENVIRONMENT.md` §2.2d | the fake-IP case, the two fixes, and the command | — |
+| Analyzer + suite + Linux build | — | Linux CI `44709983334` on `3286f10`: 7/7 green, format gate silent (`5262cdc` had failed first on a wrong `AppLogger` import path) |
+
+**Not claimed:** the root cause, and the probe against a real network. Both need the user's
+emulator; `PROGRESS.md` §Session 23 lists the exact next step.

@@ -14,6 +14,7 @@ class _RemindersContent extends StatelessWidget {
       body: ListView(
         children: [
           const SizedBox(height: 8),
+          if (LocalNotificationService.instance.supported && Platform.isAndroid) const _NotificationBlockedBanner(),
           _buildBuiltinTile(context, provider, ReminderType.daily, SpIcons.newStory),
           _buildBuiltinTile(context, provider, ReminderType.onThisDay, SpIcons.history),
           const SizedBox(height: 8.0),
@@ -59,7 +60,7 @@ class _RemindersContent extends StatelessWidget {
       contentPadding: const EdgeInsets.only(left: 16.0, right: 8.0),
       leading: const Icon(SpIcons.alarm),
       title: Text(reminder.message!.trim(), maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(reminderScheduleSummary(context, time: reminder.timeOfDay, weekdays: reminder.weekdays.toSet())),
+      subtitle: Text(reminderSummaryOf(context, reminder)),
       onTap: () => viewModel.openCustomEditor(context, reminder),
       trailing: Switch.adaptive(
         value: reminder.enabled,
@@ -77,11 +78,83 @@ class _RemindersContent extends StatelessWidget {
     final time = MaterialLocalizations.of(context).formatTimeOfDay(reminder.timeOfDay);
     switch (type) {
       case ReminderType.daily:
-        return reminderScheduleSummary(context, time: reminder.timeOfDay, weekdays: reminder.weekdays.toSet());
+        return reminderSummaryOf(context, reminder);
       case ReminderType.onThisDay:
         return tr('reminder.summary.around_time', namedArgs: {'S_TIME': time});
       case ReminderType.custom:
-        return reminderScheduleSummary(context, time: reminder.timeOfDay, weekdays: reminder.weekdays.toSet());
+        return reminderSummaryOf(context, reminder);
     }
+  }
+}
+
+/// Shows up only when Android reports that this app's notifications are off.
+///
+/// A reminder the OS silently drops is the worst failure mode: the user believes
+/// the reminder exists. The banner names the actual fix instead of just saying
+/// "denied", and "Retry" re-reads the OS state after the user changes it (there
+/// is no cross-platform API to open the system settings page from here).
+class _NotificationBlockedBanner extends StatefulWidget {
+  const _NotificationBlockedBanner();
+
+  @override
+  State<_NotificationBlockedBanner> createState() => _NotificationBlockedBannerState();
+}
+
+class _NotificationBlockedBannerState extends State<_NotificationBlockedBanner> {
+  late Future<bool> _blocked = LocalNotificationService.instance.notificationsBlocked();
+
+  void _refresh() {
+    setState(() => _blocked = LocalNotificationService.instance.notificationsBlocked());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _blocked,
+      builder: (context, snapshot) {
+        if (snapshot.data != true) return const SizedBox.shrink();
+
+        final colorScheme = ColorScheme.of(context);
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 4.0),
+          padding: const EdgeInsets.fromLTRB(12.0, 12.0, 8.0, 12.0),
+          decoration: BoxDecoration(
+            color: colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(SpIcons.warning, color: colorScheme.onErrorContainer),
+              const SizedBox(width: 12.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tr('reminder.notifications_blocked.title'),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleSmall?.copyWith(color: colorScheme.onErrorContainer),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      tr('reminder.notifications_blocked.message'),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: colorScheme.onErrorContainer),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _refresh,
+                child: Text(tr('button.retry')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

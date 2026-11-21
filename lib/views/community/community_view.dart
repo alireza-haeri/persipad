@@ -3,7 +3,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:storypad/core/constants/app_constants.dart';
 import 'package:storypad/core/extensions/matrix_4_extension.dart';
 import 'package:storypad/core/services/analytics/analytics_service.dart';
-import 'package:storypad/core/services/remote_config/remote_config_service.dart';
 import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/views/developer_options/developer_options_view.dart';
 import 'package:storypad/views/home/home_view.dart';
