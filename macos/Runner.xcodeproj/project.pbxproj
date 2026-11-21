@@ -72,7 +72,7 @@
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
 		335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
-		33CC10ED2044A3C60003C045 /* storypad.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = storypad.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		33CC10ED2044A3C60003C045 /* PersiPad.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PersiPad.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		33CC10F02044A3C60003C045 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		33CC10F22044A3C60003C045 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Runner/Assets.xcassets; sourceTree = "<group>"; };
 		33CC10F52044A3C60003C045 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
@@ -163,7 +163,7 @@
 		33CC10EE2044A3C60003C045 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				33CC10ED2044A3C60003C045 /* storypad.app */,
+				33CC10ED2044A3C60003C045 /* PersiPad.app */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
 			);
 			name = Products;
@@ -302,7 +302,7 @@
 				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
 			);
 			productName = Runner;
-			productReference = 33CC10ED2044A3C60003C045 /* storypad.app */;
+			productReference = 33CC10ED2044A3C60003C045 /* PersiPad.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -667,7 +667,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Debug-storypad";
 		};
@@ -774,7 +774,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.community.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Debug-community";
 		};
@@ -876,7 +876,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Release-storypad";
 		};
@@ -975,7 +975,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.community.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Release-community";
 		};
@@ -1077,7 +1077,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Profile-storypad";
 		};
@@ -1176,7 +1176,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tc.writestory.community.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/storypad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/storypad";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PersiPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PersiPad";
 			};
 			name = "Profile-community";
 		};
