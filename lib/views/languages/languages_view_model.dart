@@ -57,12 +57,12 @@ class LanguagesViewModel extends ChangeNotifier with DisposeAwareMixin {
   Future<void> useDeviceLocale(BuildContext context) async {
     final locale = _deviceLocale;
     if (locale == null) return;
-    context.setLocale(locale);
+    await context.setLocale(locale);
     _scollToLocale(locale);
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove('locale');
-    await DevicePreferencesStorage.appInstance.syncLocaleCode(locale.languageCode);
+    await DevicePreferencesStorage.appInstance.syncLocaleCode(locale.languageCode, followDevice: true);
     await loadLocales();
   }
 

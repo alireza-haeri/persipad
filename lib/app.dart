@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storypad/app_theme.dart';
 import 'package:storypad/core/constants/app_constants.dart' show kAppName;
 import 'package:storypad/core/constants/locale_constants.dart';
@@ -122,9 +123,13 @@ class _LocalePreferenceSyncState extends State<_LocalePreferenceSync> {
     final code = DevicePreferencesStorage.localeCodeNotifier.value;
     if (code == null || code == context.locale.languageCode) return;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || DevicePreferencesStorage.localeCodeNotifier.value != code) return;
-      if (code != context.locale.languageCode) context.setLocale(Locale(code));
+      if (code != context.locale.languageCode) await context.setLocale(Locale(code));
+      if (DevicePreferencesStorage.appInstance.followsDeviceLocale) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('locale');
+      }
     });
   }
 

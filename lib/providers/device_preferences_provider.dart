@@ -407,6 +407,8 @@ class DevicePreferencesProvider extends ChangeNotifier with WidgetsBindingObserv
       weekendDays: restored.weekendDays,
     );
     notifyListeners();
+    await LocalNotificationService.instance.rescheduleAll(reminders);
+    await AppQuickActionsService.instance.setActions(restored.homeQuickActions);
   }
 
   @override

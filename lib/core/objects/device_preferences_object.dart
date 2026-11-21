@@ -78,9 +78,7 @@ class DevicePreferencesObject {
   /// `SidebarItemId.parse`, so this never has to be migrated.
   final List<String>? sidebarOrder;
 
-  /// Device-local reminder configurations. `null` means never configured.
-  /// Reminders are intentionally not synced across devices (OS notifications
-  /// are per-device).
+  /// Portable reminder configurations. Native schedules and permissions remain local.
   final List<ReminderObject>? reminders;
 
   Color? get colorSeed => colorSeedValue != null ? Color(colorSeedValue!) : null;

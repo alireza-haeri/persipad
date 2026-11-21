@@ -20,6 +20,14 @@
 - **Export & share** – text, markdown, or full backups with attachments (images, audio, etc.)
 - **Available in Persian and English** – and fully open source for transparency
 
+## Backups and updates
+
+A native JSON export contains entries and attachment **metadata**, not the media bytes. For an offline move, keep the JSON **and** the separate Export Media archive. Drive sync transfers media separately according to the chosen media-sync policy. Check both before removing data from the original device.
+
+Portable preferences travel in the global preferences table (or in the full JSON export), including the calendar, reminder rules, language, shortcuts, profile preferences and daily scores. Access credentials, app-lock PIN/recovery answers, biometric enrollment, OS permission grants and sync history stay local. Sign in and grant notification permission on the destination device. Importing a backup is not a way to transfer an authenticated session.
+
+Settings shows the installed version and links to [PersiPad releases](https://github.com/alireza-haeri/persipad/releases). It does not silently install updates.
+
 ## ⚙️ Setup & Run
 
 Before getting started, ensure you have the following tools:

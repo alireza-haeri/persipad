@@ -6,7 +6,7 @@ import 'package:storypad/core/types/reminder_type.dart';
 
 part 'reminder_object.g.dart';
 
-/// A single reminder configuration, device-local (stored in DevicePreferencesObject).
+/// A single reminder configuration, backed up with DevicePreferencesObject (native notifications are scheduled locally).
 ///
 /// Covers both built-in reminders (daily/onThisDay/period — singletons) and
 /// user-created custom reminders (many). Time is stored as [hour]/[minute] ints

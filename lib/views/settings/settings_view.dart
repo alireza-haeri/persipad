@@ -1,5 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:storypad/core/constants/app_constants.dart';
+import 'package:storypad/core/services/url_opener_service.dart';
 import 'package:storypad/core/services/notifications/local_notification_service.dart';
 import 'package:storypad/core/services/windowed_detector_service.dart';
 import 'package:storypad/providers/app_lock_provider.dart';

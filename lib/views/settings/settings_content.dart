@@ -60,6 +60,13 @@ class _SettingsContent extends StatelessWidget {
             const MyTemplatesTile(weekday: 3),
             buildDailyScoreTile(context, weekday: 2),
           ],
+          const Divider(),
+          ListTile(
+            leading: const SpSettingIconBadge(weekday: 1, icon: SpIcons.update),
+            title: Text(context.tr('list_tile.github_releases.title')),
+            subtitle: Text('$kAppName ${kPackageInfo.version} (${kPackageInfo.buildNumber})'),
+            onTap: () => UrlOpenerService.openInCustomTab(context, '$kProjectRepositoryUrl/releases'),
+          ),
           const SizedBox(height: 120),
         ],
       ),

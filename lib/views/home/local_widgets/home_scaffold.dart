@@ -57,12 +57,6 @@ class _HomeScaffold extends StatelessWidget {
             ),
           ),
           buildTimelineSideBar(context),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.paddingOf(context).bottom + 12.0,
-            child: const _AppUpdateFloatingButton(),
-          ),
         ],
       ),
     );

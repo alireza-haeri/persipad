@@ -71,6 +71,8 @@ class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
       value: model.value,
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
+      permanentlyDeletedAt: model.permanentlyDeletedAt,
+      lastSavedDeviceId: model.lastSavedDeviceId,
     );
   }
 
@@ -86,6 +88,8 @@ class PreferencesBox extends BaseBox<PreferenceObjectBox, PreferenceDbModel> {
         value: model.value,
         createdAt: model.createdAt,
         updatedAt: model.updatedAt,
+        permanentlyDeletedAt: model.permanentlyDeletedAt,
+        lastSavedDeviceId: model.lastSavedDeviceId,
       );
     }).toList();
   }

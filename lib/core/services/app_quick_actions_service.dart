@@ -67,7 +67,7 @@ class AppQuickActionsService {
     _initCompleter.complete();
 
     final homeQuickActions = DevicePreferencesStorage.appInstance.preferences.homeQuickActions;
-    if (homeQuickActions == null || homeQuickActions.isEmpty) await setActions([]);
+    await setActions(homeQuickActions);
   }
 
   Future<void> setActions(List<AppQuickActionObject>? actions) async {
@@ -77,7 +77,7 @@ class AppQuickActionsService {
         ? <AppQuickActionObject>[AppQuickActionObject.editShortcuts()]
         : actions;
 
-    _quickActions.setShortcutItems([
+    await _quickActions.setShortcutItems([
       for (final action in validActions.take(maxActionCount))
         ShortcutItem(
           type: action.toId(),

@@ -14,6 +14,7 @@ import 'package:storypad/core/databases/models/tag_db_model.dart';
 import 'package:storypad/core/helpers/path_helper.dart';
 import 'package:storypad/core/objects/search_filter_object.dart';
 import 'package:storypad/core/repositories/backup_repository.dart';
+import 'package:storypad/core/storages/device_preferences_storage.dart';
 import 'package:storypad/core/services/backups/sync_steps/utils/backup_databases_to_backup_object_service.dart';
 import 'package:storypad/core/services/assets/app_file_picker_service.dart';
 import 'package:storypad/views/backup_services/backups/show/show_backup_view.dart';
@@ -350,12 +351,15 @@ class ImportExportViewModel extends ChangeNotifier with DisposeAwareMixin {
 
     final backup = await MessengerService.of(context).showLoading(
       debugSource: '$runtimeType#export',
-      future: () => BackupDatabasesToBackupObjectService.call(
-        databases: BackupRepository.databases,
-        storyFilter: filtered ? exportFilter : null,
-        lastUpdatedAt: lastDbUpdatedAt,
-        hasCompression: false,
-      ),
+      future: () async {
+        await DevicePreferencesStorage.appInstance.ensureBackupSnapshotExists();
+        return BackupDatabasesToBackupObjectService.call(
+          databases: BackupRepository.databases,
+          storyFilter: filtered ? exportFilter : null,
+          lastUpdatedAt: lastDbUpdatedAt,
+          hasCompression: false,
+        );
+      },
     );
 
     if (backup == null || !context.mounted) return;
